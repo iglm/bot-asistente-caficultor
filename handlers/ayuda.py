@@ -29,8 +29,9 @@ def get_ayuda_router(db=None) -> Router:
 
     @router.message(Command("ayuda"))
     @router.callback_query(F.data == "menu_ayuda")
-    async def cmd_ayuda(event: types.Message | types.CallbackQuery):
+    async def cmd_ayuda(event: types.Message | types.CallbackQuery, state: FSMContext):
         """Muestra la guía de uso del bot."""
+        await state.clear()
 
         if isinstance(event, types.CallbackQuery):
             await event.answer()

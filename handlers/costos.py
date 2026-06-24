@@ -23,6 +23,7 @@ CANCEL_KB = types.InlineKeyboardMarkup(
 
 class CostoForm(StatesGroup):
     esperando_finca = State()
+    esperando_lote = State()
     esperando_categoria = State()
     esperando_fecha = State()
     esperando_labor = State()
@@ -84,6 +85,48 @@ async def mostrar_categorias_costos(message: types.Message, state: FSMContext, e
     await state.set_state(CostoForm.esperando_categoria)
 
 
+async def mostrar_lotes_costos(db: Database, message: types.Message, state: FSMContext, edit: bool = False):
+    """Muestra los lotes de la finca con opción 'Toda la finca'."""
+    data = await state.get_data()
+    finca_id = data.get("finca_id", 0)
+    finca_nombre = data.get("finca_nombre", "")
+    lotes = db.get_lotes(finca_id)
+
+    keyboard_buttons = []
+
+    # Opción "Toda la finca" siempre visible
+    keyboard_buttons.append(
+        [types.InlineKeyboardButton(text="🏢 Toda la finca (sin lote específico)", callback_data="costo_lote:0")]
+    )
+
+    # Lotes individuales
+    for l in lotes:
+        keyboard_buttons.append(
+            [types.InlineKeyboardButton(text=f"🌱 {l['nombre']}", callback_data=f"costo_lote:{l['id']}")]
+        )
+
+    keyboard_buttons.append(
+        [types.InlineKeyboardButton(text="🔙 Volver", callback_data="volver_menu")]
+    )
+
+    keyboard = types.InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+
+    texto = (
+        f"📉 <b>Registrar Costo — {finca_nombre}</b>\n\n"
+        "¿Aplica este costo a <b>toda la finca</b> o a un <b>lote específico</b>?"
+    )
+
+    if edit:
+        try:
+            await message.edit_text(texto, parse_mode="HTML", reply_markup=keyboard)
+        except Exception:
+            await message.answer(texto, parse_mode="HTML", reply_markup=keyboard)
+    else:
+        await message.answer(texto, parse_mode="HTML", reply_markup=keyboard)
+
+    await state.set_state(CostoForm.esperando_lote)
+
+
 async def guardar_mo(db: Database, message: types.Message, data: dict, state: FSMContext):
     """Guarda un registro de Mano de Obra."""
     cat_key = data.get("cat_key", "")
@@ -112,7 +155,7 @@ async def guardar_mo(db: Database, message: types.Message, data: dict, state: FS
 
     db.insert_transaccion(
         finca_id=data["finca_id"],
-        lote_id=0,
+        lote_id=data.get("lote_id", 0),
         categoria=categoria_db,
         fecha=data["fecha"],
         labor=data.get("labor", ""),
@@ -162,7 +205,7 @@ def get_costos_router(db: Database) -> Router:
 
             if len(fincas) == 1:
                 await state.update_data(finca_id=fincas[0]["id"], finca_nombre=fincas[0]["nombre"])
-                await mostrar_categorias_costos(message, state, edit=is_callback)
+                await mostrar_lotes_costos(db, message, state, edit=is_callback)
                 return
 
             # Varias fincas
@@ -207,6 +250,24 @@ def get_costos_router(db: Database) -> Router:
             return
 
         await state.update_data(finca_id=finca_id, finca_nombre=finca["nombre"])
+        await mostrar_lotes_costos(db, callback.message, state, edit=True)
+
+    @router.callback_query(CostoForm.esperando_lote, F.data.startswith("costo_lote:"))
+    async def seleccionar_lote_costo(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        lote_id = int(callback.data.split(":")[1])
+
+        if lote_id == 0:
+            lote_nombre = "Toda la finca"
+        else:
+            lote = db.get_lote_by_id(lote_id)
+            if not lote:
+                await callback.message.edit_text("❌ <b>Lote no encontrado.</b>", parse_mode="HTML")
+                await state.clear()
+                return
+            lote_nombre = lote["nombre"]
+
+        await state.update_data(lote_id=lote_id, lote_nombre=lote_nombre)
         await mostrar_categorias_costos(callback.message, state, edit=True)
 
     @router.callback_query(CostoForm.esperando_categoria, F.data.startswith("cat_costo:"))
@@ -637,7 +698,7 @@ def get_costos_router(db: Database) -> Router:
         try:
             db.insert_transaccion(
                 finca_id=data["finca_id"],
-                lote_id=0,
+                lote_id=data.get("lote_id", 0),
                 categoria=categoria_db,
                 fecha=data.get("fecha", ""),
                 labor=data.get("producto", ""),

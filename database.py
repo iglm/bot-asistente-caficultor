@@ -360,6 +360,17 @@ class Database:
             return [dict(r) for r in rows]
         finally:
             conn.close()
+
+    def get_lote_by_id(self, lote_id: int) -> Optional[dict]:
+        """Obtener un lote por su ID."""
+        conn = self.get_conn()
+        try:
+            row = conn.execute(
+                "SELECT * FROM lotes WHERE id = ?", (lote_id,)
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
     
     # ─── Transacciones ───
     
