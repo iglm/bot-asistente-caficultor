@@ -29,21 +29,40 @@ EXPORTS_DIR = str(BASE_DIR / "exports")
 os.makedirs(BASE_DIR / "data", exist_ok=True)
 os.makedirs(EXPORTS_DIR, exist_ok=True)
 
-# ── Aviso Legal ──
+# ── Aviso Legal (Ley 1581 de 2012 — Protección robusta contra demandas) ──
 AVISO_LEGAL = """
-📋 <b>AVISO LEGAL Y PROTECCIÓN DE DATOS</b>
+☕ <b>ASISTENTE DE COSTOS PARA CAFICULTORES</b>
 
-• Los datos que registres (fincas, lotes, costos, ingresos) serán almacenados en nuestra base de datos.
-• Tus datos NO serán compartidos con terceros.
-• Tus datos se sincronizan diariamente con un repositorio privado de GitHub para respaldo.
-• Podés borrar TODOS tus datos en cualquier momento usando el botón "🗑️ Borrar datos".
-• El uso de este bot es bajo tu propia responsabilidad.
+📋 <b>AVISO LEGAL Y TÉRMINOS DE USO</b>
 
-👨‍💻 <b>Desarrollado por:</b>
-Lucas Mateo Tabares Franco
-Asesorado por: Ing. Jhoan Sebastian Bustamante Montes
+<b>1. ACEPTACIÓN DE TÉRMINOS</b>
+Al utilizar este bot, aceptás estos términos en su totalidad. Si no estás de acuerdo, no uses este servicio.
 
-Al usar este bot, aceptás los términos anteriores.
+<b>2. EXCLUSIÓN DE RESPONSABILIDAD</b>
+• El desarrollador NO se responsabiliza por pérdidas económicas derivadas de decisiones basadas en la información del bot.
+• NO se garantiza la disponibilidad continua del servicio.
+• NO se responsabiliza por pérdida de datos por fallos técnicos ajenos al desarrollador.
+• La información proporcionada es orientativa y NO reemplaza el asesoramiento profesional agrícola o financiero.
+
+<b>3. PROTECCIÓN DE DATOS PERSONALES (Ley 1581/2012)</b>
+• Los datos registrados son almacenados de forma segura en servidores privados.
+• Tus datos NO serán vendidos, compartidos ni transferidos a terceros.
+• Los datos se respaldan diariamente para prevenir pérdidas.
+• Podés solicitar la eliminación completa de tus datos en cualquier momento.
+• Responsable del tratamiento: Lucas Mateo Tabares Franco.
+
+<b>4. PROPIEDAD INTELECTUAL</b>
+• Este software es propiedad de Lucas Mateo Tabares Franco.
+• Asesoría técnica: Ing. Jhoan Sebastian Bustamante Montes.
+• Queda prohibida la redistribución sin autorización.
+
+<b>5. USO DEL SERVICIO</b>
+• El bot se provee "TAL CUAL" (AS-IS), sin garantías de ningún tipo.
+• El uso de este bot es bajo tu exclusiva responsabilidad.
+
+<b>6. CONTACTO</b>
+• Desarrollador: Lucas Mateo Tabares Franco
+• Asesor: Ing. Jhoan Sebastian Bustamante Montes
 """
 
 # ── Categorías de transacciones ──
