@@ -21,9 +21,12 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.default import DefaultBotProperties
 
+from middleware import CancelMiddleware
+
 from config import BOT_TOKEN, ADMIN_IDS
 from database import Database
 from handlers import (
+    get_menu_router,
     get_start_router,
     get_admin_router,
     get_fincas_router,
@@ -31,7 +34,9 @@ from handlers import (
     get_ingresos_router,
     get_costos_router,
     get_reportes_router,
+    get_importar_router,
     get_ayuda_router,
+    get_voice_router,
 )
 
 # ─── Logging ───────────────────────────────────────────────────
@@ -59,7 +64,12 @@ async def main():
     bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
     dp = Dispatcher(storage=MemoryStorage())
     
-    # ── Registrar handlers ──
+    # ── Registrar middleware de cancelación (limpia FSM con /menu, /cancelar, /) ──
+    dp.message.middleware(CancelMiddleware())
+    dp.callback_query.middleware(CancelMiddleware())
+    
+    # ── Registrar handlers (MENÚ PRIMERO = prioridad máxima) ──
+    dp.include_router(get_menu_router(db))  # ← /menu y /cancelar SIEMPRE primero
     dp.include_router(get_start_router(db))
     dp.include_router(get_admin_router(db))
     dp.include_router(get_fincas_router(db))
@@ -67,7 +77,9 @@ async def main():
     dp.include_router(get_ingresos_router(db))
     dp.include_router(get_costos_router(db))
     dp.include_router(get_reportes_router(db))
+    dp.include_router(get_importar_router(db))
     dp.include_router(get_ayuda_router(db))
+    dp.include_router(get_voice_router(db))
     log.info("✅ Handlers registrados")
     
     # ── Obtener info del bot ──

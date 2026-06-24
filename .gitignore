@@ -11,6 +11,7 @@ data/finca.db
 data/finca.db-wal
 data/finca.db-shm
 exports/*.xlsx
+tests/exports/*.xlsx
 
 # IDE
 .vscode/

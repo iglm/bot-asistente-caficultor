@@ -90,6 +90,19 @@ def get_fincas_router(db: Database) -> Router:
             await message.answer("❌ El nombre es demasiado largo (máx. 100 caracteres). Intenta de nuevo:")
             return
 
+        # Verificar que no exista otra finca con el mismo nombre para este usuario
+        user_id = message.from_user.id
+        fincas_existentes = db.get_fincas(user_id)
+        nombre_lower = nombre.lower()
+        for finca in fincas_existentes:
+            if finca["nombre"].strip().lower() == nombre_lower:
+                await message.answer(
+                    f"⚠️ <b>Ya tienes una finca llamada \"{nombre}\".</b>\n\n"
+                    "Por favor, elige un nombre diferente o usa /cancelar para cancelar.",
+                    parse_mode="HTML",
+                )
+                return
+
         await state.update_data(nombre=nombre)
         await message.answer(
             f"✅ <b>Nombre:</b> {nombre}\n\n"
@@ -160,20 +173,6 @@ def get_fincas_router(db: Database) -> Router:
         """Maneja entradas no textuales durante el formulario."""
         await message.answer(
             "❌ Por favor, escribe un texto válido o usa /cancelar para cancelar.",
-            parse_mode="HTML",
-        )
-
-    @router.message(Command("cancelar"))
-    async def cmd_cancelar(message: types.Message, state: FSMContext):
-        """Cancela el formulario actual."""
-        current_state = await state.get_state()
-        if current_state is None:
-            await message.answer("No hay ninguna operación en curso.", parse_mode="HTML")
-            return
-
-        await state.clear()
-        await message.answer(
-            "✅ <b>Operación cancelada.</b>\n\nUsa /fincas para volver al menú.",
             parse_mode="HTML",
         )
 

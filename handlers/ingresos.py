@@ -40,7 +40,9 @@ def get_ingresos_router(db: Database) -> Router:
     @router.message(Command("ingreso"))
     @router.callback_query(F.data == "menu_ingresos")
     async def cmd_ingreso(event: types.Message | types.CallbackQuery, state: FSMContext):
-        """Inicia el registro de un ingreso."""
+        """Inicia el registro de un ingreso. Limpia estado previo primero."""
+        # Garantizar que NO haya estado FSM residual
+        await state.clear()
         user_id = event.from_user.id
 
         if isinstance(event, types.CallbackQuery):
@@ -98,10 +100,16 @@ def get_ingresos_router(db: Database) -> Router:
     @router.callback_query(IngresoForm.esperando_finca, F.data.startswith("ingreso_finca:"))
     async def seleccionar_finca_ingreso(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
+        user_id = callback.from_user.id
         finca_id = int(callback.data.split(":")[1])
         finca = db.get_finca_by_id(finca_id)
         if not finca:
             await callback.message.edit_text("❌ <b>Finca no encontrada.</b>", parse_mode="HTML")
+            await state.clear()
+            return
+        # Validar que la finca pertenezca al usuario
+        if finca["user_id"] != user_id:
+            await callback.message.edit_text("❌ <b>Esta finca no te pertenece.</b>", parse_mode="HTML")
             await state.clear()
             return
 

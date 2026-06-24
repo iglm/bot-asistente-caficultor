@@ -130,10 +130,14 @@ def get_lotes_router(db: Database) -> Router:
     async def seleccionar_finca_lotes(callback: types.CallbackQuery):
         """Muestra los lotes de una finca seleccionada."""
         await callback.answer()
+        user_id = callback.from_user.id
         finca_id = int(callback.data.split(":")[1])
         finca = db.get_finca_by_id(finca_id)
         if not finca:
             await callback.message.edit_text("❌ <b>Finca no encontrada.</b>", parse_mode="HTML")
+            return
+        if finca["user_id"] != user_id:
+            await callback.message.edit_text("❌ <b>Esta finca no te pertenece.</b>", parse_mode="HTML")
             return
 
         await mostrar_lotes(db, callback.message, finca_id, finca["nombre"], edit=True)
@@ -142,19 +146,28 @@ def get_lotes_router(db: Database) -> Router:
     async def nuevo_lote(callback: types.CallbackQuery, state: FSMContext):
         """Inicia el proceso de crear un nuevo lote."""
         await callback.answer()
+        user_id = callback.from_user.id
+
+        if not db.is_approved(user_id):
+            await callback.message.edit_text("⏳ <b>No tienes acceso.</b> Usa /start para solicitar aprobación.", parse_mode="HTML")
+            return
+
         finca_id = int(callback.data.split(":")[1])
         finca = db.get_finca_by_id(finca_id)
         if not finca:
-            await callback.message.edit_text("❌ *Finca no encontrada.*", parse_mode="Markdown")
+            await callback.message.edit_text("❌ <b>Finca no encontrada.</b>", parse_mode="HTML")
+            return
+        if finca["user_id"] != user_id:
+            await callback.message.edit_text("❌ <b>Esta finca no te pertenece.</b>", parse_mode="HTML")
             return
 
         await state.update_data(finca_id=finca_id, finca_nombre=finca["nombre"])
 
         await callback.message.edit_text(
-            f"🌱 *Nuevo Lote en {finca['nombre']}*\n\n"
-            "Paso 1/5: ¿Cuál es el *nombre* del lote?\n\n"
-            "*(Escribe el nombre o /cancelar)*",
-            parse_mode="Markdown",
+            f"🌱 <b>Nuevo Lote en {finca['nombre']}</b>\n\n"
+            "Paso 1/5: ¿Cuál es el <b>nombre</b> del lote?\n\n"
+            "<i>(Escribe el nombre o /cancelar)</i>",
+            parse_mode="HTML",
         )
         await state.set_state(LoteForm.esperando_nombre)
 
@@ -168,10 +181,10 @@ def get_lotes_router(db: Database) -> Router:
         await state.update_data(nombre=nombre)
         data = await state.get_data()
         await message.answer(
-            f"✅ *Nombre:* {nombre}\n\n"
-            "Paso 2/5: ¿Cuál es el *área* en hectáreas?\n\n"
-            "*(Ej: 2.5 — escribe 0 si no sabes)*",
-            parse_mode="Markdown",
+            f"✅ <b>Nombre:</b> {nombre}\n\n"
+            "Paso 2/5: ¿Cuál es el <b>área</b> en hectáreas?\n\n"
+            "<i>(Ej: 2.5 — escribe 0 si no sabes)</i>",
+            parse_mode="HTML",
         )
         await state.set_state(LoteForm.esperando_area)
 
@@ -187,10 +200,10 @@ def get_lotes_router(db: Database) -> Router:
 
         await state.update_data(area=area)
         await message.answer(
-            f"✅ *Área:* {area} ha\n\n"
-            "Paso 3/5: ¿Cuántos *árboles* tiene el lote?\n\n"
-            "*(Escribe 0 si no sabes)*",
-            parse_mode="Markdown",
+            f"✅ <b>Área:</b> {area} ha\n\n"
+            "Paso 3/5: ¿Cuántos <b>árboles</b> tiene el lote?\n\n"
+            "<i>(Escribe 0 si no sabes)</i>",
+            parse_mode="HTML",
         )
         await state.set_state(LoteForm.esperando_arboles)
 
@@ -206,10 +219,10 @@ def get_lotes_router(db: Database) -> Router:
 
         await state.update_data(arboles=arboles)
         await message.answer(
-            f"✅ *Árboles:* {arboles}\n\n"
-            "Paso 4/5: ¿Cuál es la *variedad* de café?\n\n"
-            "*(Ej: Castillo, Caturra, Colombia — o '/' para omitir)*",
-            parse_mode="Markdown",
+            f"✅ <b>Árboles:</b> {arboles}\n\n"
+            "Paso 4/5: ¿Cuál es la <b>variedad</b> de café?\n\n"
+            "<i>(Ej: Castillo, Caturra, Colombia — o '/' para omitir)</i>",
+            parse_mode="HTML",
         )
         await state.set_state(LoteForm.esperando_variedad)
 
@@ -221,10 +234,10 @@ def get_lotes_router(db: Database) -> Router:
 
         await state.update_data(variedad=variedad)
         await message.answer(
-            f"✅ *Variedad:* {variedad or '(omitido)'}\n\n"
-            "Paso 5/5: ¿Cuál es la *fecha de siembra*?\n\n"
-            "*(Formato: DD/MM/AAAA o AAAA-MM-DD — o '/' para omitir)*",
-            parse_mode="Markdown",
+            f"✅ <b>Variedad:</b> {variedad or '(omitido)'}\n\n"
+            "Paso 5/5: ¿Cuál es la <b>fecha de siembra</b>?\n\n"
+            "<i>(Formato: DD/MM/AAAA o AAAA-MM-DD — o '/' para omitir)</i>",
+            parse_mode="HTML",
         )
         await state.set_state(LoteForm.esperando_fecha_siembra)
 
@@ -276,19 +289,19 @@ def get_lotes_router(db: Database) -> Router:
             )
 
             await message.answer(
-                f"✅ *¡Lote creado exitosamente!* 🎉\n\n"
-                f"📍 *Nombre:* {nombre}\n"
-                f"📐 *Área:* {area} ha\n"
-                f"🌳 *Árboles:* {arboles}\n"
-                f"🌱 *Variedad:* {variedad or 'No especificada'}\n"
-                f"📅 *Siembra:* {fecha or 'No especificada'}\n\n"
+                f"✅ <b>¡Lote creado exitosamente!</b> 🎉\n\n"
+                f"📍 <b>Nombre:</b> {nombre}\n"
+                f"📐 <b>Área:</b> {area} ha\n"
+                f"🌳 <b>Árboles:</b> {arboles}\n"
+                f"🌱 <b>Variedad:</b> {variedad or 'No especificada'}\n"
+                f"📅 <b>Siembra:</b> {fecha or 'No especificada'}\n\n"
                 "Usa /lotes para ver tus lotes o /ingreso para registrar ventas. ☕",
-                parse_mode="Markdown",
+                parse_mode="HTML",
             )
 
         except Exception as e:
             logger.error(f"Error al crear lote: {e}", exc_info=True)
-            await message.answer("❌ *Error al crear el lote.* Intenta de nuevo.", parse_mode="Markdown")
+            await message.answer("❌ <b>Error al crear el lote.</b> Intenta de nuevo.", parse_mode="HTML")
 
         await state.clear()
 

@@ -156,10 +156,14 @@ def get_reportes_router(db: Database) -> Router:
     @router.callback_query(F.data.startswith("resumen_finca:"))
     async def seleccionar_finca_resumen(callback: types.CallbackQuery):
         await callback.answer()
+        user_id = callback.from_user.id
         finca_id = int(callback.data.split(":")[1])
         finca = db.get_finca_by_id(finca_id)
         if not finca:
             await callback.message.edit_text("❌ <b>Finca no encontrada.</b>", parse_mode="HTML")
+            return
+        if finca["user_id"] != user_id:
+            await callback.message.edit_text("❌ <b>Esta finca no te pertenece.</b>", parse_mode="HTML")
             return
 
         await mostrar_resumen(db, callback.message.edit_text, finca_id, finca["nombre"])

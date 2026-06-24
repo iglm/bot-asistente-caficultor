@@ -13,6 +13,14 @@ log = logging.getLogger(__name__)
 class Database:
     """Manejador de base de datos SQLite con WAL mode."""
     
+    # Categorías que tienen subcategorías MO e Insumos
+    CATEGORIAS_CON_MO_Y_INSUMOS = [
+        "instalacion", "arvenses", "fertilizacion",
+        "fitosanitario", "sombrio", "otras_labores",
+    ]
+    # Categorías simples (solo MO, sin subcategoría de insumos)
+    CATEGORIAS_SIMPLE = ["recoleccion", "beneficio", "administrativo"]
+
     def __init__(self, db_path: str = DB_PATH):
         self.db_path = db_path
     
@@ -25,7 +33,7 @@ class Database:
         return conn
     
     def init_db(self):
-        """Crear tablas si no existen."""
+        """Crear tablas si no existen y asegurar admin por defecto."""
         conn = self.get_conn()
         try:
             conn.executescript("""
@@ -74,13 +82,25 @@ class Database:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
                 
-                CREATE INDEX IF NOT EXISTS idx_transacciones_finca_cat 
-                    ON transacciones(finca_id, categoria);
-                CREATE INDEX IF NOT EXISTS idx_lotes_finca 
-                    ON lotes(finca_id);
+                -- Índices para rendimiento
+                CREATE INDEX IF NOT EXISTS idx_transacciones_finca ON transacciones(finca_id);
+                CREATE INDEX IF NOT EXISTS idx_transacciones_categoria ON transacciones(categoria);
+                CREATE INDEX IF NOT EXISTS idx_transacciones_fecha ON transacciones(fecha);
+                CREATE INDEX IF NOT EXISTS idx_lotes_finca ON lotes(finca_id);
             """)
+            
+            # Asegurar que el admin exista (sin duplicar)
+            admin_id = 810796748
+            existing = conn.execute("SELECT user_id FROM usuarios WHERE user_id = ?", (admin_id,)).fetchone()
+            if not existing:
+                conn.execute(
+                    "INSERT INTO usuarios (user_id, username, nombre, status, admin_id, approved_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+                    (admin_id, "mateo", "Mateo", "approved", admin_id)
+                )
+                conn.commit()
+                log.info(f"✅ Admin por defecto creado (ID: {admin_id})")
+            
             conn.commit()
-            log.info("✅ Tablas de base de datos inicializadas")
         finally:
             conn.close()
     
@@ -221,7 +241,50 @@ class Database:
             return cur.rowcount > 0
         finally:
             conn.close()
-    
+
+    def delete_all_user_data(self, user_id: int) -> dict:
+        """Borrar TODOS los datos de un usuario (transacciones, lotes, fincas).
+        Retorna un resumen de lo borrado.
+        """
+        conn = self.get_conn()
+        try:
+            # Contar antes de borrar
+            trans_count = conn.execute(
+                "SELECT COUNT(*) FROM transacciones WHERE finca_id IN (SELECT id FROM fincas WHERE user_id=?)",
+                (user_id,)
+            ).fetchone()[0]
+            lotes_count = conn.execute(
+                "SELECT COUNT(*) FROM lotes WHERE finca_id IN (SELECT id FROM fincas WHERE user_id=?)",
+                (user_id,)
+            ).fetchone()[0]
+            fincas_count = conn.execute(
+                "SELECT COUNT(*) FROM fincas WHERE user_id=?",
+                (user_id,)
+            ).fetchone()[0]
+
+            # Borrar en orden (transacciones primero por FK, luego lotes, luego fincas)
+            conn.execute(
+                "DELETE FROM transacciones WHERE finca_id IN (SELECT id FROM fincas WHERE user_id=?)",
+                (user_id,)
+            )
+            conn.execute(
+                "DELETE FROM lotes WHERE finca_id IN (SELECT id FROM fincas WHERE user_id=?)",
+                (user_id,)
+            )
+            conn.execute(
+                "DELETE FROM fincas WHERE user_id=?",
+                (user_id,)
+            )
+            conn.commit()
+
+            return {
+                "transacciones": trans_count,
+                "lotes": lotes_count,
+                "fincas": fincas_count,
+            }
+        finally:
+            conn.close()
+
     # ─── Fincas ───
     
     def create_finca(self, user_id: int, nombre: str, region: str = "", departamento: str = "") -> int:
@@ -260,7 +323,17 @@ class Database:
     def get_finca_by_id(self, finca_id: int) -> Optional[dict]:
         """Alias de get_finca para compatibilidad."""
         return self.get_finca(finca_id)
-    
+
+    @staticmethod
+    def _es_categoria_compuesta(categoria: str) -> bool:
+        """Verifica si una categoría tiene subcategorías MO e Insumos."""
+        return categoria in Database.CATEGORIAS_CON_MO_Y_INSUMOS
+
+    @staticmethod
+    def _es_categoria_simple(categoria: str) -> bool:
+        """Verifica si una categoría es simple (solo MO, sin Insumos)."""
+        return categoria in Database.CATEGORIAS_SIMPLE
+
     # ─── Lotes ───
     
     def create_lote(self, finca_id: int, nombre: str, area: float = 0, num_arboles: int = 0, 
@@ -331,6 +404,49 @@ class Database:
             return [dict(r) for r in rows]
         finally:
             conn.close()
+
+    def get_transacciones_por_finca(self, finca_id: int) -> dict:
+        """Obtener transacciones organizadas por categoría, normalizando la nomenclatura.
+        
+        Para categorías compuestas (con MO e Insumos) retorna las dos subcategorías.
+        Para categorías simples retorna la categoría tal cual.
+        """
+        conn = self.get_conn()
+        try:
+            result = {}
+
+            # Categorías compuestas (MO + Insumos)
+            for cat in self.CATEGORIAS_CON_MO_Y_INSUMOS:
+                rows_mo = [dict(r) for r in conn.execute(
+                    "SELECT * FROM transacciones WHERE finca_id = ? AND categoria = ? ORDER BY fecha, id",
+                    (finca_id, f"{cat}_mo")
+                ).fetchall()]
+                rows_ins = [dict(r) for r in conn.execute(
+                    "SELECT * FROM transacciones WHERE finca_id = ? AND categoria = ? ORDER BY fecha, id",
+                    (finca_id, f"{cat}_insumos")
+                ).fetchall()]
+                result[f"{cat}_mo"] = rows_mo
+                result[f"{cat}_insumos"] = rows_ins
+
+            # Categorías simples (solo MO, sin insumos)
+            for cat in self.CATEGORIAS_SIMPLE:
+                rows = [dict(r) for r in conn.execute(
+                    "SELECT * FROM transacciones WHERE finca_id = ? AND categoria = ? ORDER BY fecha, id",
+                    (finca_id, cat)
+                ).fetchall()]
+                result[cat] = rows
+
+            # Ingresos
+            for cat_ing in ["ingreso_cps", "ingreso_pasilla", "ingreso_rere"]:
+                rows = [dict(r) for r in conn.execute(
+                    "SELECT * FROM transacciones WHERE finca_id = ? AND categoria = ? ORDER BY fecha, id",
+                    (finca_id, cat_ing)
+                ).fetchall()]
+                result[cat_ing] = rows
+
+            return result
+        finally:
+            conn.close()
     
     def get_all_data_for_export(self, finca_id: int) -> dict:
         """Obtener TODOS los datos de una finca organizados para exportar a Excel."""
@@ -390,8 +506,8 @@ class Database:
             
             # Egresos por categoría
             egresos_cat = {}
-            for cat in ["instalacion", "arvenses", "fertilizacion", "fitosanitario", 
-                        "sombrio", "otras_labores", "recoleccion", "beneficio", "administrativo"]:
+            # Categorías con sufijo _mo/_insumos
+            for cat in self.CATEGORIAS_CON_MO_Y_INSUMOS:
                 total_mo = conn.execute(
                     "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria = ?",
                     (finca_id, f"{cat}_mo")
@@ -401,6 +517,13 @@ class Database:
                     (finca_id, f"{cat}_insumos")
                 ).fetchone()["total"] or 0
                 egresos_cat[cat] = total_mo + total_ins
+            # Categorías sin sufijo (recoleccion, beneficio, administrativo)
+            for cat in self.CATEGORIAS_SIMPLE:
+                total = conn.execute(
+                    "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria = ?",
+                    (finca_id, cat)
+                ).fetchone()["total"] or 0
+                egresos_cat[cat] = total
 
             # Ingresos por tipo
             ingresos_tipos = {}

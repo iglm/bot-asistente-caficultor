@@ -39,7 +39,7 @@ class CostoForm(StatesGroup):
     esperando_mas_insumos = State()
 
 
-async def mostrar_categorias_costos(message: types.Message, edit: bool = False):
+async def mostrar_categorias_costos(message: types.Message, state: FSMContext, edit: bool = False):
     """Muestra las categorías de costos disponibles."""
     keyboard = types.InlineKeyboardMarkup(
         inline_keyboard=[
@@ -81,7 +81,7 @@ async def mostrar_categorias_costos(message: types.Message, edit: bool = False):
     else:
         await message.answer(texto, parse_mode="HTML", reply_markup=keyboard)
 
-    await CostoForm.esperando_categoria.set()
+    await state.set_state(CostoForm.esperando_categoria)
 
 
 async def guardar_mo(db: Database, message: types.Message, data: dict, state: FSMContext):
@@ -131,7 +131,9 @@ def get_costos_router(db: Database) -> Router:
     @router.message(Command("costo"))
     @router.callback_query(F.data == "menu_costos")
     async def cmd_costo(event: types.Message | types.CallbackQuery, state: FSMContext):
-        """Inicia el registro de un costo."""
+        """Inicia el registro de un costo. Limpia estado previo primero."""
+        # Garantizar que NO haya estado FSM residual
+        await state.clear()
         user_id = event.from_user.id
 
         if isinstance(event, types.CallbackQuery):
@@ -160,7 +162,7 @@ def get_costos_router(db: Database) -> Router:
 
             if len(fincas) == 1:
                 await state.update_data(finca_id=fincas[0]["id"], finca_nombre=fincas[0]["nombre"])
-                await mostrar_categorias_costos(message, edit=is_callback)
+                await mostrar_categorias_costos(message, state, edit=is_callback)
                 return
 
             # Varias fincas
@@ -191,15 +193,21 @@ def get_costos_router(db: Database) -> Router:
     @router.callback_query(CostoForm.esperando_finca, F.data.startswith("costo_finca:"))
     async def seleccionar_finca_costo(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
+        user_id = callback.from_user.id
         finca_id = int(callback.data.split(":")[1])
         finca = db.get_finca_by_id(finca_id)
         if not finca:
             await callback.message.edit_text("❌ <b>Finca no encontrada.</b>", parse_mode="HTML")
             await state.clear()
             return
+        # Validar que la finca pertenezca al usuario
+        if finca["user_id"] != user_id:
+            await callback.message.edit_text("❌ <b>Esta finca no te pertenece.</b>", parse_mode="HTML")
+            await state.clear()
+            return
 
         await state.update_data(finca_id=finca_id, finca_nombre=finca["nombre"])
-        await mostrar_categorias_costos(callback.message, edit=True)
+        await mostrar_categorias_costos(callback.message, state, edit=True)
 
     @router.callback_query(CostoForm.esperando_categoria, F.data.startswith("cat_costo:"))
     async def seleccionar_categoria(callback: types.CallbackQuery, state: FSMContext):

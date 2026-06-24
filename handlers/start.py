@@ -173,10 +173,4 @@ def get_start_router(db: Database) -> Router:
                 parse_mode="HTML",
             )
 
-    @router.callback_query(F.data == "volver_menu")
-    async def volver_al_menu(callback: types.CallbackQuery):
-        """Vuelve al menú principal."""
-        await callback.answer()
-        await mostrar_menu_principal(callback.message)
-
     return router

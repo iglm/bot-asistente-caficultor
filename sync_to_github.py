@@ -34,7 +34,9 @@ logging.basicConfig(
 
 # ── Configuración GitHub ──
 GITHUB_DATA_REPO = os.environ.get("GITHUB_DATA_REPO", "iglm/caficultor-datos")
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+GITHUB_SSH_URL = os.environ.get(
+    "GITHUB_SSH_URL", "git@github.com:iglm/caficultor-datos.git"
+)
 
 
 def run(cmd: list[str], cwd: str = None, check: bool = True) -> subprocess.CompletedProcess:
@@ -44,14 +46,9 @@ def run(cmd: list[str], cwd: str = None, check: bool = True) -> subprocess.Compl
 
 
 def clone_repo(temp_dir: str) -> str:
-    """Clonar repo de datos en directorio temporal."""
+    """Clonar repo de datos en directorio temporal vía SSH."""
     repo_dir = os.path.join(temp_dir, "data-repo")
-    if GITHUB_TOKEN:
-        url = f"https://{GITHUB_TOKEN}:x-oauth-basic@github.com/{GITHUB_DATA_REPO}.git"
-    else:
-        url = f"https://github.com/{GITHUB_DATA_REPO}.git"
-    
-    run(["git", "clone", "--depth=1", url, repo_dir])
+    run(["git", "clone", "--depth=1", GITHUB_SSH_URL, repo_dir])
     return repo_dir
 
 
