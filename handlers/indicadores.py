@@ -68,7 +68,16 @@ async def mostrar_indicadores(db: Database, send_func, finca_id: int, finca_nomb
     if filtro in ("general", "insumos"):
         texto += "🧪 <b>Insumos</b>\n"
         texto += f"• Costo insumos/ha: {_formatear_moneda(indicadores['costo_insumos_por_ha'])}\n"
-        texto += f"• Kg producidos: {_formatear_numero(indicadores['kg_producidos'], 2)} kg\n\n"
+        texto += f"• Costo insumos/kg CPS: {_formatear_moneda(indicadores['costo_insumos_por_kg_cps'])}/kg\n"
+        texto += f"• Insumos total (kg eq.): {_formatear_numero(indicadores['insumos_total_kg'], 2)} kg\n"
+        if indicadores['insumos_total_litros'] > 0:
+            texto += f"• Insumos total (L eq.): {_formatear_numero(indicadores['insumos_total_litros'], 2)} L\n"
+        texto += f"• Insumos por hectárea: {_formatear_numero(indicadores['insumos_por_ha'], 2)} kg/ha\n"
+        texto += f"• Kg CPS producidos: {_formatear_numero(indicadores['kg_producidos'], 2)} kg\n"
+        efic_ins = indicadores['eficiencia_insumos']
+        if efic_ins > 0:
+            texto += f"• Eficiencia insumos: {_formatear_numero(efic_ins, 2)} kg CPS/kg insumo\n"
+        texto += "\n"
 
     if filtro in ("general", "financiero"):
         texto += "💰 <b>Financiero</b>\n"

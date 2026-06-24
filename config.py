@@ -60,6 +60,39 @@ TIPOS_CAFE = {
     "Pasilla": "Pasilla",
 }
 
+# ── Unidades de insumo y factores de conversión ──
+UNIDADES_INSUMO = ['g', 'kg', 'mg', 'ml', 'l', 'bulto']
+
+UNIDADES_INSUMO_LABELS = {
+    'g': 'Gramos (g)',
+    'kg': 'Kilogramos (kg)',
+    'mg': 'Miligramos (mg)',
+    'ml': 'Mililitros (mL)',
+    'l': 'Litros (L)',
+    'bulto': 'Bulto 50kg',
+}
+
+# Factores de conversión a unidad estándar (kg para sólidos, L para líquidos)
+CONVERSION_A_KG = {'g': 0.001, 'kg': 1, 'mg': 0.000001, 'ml': 0.001, 'l': 1, 'bulto': 50}
+CONVERSION_A_LITROS = {'ml': 0.001, 'l': 1, 'cm3': 0.001, 'g': 0.001}
+
+# Unidades que se consideran de sólidos (se convierten a kg)
+UNIDADES_SOLIDOS = {'g', 'kg', 'mg', 'bulto'}
+# Unidades que se consideran de líquidos (se convierten a L)
+UNIDADES_LIQUIDOS = {'ml', 'l'}
+
+def convertir_a_estandar(cantidad: float, unidad: str) -> tuple[float, str]:
+    """Convierte una cantidad a unidad estándar (kg o L según el tipo).
+    Retorna (cantidad_convertida, unidad_estandar).
+    """
+    if unidad in UNIDADES_SOLIDOS:
+        factor = CONVERSION_A_KG.get(unidad, 1)
+        return cantidad * factor, 'kg'
+    elif unidad in UNIDADES_LIQUIDOS:
+        factor = CONVERSION_A_LITROS.get(unidad, 1)
+        return cantidad * factor, 'L'
+    return cantidad, unidad
+
 CATEGORIAS = {
     "ingreso_cps": {"nombre": "Ingreso CPS", "hoja": "Ingresos", "tipo": "ingreso"},
     "ingreso_pasilla": {"nombre": "Ingreso Pasilla", "hoja": "Ingresos", "tipo": "ingreso"},

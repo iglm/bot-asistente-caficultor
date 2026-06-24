@@ -9,7 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 from database import Database
-from config import CATEGORIAS_PADRE, CATEGORIAS_SIMPLE
+from config import CATEGORIAS_PADRE, CATEGORIAS_SIMPLE, UNIDADES_INSUMO_LABELS
 from utils import boton_menu, botones_menu_cancelar, agregar_boton_menu, agregar_menu_cancelar, botones_fecha, fecha_hoy, fecha_ayer
 
 logger = logging.getLogger(__name__)
@@ -29,6 +29,7 @@ class CostoForm(StatesGroup):
     esperando_valor_unitario = State()
     esperando_valor_total = State()
     esperando_producto = State()
+    esperando_unidad_insumo = State()
     esperando_cantidad_insumo = State()
     esperando_valor_unitario_insumo = State()
     esperando_valor_total_insumo = State()
@@ -927,10 +928,41 @@ def get_costos_router(db: Database) -> Router:
             return
 
         await state.update_data(producto=producto)
+
+        # Mostrar teclado de unidades de insumo
+        keyboard = types.InlineKeyboardMarkup(
+            inline_keyboard=[
+                [types.InlineKeyboardButton(text="Gramos (g)", callback_data="unidad_insumo:g")],
+                [types.InlineKeyboardButton(text="Kilogramos (kg)", callback_data="unidad_insumo:kg")],
+                [types.InlineKeyboardButton(text="Mililitros (mL)", callback_data="unidad_insumo:ml")],
+                [types.InlineKeyboardButton(text="Litros (L)", callback_data="unidad_insumo:l")],
+                [types.InlineKeyboardButton(text="Bulto 50kg", callback_data="unidad_insumo:bulto")],
+                [types.InlineKeyboardButton(text="❌ Cancelar", callback_data="cancelar_operacion")],
+            ]
+        )
+
         await message.answer(
             f"✅ <b>Producto:</b> {producto}\n\n"
+            "🧪 <b>¿En qué unidad?</b>\n\n"
+            "Seleccioná la unidad de medida del insumo:",
+            parse_mode="HTML",
+            reply_markup=keyboard,
+        )
+        await state.set_state(CostoForm.esperando_unidad_insumo)
+
+    @router.callback_query(CostoForm.esperando_unidad_insumo, F.data.startswith("unidad_insumo:"))
+    async def seleccionar_unidad_insumo(callback: types.CallbackQuery, state: FSMContext):
+        """Guarda la unidad seleccionada y pide la cantidad."""
+        await callback.answer()
+        unidad = callback.data.split(":", 1)[1]
+        label = UNIDADES_INSUMO_LABELS.get(unidad, unidad)
+
+        await state.update_data(unidad_insumo=unidad)
+
+        await callback.message.edit_text(
+            f"✅ <b>Unidad:</b> {label}\n\n"
             "¿Cuál es la <b>cantidad</b> del insumo?\n\n"
-            "<i>(Ej: 5 litros, 10 kg, 2 unidades)</i>",
+            "<i>(Ej: 5, 10, 2.5)</i>",
             parse_mode="HTML",
             reply_markup=botones_menu_cancelar(),
         )
@@ -1002,10 +1034,12 @@ def get_costos_router(db: Database) -> Router:
         await state.update_data(valor_total_insumo=valor_total)
 
         data = await state.get_data()
+        unidad = data.get("unidad_insumo", "unidad")
+        label_unidad = UNIDADES_INSUMO_LABELS.get(unidad, unidad)
         texto_resumen = (
             f"📋 <b>Resumen — Insumo</b>\n\n"
             f"📦 <b>Producto:</b> {data.get('producto', '')}\n"
-            f"⚖️ <b>Cantidad:</b> {data.get('cantidad_insumo', 0)}\n"
+            f"⚖️ <b>Cantidad:</b> {data.get('cantidad_insumo', 0)} {label_unidad}\n"
             f"💵 <b>V.Unitario:</b> ${data.get('vu_insumo', 0):,.0f}\n"
             f"💰 <b>Valor Total:</b> ${valor_total:,.0f}\n\n"
             "¿<b>Confirmas</b> este insumo?"
@@ -1070,7 +1104,7 @@ def get_costos_router(db: Database) -> Router:
                         labor=data.get("producto", ""),
                         producto=data.get("producto", ""),
                         cantidad=cantidad_insumo / len(lotes) if len(lotes) > 0 else cantidad_insumo,
-                        unidad="unidad",
+                        unidad=data.get("unidad_insumo", "unidad"),
                         valor_unitario=vu_insumo,
                         valor_total=valor_total_insumo / len(lotes) if len(lotes) > 0 else valor_total_insumo,
                     )
@@ -1085,7 +1119,7 @@ def get_costos_router(db: Database) -> Router:
                         labor=data.get("producto", ""),
                         producto=data.get("producto", ""),
                         cantidad=cantidad_insumo / len(lotes_seleccionados) if len(lotes_seleccionados) > 0 else cantidad_insumo,
-                        unidad="unidad",
+                        unidad=data.get("unidad_insumo", "unidad"),
                         valor_unitario=vu_insumo,
                         valor_total=valor_total_insumo / len(lotes_seleccionados) if len(lotes_seleccionados) > 0 else valor_total_insumo,
                     )
@@ -1099,7 +1133,7 @@ def get_costos_router(db: Database) -> Router:
                     labor=data.get("producto", ""),
                     producto=data.get("producto", ""),
                     cantidad=cantidad_insumo,
-                    unidad="unidad",
+                    unidad=data.get("unidad_insumo", "unidad"),
                     valor_unitario=vu_insumo,
                     valor_total=valor_total_insumo,
                 )

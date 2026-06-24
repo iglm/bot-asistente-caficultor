@@ -1431,6 +1431,52 @@ class ExcelManager:
         escribir_indicador(ws, row, "Rendimiento (kg/ha productivo)", round(indicadores['rendimiento'], 2), "kg/ha", "70-100")
         row += 2
 
+        # Sección: Nuevos indicadores con unidades
+        row = escribir_seccion(ws, row, "📐 Indicadores por Unidad")
+        escribir_indicador(ws, row, "Costo Insumos por kg CPS", formatear_moneda_indicador(indicadores['costo_insumos_por_kg_cps']), "$/kg", "")
+        row += 1
+        escribir_indicador(ws, row, "Costo MO por kg CPS", formatear_moneda_indicador(indicadores['costo_mo_por_kg_cps']), "$/kg", "")
+        row += 1
+        escribir_indicador(ws, row, "Insumos por Hectárea", round(indicadores['insumos_por_ha'], 2), "kg eq./ha", "")
+        row += 1
+        escribir_indicador(ws, row, "Eficiencia de Insumos", round(indicadores['eficiencia_insumos'], 2), "kg CPS/kg ins.", "")
+        row += 2
+
+        # ─── Tabla de conversión de unidades ───
+        row = escribir_seccion(ws, row, "📏 Tabla de Conversión de Unidades")
+        # Headers
+        conv_headers = ["Cantidad", "Unidad", "Convierte a", "Factor"]
+        for col_idx, h in enumerate(conv_headers, 1):
+            cell = ws.cell(row=row, column=col_idx, value=h)
+            cell.font = Font(bold=True, size=10, name="Calibri", color="FFFFFF")
+            cell.fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+            cell.alignment = CENTER
+            cell.border = THIN_BORDER
+        row += 1
+
+        conversiones = [
+            (500, "g", "0.5 kg", "×0.001"),
+            (2, "kg", "2 kg", "×1"),
+            (1000, "mL", "1 L", "×0.001"),
+            (4, "L", "4 L", "×1"),
+            (3, "bulto", "150 kg", "×50"),
+        ]
+        for cant, uni, conv, factor in conversiones:
+            ws.cell(row=row, column=1, value=cant).font = FONT_NORMAL
+            ws.cell(row=row, column=1).alignment = RIGHT
+            ws.cell(row=row, column=1).border = THIN_BORDER
+            ws.cell(row=row, column=2, value=uni).font = FONT_NORMAL
+            ws.cell(row=row, column=2).alignment = CENTER
+            ws.cell(row=row, column=2).border = THIN_BORDER
+            ws.cell(row=row, column=3, value=conv).font = FONT_NORMAL
+            ws.cell(row=row, column=3).alignment = CENTER
+            ws.cell(row=row, column=3).border = THIN_BORDER
+            ws.cell(row=row, column=4, value=factor).font = FONT_NORMAL
+            ws.cell(row=row, column=4).alignment = CENTER
+            ws.cell(row=row, column=4).border = THIN_BORDER
+            row += 1
+        row += 2
+
         # ─── Gráfico 1: MO vs Insumos por Hectárea ───
         chart_start = row + 1
         try:

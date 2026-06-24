@@ -635,6 +635,49 @@ class Database:
         """Determina si un lote es productivo (tiene árboles y fecha de siembra)."""
         return bool(lote.get("num_arboles", 0) and lote.get("fecha_siembra", ""))
 
+    def _get_total_insumos_cantidad_convertida(self, finca_id: int) -> dict:
+        """Obtiene la cantidad total de insumos convertida a unidad estándar.
+        
+        Retorna:
+            dict con:
+            - total_kg: cantidad total en kg equivalentes (sólidos + bultos)
+            - total_litros: cantidad total en L equivalentes (líquidos)
+            - total_estandar: cantidad total en kg (todo convertido a kg)
+        """
+        from config import CONVERSION_A_KG, CONVERSION_A_LITROS, UNIDADES_SOLIDOS, UNIDADES_LIQUIDOS
+        
+        conn = self.get_conn()
+        try:
+            rows = conn.execute(
+                "SELECT cantidad, unidad FROM transacciones WHERE finca_id = ? AND categoria LIKE '%_insumos'",
+                (finca_id,)
+            ).fetchall()
+        finally:
+            conn.close()
+        
+        total_kg = 0.0
+        total_litros = 0.0
+        
+        for row in rows:
+            cantidad = row["cantidad"] or 0
+            unidad = (row["unidad"] or "").strip().lower()
+            
+            if unidad in UNIDADES_SOLIDOS:
+                factor = CONVERSION_A_KG.get(unidad, 1)
+                total_kg += cantidad * factor
+            elif unidad in UNIDADES_LIQUIDOS:
+                factor = CONVERSION_A_LITROS.get(unidad, 1)
+                total_litros += cantidad * factor
+            else:
+                # Sin unidad definida, asumir 1:1 a kg
+                total_kg += cantidad
+        
+        return {
+            'total_kg': total_kg,
+            'total_litros': total_litros,
+            'total_estandar': total_kg,  # para comparaciones, usar kg
+        }
+
     def _get_total_ingresos(self, finca_id: int) -> float:
         """Obtiene el total de ingresos de una finca."""
         conn = self.get_conn()
@@ -741,6 +784,7 @@ class Database:
         costos_total = costos_mo + costos_insumos
         kg_producidos = self._get_kg_producidos(finca_id)
         total_jornales = self._get_total_jornales(finca_id)
+        insumos_cant = self._get_total_insumos_cantidad_convertida(finca_id)
 
         # Calcular indicadores con división segura
         return {
@@ -762,6 +806,13 @@ class Database:
             'margen_por_ha': (ingresos - costos_total) / area_total if area_total > 0 else 0,
             'precio_venta_promedio': ingresos / kg_producidos if kg_producidos > 0 else 0,
             'eficiencia_mo': kg_producidos / total_jornales if total_jornales > 0 else 0,
+            # Nuevos indicadores con unidades
+            'costo_insumos_por_kg_cps': costos_insumos / kg_producidos if kg_producidos > 0 else 0,
+            'costo_mo_por_kg_cps': costos_mo / kg_producidos if kg_producidos > 0 else 0,
+            'insumos_por_ha': insumos_cant['total_estandar'] / area_total if area_total > 0 else 0,
+            'insumos_total_kg': insumos_cant['total_estandar'],
+            'insumos_total_litros': insumos_cant['total_litros'],
+            'eficiencia_insumos': kg_producidos / insumos_cant['total_estandar'] if insumos_cant['total_estandar'] > 0 else 0,
         }
 
     def get_ejecucion_presupuesto(self, finca_id: int, anio: int) -> dict:
