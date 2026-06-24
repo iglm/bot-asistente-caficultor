@@ -549,6 +549,13 @@ class ExcelManager:
         wb = openpyxl.load_workbook(output_path, keep_vba=False)
         logger.info(f"Hojas disponibles: {wb.sheetnames}")
 
+        # 2b. ELIMINAR HOJAS VACÍAS
+        HOJAS_ELIMINAR = ["Plan de ordenamiento", "Plan de acción", "Cronograma"]
+        for hoja in HOJAS_ELIMINAR:
+            if hoja in wb.sheetnames:
+                del wb[hoja]
+                logger.info(f"Hoja vacía '{hoja}' eliminada")
+
         # 3. Llenar hojas
         self._llenar_hoja_lotes(wb, data.get("lotes", []))
         self._llenar_hoja_ingresos(wb, data)
@@ -567,7 +574,12 @@ class ExcelManager:
         wb.move_sheet("Gráficos", offset=idx_lotes + 1 - len(wb.sheetnames) + 1)
         self._generar_hoja_graficos(db, finca_id, ws_graficos)
 
-        # 5. Guardar
+        # 5. Generar nuevas hojas mejoradas
+        self._crear_hoja_resumen_ejecutivo(wb, db, finca_id)
+        self._crear_hoja_dashboard(wb, db, finca_id)
+        self._crear_hoja_configuracion(wb, db, finca_id)
+
+        # 6. Guardar
         wb.save(output_path)
         wb.close()
         logger.info(f"Excel generado exitosamente: {output_path}")
@@ -1538,8 +1550,413 @@ class ExcelManager:
         logger.info(f"Hoja 'Indicadores' generada para finca {finca_id}")
 
     # ------------------------------------------------------------------
-    # Gráficos de tendencia (MEJORA 4)
+    # RESUMEN EJECUTIVO — Hoja con KPIs principales (MEJORA 2)
     # ------------------------------------------------------------------
+
+    def _crear_hoja_resumen_ejecutivo(self, wb, db, finca_id: int):
+        """Crea la hoja 'Resumen Ejecutivo' con KPIs y alertas."""
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+        indicadores = db.get_indicadores_tecnicos(finca_id)
+        finca = db.get_finca_by_id(finca_id)
+        if not finca:
+            return
+
+        hoja_nombre = "Resumen Ejecutivo"
+        if hoja_nombre in wb.sheetnames:
+            del wb[hoja_nombre]
+        ws = wb.create_sheet(hoja_nombre, 0)  # Al inicio
+
+        FILL_HEADER = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+        FILL_SECCION = PatternFill(start_color="D6E4F0", end_color="D6E4F0", fill_type="solid")
+        FILL_ALERTA = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+        FILL_OK = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+        FONT_TITLE = Font(bold=True, size=16, name="Calibri", color="1F4E79")
+        FONT_SECCION = Font(bold=True, size=12, name="Calibri", color="1F4E79")
+        FONT_LABEL = Font(bold=True, size=10, name="Calibri")
+        FONT_VALUE = Font(size=11, name="Calibri", color="2E7D32")
+        FONT_ALERTA = Font(bold=True, size=10, name="Calibri", color="C62828")
+        FONT_NORMAL = Font(size=10, name="Calibri")
+        THIN = Border(left=Side(style="thin"), right=Side(style="thin"),
+                      top=Side(style="thin"), bottom=Side(style="thin"))
+
+        ws.column_dimensions['A'].width = 40
+        ws.column_dimensions['B'].width = 25
+        ws.column_dimensions['C'].width = 15
+
+        row = 1
+        # Título
+        ws.merge_cells(f"A{row}:C{row}")
+        cell = ws.cell(row=row, column=1, value=f"📊 RESUMEN EJECUTIVO — {finca['nombre'].upper()}")
+        cell.font = FONT_TITLE
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        row += 2
+
+        # Alertas
+        alertas = []
+        if indicadores.get('area_total', 0) > 0:
+            prod = indicadores.get('productividad', 0)
+            if prod < 800 and prod > 0:
+                alertas.append(f"⚠️ Productividad baja: {prod:.1f} kg/ha (mínimo esperado: 800)")
+            if indicadores.get('margen_por_ha', 0) < 0:
+                alertas.append(f"🔴 ¡MARGEN NEGATIVO! Estás perdiendo ${abs(indicadores['margen_por_ha']):,.0f}/ha")
+            costo_kg = indicadores.get('costo_por_kilo', 0)
+            if costo_kg > indicadores.get('precio_venta_promedio', 0) and costo_kg > 0:
+                alertas.append(f"🔴 Costo/kg (${costo_kg:,.0f}) supera precio venta (${indicadores['precio_venta_promedio']:,.0f}/kg)")
+
+        if alertas:
+            ws.merge_cells(f"A{row}:C{row}")
+            cell = ws.cell(row=row, column=1, value="🚨 ALERTAS")
+            cell.font = Font(bold=True, size=12, color="C62828")
+            cell.fill = FILL_ALERTA
+            cell.alignment = Alignment(horizontal="center")
+            row += 1
+            for al in alertas:
+                ws.merge_cells(f"A{row}:C{row}")
+                cell = ws.cell(row=row, column=1, value=al)
+                cell.font = FONT_ALERTA
+                cell.fill = FILL_ALERTA
+                row += 1
+            row += 1
+
+        # Indicadores Clave
+        ws.merge_cells(f"A{row}:C{row}")
+        cell = ws.cell(row=row, column=1, value="📊 INDICADORES CLAVE")
+        cell.font = FONT_SECCION
+        cell.fill = FILL_SECCION
+        row += 1
+
+        kpis = [
+            ("Productividad", f"{indicadores.get('productividad', 0):,.1f} kg/ha", "kg/ha"),
+            ("Rendimiento", f"{indicadores.get('rendimiento', 0):,.1f} kg/ha productivo", "kg/ha"),
+            ("Costo por Hectárea", f"${indicadores.get('costo_total_por_ha', 0):,.0f}", "$/ha"),
+            ("Margen por Hectárea", f"${indicadores.get('margen_por_ha', 0):,.0f}", "$/ha"),
+            ("Rentabilidad", f"{((indicadores.get('ingresos_totales', 0) - indicadores.get('costos_total', 0)) / indicadores.get('costos_total', 1) * 100):,.0f}%", "%"),
+            ("Costo por kg CPS", f"${indicadores.get('costo_por_kilo', 0):,.0f}", "$/kg"),
+            ("Precio Venta Promedio", f"${indicadores.get('precio_venta_promedio', 0):,.0f}", "$/kg"),
+            ("Jornales/ha", f"{indicadores.get('jornales_por_ha', 0):,.1f}", "jornales/ha"),
+        ]
+        for label, valor, unidad in kpis:
+            ws.cell(row=row, column=1, value=label).font = FONT_LABEL
+            ws.cell(row=row, column=1).border = THIN
+            c = ws.cell(row=row, column=2, value=valor)
+            c.font = FONT_VALUE
+            c.border = THIN
+            ws.cell(row=row, column=3, value=unidad).font = FONT_NORMAL
+            ws.cell(row=row, column=3).border = THIN
+            row += 1
+        row += 1
+
+        # Ingresos vs Costos
+        ws.merge_cells(f"A{row}:C{row}")
+        cell = ws.cell(row=row, column=1, value="💰 INGRESOS vs COSTOS")
+        cell.font = FONT_SECCION
+        cell.fill = FILL_SECCION
+        row += 1
+        fin_data = [
+            ("Ingresos Totales", f"${indicadores.get('ingresos_totales', 0):,.0f}"),
+            ("Costos Totales", f"${indicadores.get('costos_total', 0):,.0f}"),
+            ("Margen Neto", f"${indicadores.get('ingresos_totales', 0) - indicadores.get('costos_total', 0):,.0f}"),
+        ]
+        for label, valor in fin_data:
+            ws.cell(row=row, column=1, value=label).font = FONT_LABEL
+            ws.cell(row=row, column=1).border = THIN
+            c = ws.cell(row=row, column=2, value=valor)
+            c.font = FONT_VALUE
+            c.border = THIN
+            row += 1
+        row += 1
+
+        # Área
+        ws.merge_cells(f"A{row}:C{row}")
+        cell = ws.cell(row=row, column=1, value="🌱 ÁREA")
+        cell.font = FONT_SECCION
+        cell.fill = FILL_SECCION
+        row += 1
+        area_data = [
+            ("Área Total", f"{indicadores.get('area_total', 0):,.1f} ha"),
+            ("Área Productiva", f"{indicadores.get('area_productiva', 0):,.1f} ha"),
+            ("Lotes", f"{len(db.get_lotes(finca_id))} lotes"),
+        ]
+        for label, valor in area_data:
+            ws.cell(row=row, column=1, value=label).font = FONT_LABEL
+            ws.cell(row=row, column=1).border = THIN
+            c = ws.cell(row=row, column=2, value=valor)
+            c.font = FONT_VALUE
+            c.border = THIN
+            row += 1
+
+        ws.sheet_properties.tabColor = "1F4E79"
+        logger.info(f"Hoja 'Resumen Ejecutivo' creada para finca {finca_id}")
+
+    # ------------------------------------------------------------------
+    # DASHBOARD — Gráfico de torta + barras (MEJORA 4)
+    # ------------------------------------------------------------------
+
+    def _crear_hoja_dashboard(self, wb, db, finca_id: int):
+        """Crea la hoja 'Dashboard' con gráficos de distribución de costos."""
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+        hoja_nombre = "Dashboard"
+        if hoja_nombre in wb.sheetnames:
+            del wb[hoja_nombre]
+        ws = wb.create_sheet(hoja_nombre)
+        # Mover después de Gráficos
+        if "Gráficos" in wb.sheetnames:
+            idx = wb.sheetnames.index("Gráficos")
+            wb.move_sheet(hoja_nombre, offset=idx + 1 - len(wb.sheetnames) + 1)
+
+        conn = db.get_conn()
+        try:
+            ws['A1'] = '📊 Dashboard — Distribución de Costos'
+            ws['A1'].font = Font(bold=True, size=14, name="Calibri", color="1F4E79")
+            ws.merge_cells('A1:D1')
+
+            # ─── PIECHART: Distribución de costos por categoría ───
+            ws['A3'] = 'Categoría'
+            ws['B3'] = 'Total ($)'
+            ws['A3'].font = Font(bold=True, color="FFFFFF", size=11)
+            ws['A3'].fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+            ws['B3'].font = Font(bold=True, color="FFFFFF", size=11)
+            ws['B3'].fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+
+            categorias_costo = [
+                ("Instalación", ["instalacion_mo", "instalacion_insumos"]),
+                ("Arvenses", ["arvenses_mo", "arvenses_insumos"]),
+                ("Fertilización", ["fertilizacion_mo", "fertilizacion_insumos"]),
+                ("Fitosanitario", ["fitosanitario_mo", "fitosanitario_insumos"]),
+                ("Sombrío", ["sombrio_mo", "sombrio_insumos"]),
+                ("Otras Labores", ["otras_labores_mo", "otras_labores_insumos"]),
+                ("Recolección", ["recoleccion"]),
+                ("Beneficio", ["beneficio"]),
+                ("Administrativo", ["administrativo"]),
+            ]
+            pie_palette = ["2E7D32", "1565C0", "F9A825", "E65100",
+                           "6A1B9A", "00838F", "C62828", "4E342E", "558B2F"]
+
+            for i, (cat_name, cat_db_names) in enumerate(categorias_costo):
+                row = 4 + i
+                ws.cell(row=row, column=1, value=cat_name)
+                placeholders = ",".join("?" for _ in cat_db_names)
+                total = conn.execute(
+                    f"SELECT COALESCE(SUM(valor_total), 0) FROM transacciones "
+                    f"WHERE finca_id = ? AND categoria IN ({placeholders})",
+                    (finca_id, *cat_db_names)
+                ).fetchone()[0]
+                ws.cell(row=row, column=2, value=total or 0)
+
+            pie_chart = PieChart()
+            pie_chart.title = "Distribución de Costos por Categoría"
+            pie_chart.style = 10
+            pie_chart.width = 18
+            pie_chart.height = 14
+
+            data_ref = Reference(ws, min_col=2, min_row=3, max_row=3 + len(categorias_costo))
+            cats_ref = Reference(ws, min_col=1, min_row=4, max_row=3 + len(categorias_costo))
+            pie_chart.add_data(data_ref, titles_from_data=True)
+            pie_chart.set_categories(cats_ref)
+            pie_chart.dataLabels = DataLabelList()
+            pie_chart.dataLabels.showPercent = True
+            pie_chart.dataLabels.showCatName = True
+            for i in range(len(categorias_costo)):
+                pt = DataPoint(idx=i)
+                pt.graphicalProperties.solidFill = pie_palette[i]
+                pie_chart.series[0].data_points.append(pt)
+
+            ws.add_chart(pie_chart, "D3")
+
+            # ─── BARCHART: Top 5 categorías más costosas ───
+            chart_start_row = 4 + len(categorias_costo) + 2
+            ws.cell(row=chart_start_row, column=1, value="Categoría").font = Font(bold=True, size=11)
+            ws.cell(row=chart_start_row, column=2, value="Costo ($)").font = Font(bold=True, size=11)
+
+            # Get top 5 by cost
+            cat_totals = []
+            for cat_name, cat_db_names in categorias_costo:
+                placeholders = ",".join("?" for _ in cat_db_names)
+                total = conn.execute(
+                    f"SELECT COALESCE(SUM(valor_total), 0) FROM transacciones "
+                    f"WHERE finca_id = ? AND categoria IN ({placeholders})",
+                    (finca_id, *cat_db_names)
+                ).fetchone()[0]
+                cat_totals.append((cat_name, total or 0))
+            cat_totals.sort(key=lambda x: x[1], reverse=True)
+
+            for i, (cat_name, total) in enumerate(cat_totals[:5]):
+                r = chart_start_row + 1 + i
+                ws.cell(row=r, column=1, value=cat_name)
+                ws.cell(row=r, column=2, value=total)
+
+            bar_chart = BarChart()
+            bar_chart.type = "col"
+            bar_chart.title = "Top 5 Categorías Más Costosas"
+            bar_chart.y_axis.title = "Costo ($)"
+            bar_chart.style = 10
+            bar_chart.width = 18
+            bar_chart.height = 12
+
+            data_b = Reference(ws, min_col=2, min_row=chart_start_row, max_row=chart_start_row + 5)
+            cats_b = Reference(ws, min_col=1, min_row=chart_start_row + 1, max_row=chart_start_row + 5)
+            bar_chart.add_data(data_b, titles_from_data=True)
+            bar_chart.set_categories(cats_b)
+            bar_chart.series[0].graphicalProperties.solidFill = "1565C0"
+
+            ws.add_chart(bar_chart, f"D{chart_start_row}")
+
+            # ─── LINECHART: Costo por mes ───
+            line_start = chart_start_row + 18
+            ws.cell(row=line_start, column=1, value="Mes").font = Font(bold=True, size=11)
+            ws.cell(row=line_start, column=2, value="Costo ($)").font = Font(bold=True, size=11)
+
+            meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun",
+                     "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+            for i, mes_nombre in enumerate(meses):
+                r = line_start + 1 + i
+                ws.cell(row=r, column=1, value=mes_nombre)
+                mes_num = f"{i + 1:02d}"
+                total = conn.execute(
+                    "SELECT COALESCE(SUM(valor_total), 0) FROM transacciones "
+                    "WHERE finca_id = ? AND categoria NOT LIKE 'ingreso_%' "
+                    "AND substr(fecha, 6, 2) = ?",
+                    (finca_id, mes_num)
+                ).fetchone()[0]
+                ws.cell(row=r, column=2, value=total or 0)
+
+            line_chart = LineChart()
+            line_chart.title = "Evolución de Costos por Mes"
+            line_chart.y_axis.title = "Costo ($)"
+            line_chart.x_axis.title = "Mes"
+            line_chart.style = 10
+            line_chart.width = 18
+            line_chart.height = 12
+
+            data_l = Reference(ws, min_col=2, min_row=line_start, max_row=line_start + 12)
+            cats_l = Reference(ws, min_col=1, min_row=line_start + 1, max_row=line_start + 12)
+            line_chart.add_data(data_l, titles_from_data=True)
+            line_chart.set_categories(cats_l)
+            line_chart.series[0].graphicalProperties.line.solidFill = "1565C0"
+            line_chart.series[0].graphicalProperties.line.width = 25000
+
+            ws.add_chart(line_chart, f"D{line_start}")
+
+            ws.column_dimensions['A'].width = 20
+            ws.column_dimensions['B'].width = 18
+            ws.column_dimensions['C'].width = 5
+            logger.info(f"Hoja 'Dashboard' creada para finca {finca_id}")
+        finally:
+            conn.close()
+
+    # ------------------------------------------------------------------
+    # CONFIGURACIÓN — Hoja con datos de la finca (MEJORA 7)
+    # ------------------------------------------------------------------
+
+    def _crear_hoja_configuracion(self, wb, db, finca_id: int):
+        """Crea la hoja 'Configuración' con datos de la finca."""
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+        finca = db.get_finca_by_id(finca_id)
+        lotes = db.get_lotes(finca_id)
+        if not finca:
+            return
+
+        hoja_nombre = "Configuración"
+        if hoja_nombre in wb.sheetnames:
+            del wb[hoja_nombre]
+        ws = wb.create_sheet(hoja_nombre)
+        # Mover al final
+        wb.move_sheet(hoja_nombre, offset=-1)
+
+        FILL_HEADER = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+        FILL_SECCION = PatternFill(start_color="D6E4F0", end_color="D6E4F0", fill_type="solid")
+        FONT_TITLE = Font(bold=True, size=14, name="Calibri", color="1F4E79")
+        FONT_SECCION = Font(bold=True, size=11, name="Calibri", color="1F4E79")
+        FONT_LABEL = Font(bold=True, size=10, name="Calibri")
+        FONT_VALUE = Font(size=10, name="Calibri")
+        THIN = Border(left=Side(style="thin"), right=Side(style="thin"),
+                      top=Side(style="thin"), bottom=Side(style="thin"))
+
+        ws.column_dimensions['A'].width = 35
+        ws.column_dimensions['B'].width = 30
+        ws.column_dimensions['C'].width = 20
+
+        row = 1
+        ws.merge_cells(f"A{row}:C{row}")
+        cell = ws.cell(row=row, column=1, value="⚙️ CONFIGURACIÓN DE LA FINCA")
+        cell.font = FONT_TITLE
+        cell.alignment = Alignment(horizontal="center")
+        row += 2
+
+        # Datos generales
+        ws.merge_cells(f"A{row}:C{row}")
+        cell = ws.cell(row=row, column=1, value="📋 Datos Generales")
+        cell.font = FONT_SECCION
+        cell.fill = FILL_SECCION
+        row += 1
+
+        config_items = [
+            ("Nombre de la Finca", finca.get("nombre", ""), ""),
+            ("Región", finca.get("region", ""), ""),
+            ("Departamento", finca.get("departamento", ""), ""),
+            ("Fecha de Creación", finca.get("created_at", ""), ""),
+            ("Área Total (ha)", f"{sum(l['area_hectareas'] for l in lotes):.2f}", "hectáreas"),
+            ("Número de Lotes", str(len(lotes)), "lotes"),
+        ]
+        for label, value, unidad in config_items:
+            ws.cell(row=row, column=1, value=label).font = FONT_LABEL
+            ws.cell(row=row, column=1).border = THIN
+            ws.cell(row=row, column=2, value=value).font = FONT_VALUE
+            ws.cell(row=row, column=2).border = THIN
+            ws.cell(row=row, column=3, value=unidad).font = FONT_VALUE
+            ws.cell(row=row, column=3).border = THIN
+            row += 1
+        row += 1
+
+        # Variedades cultivadas
+        ws.merge_cells(f"A{row}:C{row}")
+        cell = ws.cell(row=row, column=1, value="🌱 Variedades Cultivadas")
+        cell.font = FONT_SECCION
+        cell.fill = FILL_SECCION
+        row += 1
+
+        variedades = set(l.get("variedad", "") for l in lotes if l.get("variedad", ""))
+        if variedades:
+            for v in variedades:
+                ws.merge_cells(f"A{row}:C{row}")
+                ws.cell(row=row, column=1, value=f"• {v}").font = FONT_VALUE
+                row += 1
+        else:
+            ws.merge_cells(f"A{row}:C{row}")
+            ws.cell(row=row, column=1, value="(Sin variedades registradas)").font = FONT_VALUE
+            row += 1
+        row += 1
+
+        # Densidad de siembra
+        ws.merge_cells(f"A{row}:C{row}")
+        cell = ws.cell(row=row, column=1, value="📐 Densidad de Siembra")
+        cell.font = FONT_SECCION
+        cell.fill = FILL_SECCION
+        row += 1
+
+        total_arboles = sum(l.get("num_arboles", 0) or 0 for l in lotes)
+        area_total = sum(l['area_hectareas'] for l in lotes)
+        densidad = total_arboles / area_total if area_total > 0 else 0
+        ws.cell(row=row, column=1, value="Total Árboles").font = FONT_LABEL
+        ws.cell(row=row, column=1).border = THIN
+        ws.cell(row=row, column=2, value=str(total_arboles)).font = FONT_VALUE
+        ws.cell(row=row, column=2).border = THIN
+        row += 1
+        ws.cell(row=row, column=1, value="Densidad (árboles/ha)").font = FONT_LABEL
+        ws.cell(row=row, column=1).border = THIN
+        ws.cell(row=row, column=2, value=f"{densidad:,.0f}").font = FONT_VALUE
+        ws.cell(row=row, column=2).border = THIN
+        ws.cell(row=row, column=3, value="árboles/ha").font = FONT_VALUE
+        ws.cell(row=row, column=3).border = THIN
+        row += 1
+
+        logger.info(f"Hoja 'Configuración' creada para finca {finca_id}")
+
+    # ------------------------------------------------------------------
+    # Gráficos de tendencia (MEJORA 4)
 
     def _generar_hoja_graficos(self, db, finca_id: int, ws):
         """

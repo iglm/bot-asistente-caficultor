@@ -83,6 +83,10 @@ async def mostrar_resumen(db: Database, send_func, finca_id: int, finca_nombre: 
                 text="📊 Generar Excel",
                 callback_data=f"generar_excel:{finca_id}",
             )],
+            [types.InlineKeyboardButton(
+                text="📄 Exportar PDF",
+                callback_data=f"resumen_pdf:{finca_id}",
+            )],
         ]
     )
     keyboard = agregar_boton_menu(keyboard)
@@ -304,6 +308,104 @@ def get_reportes_router(db: Database) -> Router:
             logger.error(f"Error al generar Excel: {e}", exc_info=True)
             await callback.message.edit_text(
                 "❌ <b>Error al generar el Excel.</b> Intenta de nuevo más tarde.",
+                parse_mode="HTML",
+                reply_markup=boton_menu(),
+            )
+
+    @router.callback_query(F.data.startswith("resumen_pdf:"))
+    async def cmd_exportar_pdf(callback: types.CallbackQuery):
+        """Exporta el resumen a PDF."""
+        await callback.answer()
+        user_id = callback.from_user.id
+        finca_id = int(callback.data.split(":")[1])
+        finca = db.get_finca_by_id(finca_id)
+        if not finca or finca["user_id"] != user_id:
+            await callback.message.edit_text(
+                "❌ <b>Finca no encontrada o no te pertenece.</b>",
+                parse_mode="HTML",
+                reply_markup=boton_menu(),
+            )
+            return
+
+        try:
+            await callback.message.edit_text(
+                "⏳ <b>Generando PDF del resumen ejecutivo...</b>",
+                parse_mode="HTML",
+            )
+
+            resumen = db.get_resumen_finca(finca_id)
+            if not resumen or resumen.get("area_total", 0) == 0:
+                await callback.message.edit_text(
+                    "⚠️ <b>No hay datos suficientes para generar el PDF.</b>",
+                    parse_mode="HTML",
+                    reply_markup=boton_menu(),
+                )
+                return
+
+            from fpdf import FPDF
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Helvetica", "B", 16)
+            pdf.set_text_color(31, 78, 121)
+            pdf.cell(0, 10, f"Resumen - {finca['nombre']}", ln=True, align="C")
+            pdf.ln(10)
+
+            pdf.set_font("Helvetica", "B", 12)
+            pdf.set_text_color(0, 0, 0)
+            pdf.cell(0, 8, "RESUMEN FINANCIERO", ln=True)
+            pdf.set_font("Helvetica", "", 10)
+
+            total_ingresos = resumen.get("ingresos", 0)
+            total_egresos = resumen.get("egresos", 0)
+            margen = resumen.get("margen", 0)
+
+            pdf.cell(0, 7, f"  Area Total: {resumen.get('area_total', 0):.2f} ha", ln=True)
+            pdf.cell(0, 7, f"  Ingresos Totales: ${total_ingresos:,.0f}", ln=True)
+            pdf.cell(0, 7, f"  Egresos Totales: ${total_egresos:,.0f}", ln=True)
+            pdf.cell(0, 7, f"  Margen: ${margen:,.0f}", ln=True)
+            pdf.cell(0, 7, f"  Costo por ha: ${resumen.get('costo_por_hectarea', 0):,.0f}", ln=True)
+
+            pdf.ln(5)
+            pdf.set_font("Helvetica", "B", 12)
+            pdf.cell(0, 8, "EGRESOS POR CATEGORIA", ln=True)
+            pdf.set_font("Helvetica", "", 10)
+
+            from config import CATEGORIAS as CAT_MAP
+            for cat, total in sorted(resumen.get("egresos_por_categoria", {}).items(), key=lambda x: x[1], reverse=True):
+                nombre_cat = CAT_MAP.get(cat, {}).get("nombre", cat)
+                pdf.cell(0, 7, f"  {nombre_cat}: ${total:,.0f}", ln=True)
+
+            from config import EXPORTS_DIR
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_filename = f"resumen_finca_{finca_id}_{timestamp}.pdf"
+            output_path = os.path.join(EXPORTS_DIR, output_filename)
+            pdf.output(output_path)
+
+            with open(output_path, "rb") as f:
+                await callback.message.answer_document(
+                    types.FSInputFile(output_path, filename=f"Resumen_{finca['nombre']}.pdf"),
+                    caption=f"📄 <b>Resumen PDF generado</b> ☕\n\n"
+                            f"Resumen financiero de {finca['nombre']}.",
+                    parse_mode="HTML",
+                )
+
+            try:
+                os.remove(output_path)
+            except Exception:
+                pass
+
+        except ImportError:
+            await callback.message.edit_text(
+                "⚠️ <b>FPDF2 no está instalado.</b>\n\n"
+                "Instalalo con: pip install fpdf2\n"
+                "Mientras tanto, usá la exportación a Excel.",
+                parse_mode="HTML",
+                reply_markup=boton_menu(),
+            )
+        except Exception as e:
+            logger.error(f"Error al generar PDF: {e}", exc_info=True)
+            await callback.message.edit_text(
+                "❌ <b>Error al generar el PDF.</b> Intenta de nuevo más tarde.",
                 parse_mode="HTML",
                 reply_markup=boton_menu(),
             )

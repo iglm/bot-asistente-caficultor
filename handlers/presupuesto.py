@@ -745,6 +745,24 @@ def get_presupuesto_router(db: Database) -> Router:
 
         texto += f"📊 <b>% Ejecución general:</b> {pct_total:.1f}%\n"
 
+        # ─── Alertas automáticas (MEJORA 3) ───
+        alertas = []
+        for cat_item in ejecucion["categorias"]:
+            if cat_item["pct_ejecucion"] > 90 and cat_item["monto_planificado"] > 0:
+                nombre = cat_item["categoria"]
+                for cid, n, _, _ in FEPCAFE_CATEGORIAS:
+                    if cid == cat_item["categoria"]:
+                        nombre = n
+                        break
+                alertas.append(f"⚠️ {nombre}: {cat_item['pct_ejecucion']:.1f}% del presupuesto ejecutado")
+        if total_diff > 0:
+            alertas.append(f"🔴 Sobregiro total: {_formato_pesos(abs(total_diff))}")
+
+        if alertas:
+            texto += "\n🚨 <b>Alertas:</b>\n"
+            for al in alertas:
+                texto += f"{al}\n"
+
         await callback.message.edit_text(
             texto,
             parse_mode="HTML",

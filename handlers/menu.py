@@ -61,6 +61,10 @@ def get_menu_router(db: Database) -> Router:
                 ],
                 [
                     types.InlineKeyboardButton(text="📋 Exportar Excel", callback_data="menu_excel"),
+                    types.InlineKeyboardButton(text="📄 Exportar PDF", callback_data="menu_pdf"),
+                ],
+                [
+                    types.InlineKeyboardButton(text="📊 Dashboard", callback_data="menu_dashboard"),
                 ],
                 [
                     types.InlineKeyboardButton(text="📥 Importar Excel", callback_data="menu_importar"),
@@ -255,6 +259,10 @@ def get_menu_router(db: Database) -> Router:
                 ],
                 [
                     types.InlineKeyboardButton(text="📋 Exportar Excel", callback_data="menu_excel"),
+                    types.InlineKeyboardButton(text="📄 Exportar PDF", callback_data="menu_pdf"),
+                ],
+                [
+                    types.InlineKeyboardButton(text="📊 Dashboard", callback_data="menu_dashboard"),
                 ],
                 [
                     types.InlineKeyboardButton(text="📥 Importar Excel", callback_data="menu_importar"),
@@ -288,5 +296,95 @@ def get_menu_router(db: Database) -> Router:
             parse_mode="HTML",
             reply_markup=boton_menu(),
         )
+
+    @router.callback_query(F.data == "menu_pdf")
+    async def menu_pdf(callback: types.CallbackQuery, state: FSMContext):
+        """Redirige a indicadores para exportar PDF."""
+        await callback.answer()
+        await state.clear()
+        # Redirigir a /indicadores que tiene el botón Exportar PDF
+        user_id = callback.from_user.id
+        fincas = db.get_fincas(user_id)
+        if not fincas:
+            await callback.message.answer(
+                "❌ <b>No tenés fincas registradas.</b>\n\nPrimero creá una con /fincas.",
+                parse_mode="HTML",
+                reply_markup=boton_menu(),
+            )
+            return
+        if len(fincas) == 1:
+            await callback.message.answer(
+                f"📄 <b>Exportar PDF</b>\n\n"
+                f"Usá el botón '📄 Exportar PDF' en la sección de Indicadores o Resumen "
+                f"para generar el PDF de {fincas[0]['nombre']}.",
+                parse_mode="HTML",
+                reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[
+                    [types.InlineKeyboardButton(
+                        text="📈 Ver Indicadores",
+                        callback_data=f"indicador:general:{fincas[0]['id']}"
+                    )],
+                    [types.InlineKeyboardButton(text="🏠 Menú Principal", callback_data="volver_menu")],
+                ]),
+            )
+        else:
+            kb = types.InlineKeyboardMarkup(inline_keyboard=[
+                [types.InlineKeyboardButton(
+                    text=f"🏠 {f['nombre']}",
+                    callback_data=f"indicador:general:{f['id']}"
+                )] for f in fincas
+            ] + [
+                [types.InlineKeyboardButton(text="🏠 Menú Principal", callback_data="volver_menu")],
+            ])
+            await callback.message.answer(
+                "📄 <b>Exportar PDF</b>\n\nSeleccioná la finca para ver indicadores y exportar PDF:",
+                parse_mode="HTML",
+                reply_markup=kb,
+            )
+
+    @router.callback_query(F.data == "menu_dashboard")
+    async def menu_dashboard(callback: types.CallbackQuery, state: FSMContext):
+        """Muestra el dashboard con indicadores generales."""
+        await callback.answer()
+        await state.clear()
+        # Redirigir a la vista general de indicadores
+        user_id = callback.from_user.id
+        fincas = db.get_fincas(user_id)
+        if not fincas:
+            await callback.message.answer(
+                "❌ <b>No tenés fincas registradas.</b>\n\nPrimero creá una con /fincas.",
+                parse_mode="HTML",
+                reply_markup=boton_menu(),
+            )
+            return
+        if len(fincas) == 1:
+            await callback.message.answer(
+                "📊 <b>Dashboard</b>\n\nSeleccioná la vista que querés ver:",
+                parse_mode="HTML",
+                reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[
+                    [
+                        types.InlineKeyboardButton(text="📈 General", callback_data=f"indicador:general:{fincas[0]['id']}"),
+                        types.InlineKeyboardButton(text="👷 MO", callback_data=f"indicador:mo:{fincas[0]['id']}"),
+                    ],
+                    [
+                        types.InlineKeyboardButton(text="🧪 Insumos", callback_data=f"indicador:insumos:{fincas[0]['id']}"),
+                        types.InlineKeyboardButton(text="💰 Financiero", callback_data=f"indicador:financiero:{fincas[0]['id']}"),
+                    ],
+                    [types.InlineKeyboardButton(text="🏠 Menú Principal", callback_data="volver_menu")],
+                ]),
+            )
+        else:
+            kb = types.InlineKeyboardMarkup(inline_keyboard=[
+                [types.InlineKeyboardButton(
+                    text=f"🏠 {f['nombre']}",
+                    callback_data=f"indicador:general:{f['id']}"
+                )] for f in fincas
+            ] + [
+                [types.InlineKeyboardButton(text="🏠 Menú Principal", callback_data="volver_menu")],
+            ])
+            await callback.message.answer(
+                "📊 <b>Dashboard</b>\n\nSeleccioná la finca para ver su dashboard:",
+                parse_mode="HTML",
+                reply_markup=kb,
+            )
 
     return router

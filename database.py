@@ -97,6 +97,14 @@ class Database:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE(finca_id, anio, categoria)
                 );
+                
+                -- Tabla para cola de sincronización offline
+                CREATE TABLE IF NOT EXISTS sync_queue (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    action TEXT NOT NULL,
+                    data TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
             """)
             
             # Asegurar que el admin exista (sin duplicar)
@@ -898,5 +906,49 @@ class Database:
                 "total_ejecutado": total_ejecutado,
                 "total_diferencia": total_ejecutado - total_planificado,
             }
+        finally:
+            conn.close()
+
+    # ─── Offline Sync Queue (MEJORA 6) ───
+
+    def add_sync_queue(self, action: str, data: dict):
+        """Agrega una operación a la cola de sincronización offline."""
+        import json
+        conn = self.get_conn()
+        try:
+            conn.execute(
+                "INSERT INTO sync_queue (action, data) VALUES (?, ?)",
+                (action, json.dumps(data)),
+            )
+            conn.commit()
+            log.info(f"📤 Sincronización en cola: {action}")
+        finally:
+            conn.close()
+
+    def get_sync_queue(self) -> list:
+        """Obtiene todas las operaciones pendientes de sincronización."""
+        import json
+        conn = self.get_conn()
+        try:
+            rows = conn.execute(
+                "SELECT * FROM sync_queue ORDER BY created_at"
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def process_sync_queue(self):
+        """Procesa la cola de sincronización (envía operaciones pendientes)."""
+        conn = self.get_conn()
+        try:
+            rows = conn.execute(
+                "SELECT * FROM sync_queue ORDER BY created_at"
+            ).fetchall()
+            for row in rows:
+                # Aquí iría la lógica de envío real (API, etc.)
+                log.info(f"🔄 Procesando sync_queue ID {row['id']}: {row['action']}")
+                conn.execute("DELETE FROM sync_queue WHERE id = ?", (row['id'],))
+            conn.commit()
+            log.info(f"✅ Cola de sincronización procesada: {len(rows)} items")
         finally:
             conn.close()

@@ -4,11 +4,14 @@ Calcula productividad, jornales/ha, costo/kg, margen/ha, etc.
 Todos los indicadores se calculan exclusivamente con datos de la finca.
 """
 import logging
+import os
+from datetime import datetime
 from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
 from database import Database
+from config import EXPORTS_DIR
 from utils import boton_menu, agregar_boton_menu
 
 logger = logging.getLogger(__name__)
@@ -99,6 +102,9 @@ async def mostrar_indicadores(db: Database, send_func, finca_id: int, finca_nomb
         texto += f"• Productividad: {_formatear_numero(indicadores['productividad'], 2)} kg/ha\n"
         texto += f"• Rendimiento: {_formatear_numero(indicadores['rendimiento'], 2)} kg/ha productivo\n\n"
 
+    # ─── Alertas automáticas (MEJORA 3) ───
+    texto += _generar_alertas(indicadores, db, finca_id)
+
     # Teclado de navegación
     keyboard = types.InlineKeyboardMarkup(
         inline_keyboard=[
@@ -114,12 +120,46 @@ async def mostrar_indicadores(db: Database, send_func, finca_id: int, finca_nomb
                 types.InlineKeyboardButton(text="📥 Exportar Excel", callback_data=f"indicador_excel:{finca_id}"),
             ],
             [
+                types.InlineKeyboardButton(text="📄 Exportar PDF", callback_data=f"indicador_pdf:{finca_id}"),
+            ],
+            [
                 types.InlineKeyboardButton(text="🏠 Menú Principal", callback_data="volver_menu"),
             ],
         ]
     )
 
     await send_func(texto, parse_mode="HTML", reply_markup=keyboard)
+
+
+def _generar_alertas(indicadores: dict, db, finca_id: int) -> str:
+    """Genera alertas automáticas basadas en los indicadores (MEJORA 3)."""
+    alertas = []
+    if indicadores.get('area_total', 0) == 0:
+        return ""
+
+    prod = indicadores.get('productividad', 0)
+    if 0 < prod < 800:
+        alertas.append(f"⚠️ Productividad baja: {prod:.1f} kg/ha (mínimo esperado: 800 kg/ha)")
+
+    if indicadores.get('margen_por_ha', 0) < 0:
+        alertas.append(f"🔴 ¡MARGEN NEGATIVO! Estás perdiendo ${abs(indicadores['margen_por_ha']):,.0f}/ha")
+
+    costo_kg = indicadores.get('costo_por_kilo', 0)
+    precio = indicadores.get('precio_venta_promedio', 0)
+    if costo_kg > precio and precio > 0:
+        alertas.append(f"🔴 Costo/kg (${costo_kg:,.0f}) supera precio venta (${precio:,.0f}/kg)")
+
+    if indicadores.get('jornales_por_ha', 0) > 80:
+        alertas.append(f"⚠️ Alta intensidad MO: {indicadores['jornales_por_ha']:.1f} jornales/ha")
+
+    if not alertas:
+        return ""
+
+    texto = "\n🚨 <b>Alertas:</b>\n"
+    for al in alertas:
+        texto += f"{al}\n"
+    texto += "\n"
+    return texto
 
 
 def get_indicadores_router(db: Database) -> Router:
@@ -314,5 +354,113 @@ def get_indicadores_router(db: Database) -> Router:
                 ]
             ),
         )
+
+    @router.callback_query(F.data.startswith("indicador_pdf:"))
+    async def exportar_indicadores_pdf(callback: types.CallbackQuery):
+        """Exporta los indicadores a un archivo PDF."""
+        await callback.answer()
+        user_id = callback.from_user.id
+        finca_id = int(callback.data.split(":")[1])
+        finca = db.get_finca_by_id(finca_id)
+        if not finca or finca["user_id"] != user_id:
+            await callback.message.edit_text(
+                "❌ <b>Finca no encontrada o no te pertenece.</b>",
+                parse_mode="HTML",
+                reply_markup=boton_menu(),
+            )
+            return
+
+        try:
+            await callback.message.edit_text(
+                "⏳ <b>Generando PDF del resumen ejecutivo...</b>",
+                parse_mode="HTML",
+            )
+
+            indicadores = db.get_indicadores_tecnicos(finca_id)
+            if not indicadores or indicadores.get('area_total', 0) == 0:
+                await callback.message.edit_text(
+                    "⚠️ <b>No hay datos suficientes para generar el PDF.</b>",
+                    parse_mode="HTML",
+                    reply_markup=boton_menu(),
+                )
+                return
+
+            # Generar PDF con FPDF2
+            from fpdf import FPDF
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Helvetica", "B", 16)
+            pdf.set_text_color(31, 78, 121)
+            pdf.cell(0, 10, f"Resumen Ejecutivo - {finca['nombre']}", ln=True, align="C")
+            pdf.ln(10)
+
+            # KPIs
+            pdf.set_font("Helvetica", "B", 12)
+            pdf.set_text_color(0, 0, 0)
+            pdf.cell(0, 8, "INDICADORES CLAVE", ln=True)
+            pdf.set_font("Helvetica", "", 10)
+
+            kpis = [
+                ("Productividad", f"{indicadores.get('productividad', 0):,.1f} kg/ha"),
+                ("Rendimiento", f"{indicadores.get('rendimiento', 0):,.1f} kg/ha productivo"),
+                ("Costo por Hectarea", f"${indicadores.get('costo_total_por_ha', 0):,.0f}"),
+                ("Margen por Hectarea", f"${indicadores.get('margen_por_ha', 0):,.0f}"),
+                ("Costo por kg CPS", f"${indicadores.get('costo_por_kilo', 0):,.0f}"),
+                ("Precio Venta Promedio", f"${indicadores.get('precio_venta_promedio', 0):,.0f}"),
+                ("Jornales/ha", f"{indicadores.get('jornales_por_ha', 0):,.1f}"),
+            ]
+            for label, valor in kpis:
+                pdf.cell(0, 7, f"  {label}: {valor}", ln=True)
+
+            pdf.ln(5)
+            pdf.set_font("Helvetica", "B", 12)
+            pdf.cell(0, 8, "INGRESOS vs COSTOS", ln=True)
+            pdf.set_font("Helvetica", "", 10)
+            pdf.cell(0, 7, f"  Ingresos Totales: ${indicadores.get('ingresos_totales', 0):,.0f}", ln=True)
+            pdf.cell(0, 7, f"  Costos Totales: ${indicadores.get('costos_total', 0):,.0f}", ln=True)
+            pdf.cell(0, 7, f"  Margen Neto: ${indicadores.get('ingresos_totales', 0) - indicadores.get('costos_total', 0):,.0f}", ln=True)
+
+            pdf.ln(5)
+            pdf.set_font("Helvetica", "B", 12)
+            pdf.cell(0, 8, "AREA", ln=True)
+            pdf.set_font("Helvetica", "", 10)
+            pdf.cell(0, 7, f"  Total: {indicadores.get('area_total', 0):,.1f} ha", ln=True)
+            pdf.cell(0, 7, f"  Productiva: {indicadores.get('area_productiva', 0):,.1f} ha", ln=True)
+            pdf.cell(0, 7, f"  Lotes: {len(db.get_lotes(finca_id))}", ln=True)
+
+            from config import EXPORTS_DIR
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_filename = f"resumen_ejecutivo_{finca_id}_{timestamp}.pdf"
+            output_path = os.path.join(EXPORTS_DIR, output_filename)
+            pdf.output(output_path)
+
+            with open(output_path, "rb") as f:
+                await callback.message.answer_document(
+                    types.FSInputFile(output_path, filename=f"Resumen_Ejecutivo_{finca['nombre']}.pdf"),
+                    caption=f"📄 <b>Resumen Ejecutivo generado</b> ☕\n\n"
+                            f"PDF con los indicadores clave de {finca['nombre']}.",
+                    parse_mode="HTML",
+                )
+
+            try:
+                os.remove(output_path)
+            except Exception:
+                pass
+
+        except ImportError:
+            await callback.message.edit_text(
+                "⚠️ <b>FPDF2 no está instalado.</b>\n\n"
+                "Instalalo con: pip install fpdf2\n"
+                "Mientras tanto, usá la exportación a Excel.",
+                parse_mode="HTML",
+                reply_markup=boton_menu(),
+            )
+        except Exception as e:
+            logger.error(f"Error al generar PDF: {e}", exc_info=True)
+            await callback.message.edit_text(
+                "❌ <b>Error al generar el PDF.</b> Intenta de nuevo más tarde.",
+                parse_mode="HTML",
+                reply_markup=boton_menu(),
+            )
 
     return router
