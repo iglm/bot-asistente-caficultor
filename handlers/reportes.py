@@ -187,10 +187,10 @@ def get_reportes_router(db: Database) -> Router:
     async def cmd_generar_excel(callback: types.CallbackQuery):
         """Genera y envía el Excel."""
         await callback.answer()
+        user_id = callback.from_user.id
 
         if callback.data == "menu_excel":
             # Preguntar qué finca
-            user_id = callback.from_user.id
             fincas = db.get_fincas(user_id)
             if not fincas:
                 # ✅ Generar plantilla vacía usando ExcelManager
@@ -269,6 +269,15 @@ def get_reportes_router(db: Database) -> Router:
                 return
         else:
             finca_id = int(callback.data.split(":")[1])
+            # Verify ownership
+            finca = db.get_finca_by_id(finca_id)
+            if not finca or finca.get("user_id") != user_id:
+                await callback.message.edit_text(
+                    "❌ <b>Finca no encontrada o no te pertenece.</b>",
+                    parse_mode="HTML",
+                    reply_markup=boton_menu(),
+                )
+                return
 
         try:
             await callback.message.edit_text(
