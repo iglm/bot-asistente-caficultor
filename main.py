@@ -14,7 +14,6 @@ Uso:
 import asyncio
 import logging
 import sys
-from pathlib import Path
 
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
@@ -39,6 +38,7 @@ from handlers import (
     get_voice_router,
     get_presupuesto_router,
     get_indicadores_router,
+    get_asesoria_router,
 )
 
 # ─── Logging ───────────────────────────────────────────────────
@@ -84,6 +84,7 @@ async def main():
     dp.include_router(get_voice_router(db))
     dp.include_router(get_presupuesto_router(db))
     dp.include_router(get_indicadores_router(db))
+    dp.include_router(get_asesoria_router(db))
     log.info("✅ Handlers registrados")
     
     # ── Obtener info del bot ──

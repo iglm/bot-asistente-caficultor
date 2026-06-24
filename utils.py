@@ -118,6 +118,9 @@ def construir_menu_principal(db=None, user_id=None, is_admin=False):
                 types.InlineKeyboardButton(text="📊 Dashboard", callback_data="menu_dashboard"),
             ],
             [
+                types.InlineKeyboardButton(text="👨‍🏫 Asesoría", callback_data="menu_asesoria"),
+            ],
+            [
                 types.InlineKeyboardButton(text="📥 Importar Excel", callback_data="menu_importar"),
                 types.InlineKeyboardButton(text="🗑️ Borrar datos", callback_data="ir_borrar"),
             ],

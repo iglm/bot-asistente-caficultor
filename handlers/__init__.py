@@ -16,6 +16,7 @@ from handlers.ayuda import get_ayuda_router
 from handlers.voice import get_voice_router
 from handlers.presupuesto import get_presupuesto_router
 from handlers.indicadores import get_indicadores_router
+from handlers.asesoria import get_asesoria_router
 
 __all__ = [
     "get_menu_router",
@@ -31,4 +32,5 @@ __all__ = [
     "get_voice_router",
     "get_presupuesto_router",
     "get_indicadores_router",
+    "get_asesoria_router",
 ]

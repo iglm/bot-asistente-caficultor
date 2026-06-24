@@ -74,6 +74,11 @@ El uso de este servicio implica la aceptación plena e incondicional de los pres
 Al utilizar este servicio, usted declara haber leído, comprendido y aceptado los presentes términos en su totalidad.
 """
 
+# ── Asesoría ──
+ASESORIA_EMAIL = "mateotabares7@gmail.com"
+ASESOR_NOMBRE = "Lucas Mateo Tabares Franco"
+ASESOR_ASESOR = "Ing. Jhoan Sebastian Bustamante Montes"
+
 # ── Categorías de transacciones ──
 BOT_NAME = "Asistente Caficultor ☕"
 
