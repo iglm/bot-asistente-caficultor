@@ -168,9 +168,57 @@ class Database:
         conn = self.get_conn()
         try:
             rows = conn.execute(
-                "SELECT user_id, username, status, created_at FROM usuarios ORDER BY created_at DESC"
+                "SELECT user_id, username, status, created_at, approved_at FROM usuarios ORDER BY created_at DESC"
             ).fetchall()
             return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_approved_users(self) -> list:
+        """Obtener lista de usuarios aprobados."""
+        conn = self.get_conn()
+        try:
+            rows = conn.execute(
+                "SELECT user_id, username, created_at, approved_at FROM usuarios WHERE status='approved' ORDER BY approved_at DESC"
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_rejected_users(self) -> list:
+        """Obtener lista de usuarios rechazados."""
+        conn = self.get_conn()
+        try:
+            rows = conn.execute(
+                "SELECT user_id, username, created_at FROM usuarios WHERE status='rejected' ORDER BY created_at DESC"
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def revoke_user(self, user_id: int) -> bool:
+        """Revocar acceso de un usuario aprobado (cambia a rejected). Retorna True si se revocó."""
+        conn = self.get_conn()
+        try:
+            cur = conn.execute(
+                "UPDATE usuarios SET status='rejected' WHERE user_id=? AND status='approved'",
+                (user_id,),
+            )
+            conn.commit()
+            return cur.rowcount > 0
+        finally:
+            conn.close()
+
+    def reactivate_user(self, user_id: int) -> bool:
+        """Reactivar un usuario rechazado (cambia a pending). Retorna True si se reactivó."""
+        conn = self.get_conn()
+        try:
+            cur = conn.execute(
+                "UPDATE usuarios SET status='pending' WHERE user_id=? AND status='rejected'",
+                (user_id,),
+            )
+            conn.commit()
+            return cur.rowcount > 0
         finally:
             conn.close()
     

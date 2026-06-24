@@ -32,12 +32,12 @@ def get_start_router(db: Database) -> Router:
 
                 if es_nuevo:
                     await message.answer(
-                        f"☕ *¡Bienvenido al {BOT_NAME}!* 🌱\n\n"
+                        f"☕ <b>¡Bienvenido al {BOT_NAME}!</b> 🌱\n\n"
                         f"Hola {full_name}, gracias por tu interés.\n\n"
                         "Tu solicitud de acceso ha sido enviada al administrador. "
                         "En breve recibirás una notificación cuando sea aprobada. ⏳\n\n"
-                        "☕ *¡Gracias por confiar en nosotros para gestionar tu finca!*",
-                        parse_mode="Markdown",
+                        "☕ <b>¡Gracias por confiar en nosotros para gestionar tu finca!</b>",
+                        parse_mode="HTML",
                     )
 
                     # Notificar a los admins con botones inline
@@ -59,12 +59,12 @@ def get_start_router(db: Database) -> Router:
                         try:
                             await message.bot.send_message(
                                 admin_id,
-                                f"🆕 *Nuevo usuario pendiente:*\\n\\n"
-                                f"👤 ID: `{user_id}`\\n"
-                                f"📝 Username: @{username}\\n"
-                                f"📛 Nombre: {full_name}\\n\\n"
+                                f"🆕 <b>Nuevo usuario pendiente:</b>\n\n"
+                                f"👤 ID: <code>{user_id}</code>\n"
+                                f"📝 Username: @{username}\n"
+                                f"📛 Nombre: {full_name}\n\n"
                                 f"Usa los botones de abajo para gestionar la solicitud.",
-                                parse_mode="Markdown",
+                                parse_mode="HTML",
                                 reply_markup=keyboard,
                             )
                         except Exception as e:
@@ -74,12 +74,12 @@ def get_start_router(db: Database) -> Router:
                     try:
                         await message.bot.send_message(
                             NOTIFICATION_GROUP_ID,
-                            f"🆕 *Nuevo usuario pendiente:*\\n\\n"
-                            f"👤 ID: `{user_id}`\\n"
-                            f"📝 Username: @{username}\\n"
-                            f"📛 Nombre: {full_name}\\n\\n"
+                            f"🆕 <b>Nuevo usuario pendiente:</b>\n\n"
+                            f"👤 ID: <code>{user_id}</code>\n"
+                            f"📝 Username: @{username}\n"
+                            f"📛 Nombre: {full_name}\n\n"
                             f"Usa los botones para gestionar.",
-                            parse_mode="Markdown",
+                            parse_mode="HTML",
                             reply_markup=keyboard,
                         )
                     except Exception as e:
@@ -90,25 +90,25 @@ def get_start_router(db: Database) -> Router:
                         await mostrar_menu_principal(message)
                     elif db.is_pending(user_id):
                         await message.answer(
-                            "⏳ *Tu solicitud ya está en revisión.*\n\n"
+                            "⏳ <b>Tu solicitud ya está en revisión.</b>\n\n"
                             "El administrador te notificará cuando sea aprobada. "
                             "¡Gracias por tu paciencia! ☕",
-                            parse_mode="Markdown",
+                            parse_mode="HTML",
                         )
                     else:
                         await message.answer(
-                            "❌ *Tu solicitud fue rechazada.*\n\n"
+                            "❌ <b>Tu solicitud fue rechazada.</b>\n\n"
                             "No tienes acceso al bot. Contacta al administrador "
                             "si consideras que esto es un error.",
-                            parse_mode="Markdown",
+                            parse_mode="HTML",
                         )
 
             elif status == "pending":
                 await message.answer(
-                    "⏳ *Tu solicitud está pendiente de aprobación.*\n\n"
+                    "⏳ <b>Tu solicitud está pendiente de aprobación.</b>\n\n"
                     "El administrador te notificará cuando sea aprobada. "
                     "¡Gracias por tu paciencia! ☕",
-                    parse_mode="Markdown",
+                    parse_mode="HTML",
                 )
 
             elif status == "approved":
@@ -116,25 +116,25 @@ def get_start_router(db: Database) -> Router:
 
             elif status == "rejected":
                 await message.answer(
-                    "❌ *No tienes acceso al bot.*\n\n"
+                    "❌ <b>No tienes acceso al bot.</b>\n\n"
                     "Tu solicitud fue rechazada. Contacta al administrador "
                     "si consideras que esto es un error.",
-                    parse_mode="Markdown",
+                    parse_mode="HTML",
                 )
 
             else:
                 await message.answer(
-                    "⚠️ *Error de estado.*\n\n"
+                    "⚠️ <b>Error de estado.</b>\n\n"
                     "Contacta al administrador para resolver este problema.",
-                    parse_mode="Markdown",
+                    parse_mode="HTML",
                 )
 
         except Exception as e:
             logger.error(f"Error en /start para user {user_id}: {e}", exc_info=True)
             await message.answer(
-                "❌ *Error interno.*\n\n"
+                "❌ <b>Error interno.</b>\n\n"
                 "Ocurrió un error al procesar tu solicitud. Intenta de nuevo más tarde.",
-                parse_mode="Markdown",
+                parse_mode="HTML",
             )
 
     @router.callback_query(F.data == "volver_menu")
@@ -169,14 +169,14 @@ async def mostrar_menu_principal(message: types.Message):
     )
 
     await message.answer(
-        "☕ *¡Bienvenido al Asistente Caficultor!* 🌱\n\n"
+        "☕ <b>¡Bienvenido al Asistente Caficultor!</b> 🌱\n\n"
         "Selecciona una opción del menú para comenzar:\n\n"
-        "🗺️ *Fincas* — Gestionar tus fincas\n"
-        "🌱 *Lotes* — Administrar lotes\n"
-        "💰 *Ingresos* — Registrar ventas de café\n"
-        "📉 *Costos* — Registrar costos de producción\n"
-        "📊 *Resumen* — Ver datos y exportar Excel\n"
-        "❓ *Ayuda* — Guía de uso",
-        parse_mode="Markdown",
+        "🗺️ <b>Fincas</b> — Gestionar tus fincas\n"
+        "🌱 <b>Lotes</b> — Administrar lotes\n"
+        "💰 <b>Ingresos</b> — Registrar ventas de café\n"
+        "📉 <b>Costos</b> — Registrar costos de producción\n"
+        "📊 <b>Resumen</b> — Ver datos y exportar Excel\n"
+        "❓ <b>Ayuda</b> — Guía de uso",
+        parse_mode="HTML",
         reply_markup=keyboard,
     )
