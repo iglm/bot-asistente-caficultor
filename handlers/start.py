@@ -25,7 +25,7 @@ async def mostrar_menu_principal(message: types.Message):
             ],
             [
                 types.InlineKeyboardButton(text="📊 Resumen", callback_data="menu_resumen"),
-                types.InlineKeyboardButton(text="📊 Excel", callback_data="menu_excel"),
+                types.InlineKeyboardButton(text="📋 Exportar Excel", callback_data="menu_excel"),
             ],
             [
                 types.InlineKeyboardButton(text="❓ Ayuda", callback_data="menu_ayuda"),

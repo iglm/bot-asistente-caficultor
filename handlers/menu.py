@@ -94,7 +94,7 @@ def get_menu_router(db: Database) -> Router:
         if not fincas:
             await callback.message.answer(
                 "✅ <b>No tenés datos en el sistema.</b>\n\n"
-                "Ya estás limpio. Podés empezar creando una finca con /fincas.",
+                "Ya está todo limpio. Podés empezar creando una finca con /fincas ☕",
                 parse_mode="HTML",
             )
             return

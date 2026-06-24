@@ -92,158 +92,38 @@ def get_importar_router(db: Database) -> Router:
 
     @router.callback_query(F.data == "importar:descargar_plantilla")
     async def descargar_plantilla(callback: types.CallbackQuery):
-        """Genera y envía una plantilla Excel vacía con el formato esperado."""
+        """Genera y envía una plantilla Excel vacía basada en el template real con instrucciones."""
         await callback.answer()
 
         try:
-            import openpyxl
-            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-            from io import BytesIO
+            from excel_manager import ExcelManager
+            from config import EXCEL_TEMPLATE, EXPORTS_DIR
 
-            wb = openpyxl.Workbook()
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_filename = f"plantilla_importar_{timestamp}.xlsx"
+            output_path = os.path.join(EXPORTS_DIR, output_filename)
 
-            # ── Estilos ──
-            header_font = Font(bold=True, color="FFFFFF", size=11)
-            header_fill = PatternFill(start_color="2E7D32", end_color="2E7D32", fill_type="solid")
-            header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            thin_border = Border(
-                left=Side(style="thin"),
-                right=Side(style="thin"),
-                top=Side(style="thin"),
-                bottom=Side(style="thin"),
-            )
-
-            def crear_hoja(ws, titulo, headers, instrucciones=None):
-                """Crea una hoja con headers formateados."""
-                ws.title = titulo
-                for col_idx, header in enumerate(headers, start=1):
-                    cell = ws.cell(row=1, column=col_idx, value=header)
-                    cell.font = header_font
-                    cell.fill = header_fill
-                    cell.alignment = header_align
-                    cell.border = thin_border
-                # Ajustar ancho de columnas
-                for col_idx in range(1, len(headers) + 1):
-                    ws.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = 20
-
-            # ── Hoja: Fincas ──
-            ws_fincas = wb.active
-            crear_hoja(ws_fincas, "Fincas", ["nombre", "region", "departamento"])
-
-            # ── Hoja: Lotes ──
-            ws_lotes = wb.create_sheet()
-            crear_hoja(ws_lotes, "Lotes", [
-                "finca_nombre", "nombre", "area_hectareas", "num_arboles",
-                "variedad", "fecha_siembra",
-            ])
-
-            # ── Hoja: Ingresos ──
-            ws_ingresos = wb.create_sheet()
-            crear_hoja(ws_ingresos, "Ingresos", [
-                "finca_nombre", "tipo", "fecha", "cantidad", "valor_total",
-            ])
-
-            # ── Hoja: Costos_MO ──
-            ws_cmo = wb.create_sheet()
-            crear_hoja(ws_cmo, "Costos_MO", [
-                "finca_nombre", "lote_nombre", "categoria", "fecha", "labor",
-                "cantidad", "valor_unitario", "valor_total",
-            ])
-
-            # ── Hoja: Costos_Insumos ──
-            ws_cins = wb.create_sheet()
-            crear_hoja(ws_cins, "Costos_Insumos", [
-                "finca_nombre", "lote_nombre", "categoria", "fecha", "producto",
-                "cantidad", "unidad", "valor_unitario", "valor_total",
-            ])
-
-            # ── Hoja: NOTAS con instrucciones ──
-            ws_notas = wb.create_sheet()
-            ws_notas.title = "NOTAS"
-            ws_notas.column_dimensions["A"].width = 100
-
-            notas = [
-                "📋 INSTRUCCIONES PARA LLENAR LA PLANTILLA DE IMPORTACIÓN",
-                "",
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-                "📄 HOJA: Fincas",
-                "  • nombre: Nombre de la finca (obligatorio)",
-                "  • region: Región donde está ubicada (ej: 'Caldas', 'Risaralda')",
-                "  • departamento: Departamento (ej: 'Caldas')",
-                "",
-                "📄 HOJA: Lotes",
-                "  • finca_nombre: Nombre exacto de la finca (debe existir en Fincas)",
-                "  • nombre: Nombre del lote (obligatorio)",
-                "  • area_hectareas: Área en hectáreas (ej: 2.5)",
-                "  • num_arboles: Número de árboles (ej: 2500)",
-                "  • variedad: Variedad de café (ej: 'Castillo', 'Caturra')",
-                "  • fecha_siembra: Fecha de siembra (YYYY-MM-DD)",
-                "",
-                "📄 HOJA: Ingresos",
-                "  • finca_nombre: Nombre exacto de la finca",
-                "  • tipo: 'CPS', 'Pasilla' o 'Re-re'",
-                "  • fecha: Fecha del ingreso (YYYY-MM-DD)",
-                "  • cantidad: Cantidad en kg (ej: 150.5)",
-                "  • valor_total: Valor total del ingreso (ej: 1200000)",
-                "",
-                "📄 HOJA: Costos_MO (Mano de Obra)",
-                "  • finca_nombre: Nombre exacto de la finca",
-                "  • lote_nombre: Nombre del lote (opcional, dejar vacío si no aplica)",
-                "  • categoria: Una de: instalacion_mo, arvenses_mo, fertilizacion_mo,",
-                "    fitosanitario_mo, sombrio_mo, otras_labores_mo, recoleccion,",
-                "    beneficio, administrativo",
-                "  • fecha: Fecha del gasto (YYYY-MM-DD)",
-                "  • labor: Descripción de la labor realizada",
-                "  • cantidad: Número de jornales o cantidad",
-                "  • valor_unitario: Valor por unidad",
-                "  • valor_total: Valor total (cantidad × valor_unitario)",
-                "",
-                "📄 HOJA: Costos_Insumos (Insumos y materiales)",
-                "  • finca_nombre: Nombre exacto de la finca",
-                "  • lote_nombre: Nombre del lote (opcional)",
-                "  • categoria: Una de: instalacion_insumos, arvenses_insumos,",
-                "    fertilizacion_insumos, fitosanitario_insumos, sombrio_insumos,",
-                "    otras_labores_insumos",
-                "  • fecha: Fecha del gasto (YYYY-MM-DD)",
-                "  • producto: Nombre del producto/insumo",
-                "  • cantidad: Cantidad adquirida",
-                "  • unidad: Unidad de medida (kg, L, unidad, etc.)",
-                "  • valor_unitario: Valor por unidad",
-                "  • valor_total: Valor total (cantidad × valor_unitario)",
-                "",
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-                "📌 CONSEJOS:",
-                "  • Las fincas deben crearse ANTES que los lotes e ingresos/costos",
-                "  • Los nombres de fincas y lotes deben coincidir EXACTAMENTE",
-                "  • Usá formato de fecha YYYY-MM-DD (ej: 2025-03-15)",
-                "  • Los valores numéricos usan punto como separador decimal (ej: 150.50)",
-            ]
-
-            for i, nota in enumerate(notas, start=1):
-                cell = ws_notas.cell(row=i, column=1, value=nota)
-                if nota and nota.startswith("━━━"):
-                    cell.font = Font(bold=True, color="2E7D32")
-                elif nota and (nota.startswith("📋") or nota.startswith("📌")):
-                    cell.font = Font(bold=True, size=12, color="2E7D32")
-                elif nota and nota.startswith("📄"):
-                    cell.font = Font(bold=True, size=11)
-                else:
-                    cell.font = Font(size=10)
-
-            # Guardar en BytesIO
-            output = BytesIO()
-            wb.save(output)
-            output.seek(0)
+            # Usar ExcelManager para generar plantilla desde el template real
+            manager = ExcelManager(EXCEL_TEMPLATE)
+            manager.generar_plantilla_vacia(output_path)
 
             await callback.message.answer_document(
-                types.BufferedInputFile(output.getvalue(), filename="Plantilla_Importacion_Costos.xlsx"),
-                caption="📋 <b>Plantilla vacía descargada</b> ✅\n\n"
-                        "Completá las hojas con tus datos y luego enviame el archivo.\n"
-                        "La hoja <b>NOTAS</b> tiene instrucciones detalladas.",
+                types.FSInputFile(output_path, filename="Plantilla_Importacion_Costos.xlsx"),
+                caption="📋 <b>Plantilla para importar</b> ✅\n\n"
+                        "📌 <b>Instrucciones:</b>\n"
+                        "1. Abrí el archivo (tiene datos de ejemplo como guía)\n"
+                        "2. Reemplazá los datos de ejemplo con tus datos reales\n"
+                        "3. Guardá el archivo\n"
+                        "4. Enviame el archivo completado\n\n"
+                        "📄 La hoja <b>NOTAS</b> tiene instrucciones detalladas de cada hoja.",
                 parse_mode="HTML",
             )
 
-            wb.close()
+            # Limpiar archivo temporal
+            try:
+                os.remove(output_path)
+            except Exception:
+                pass
 
         except Exception as e:
             logger.error(f"Error al generar plantilla de importación: {e}", exc_info=True)
