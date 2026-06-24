@@ -30,6 +30,14 @@ class Database:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")
+            
+        # Añadir columna acepto_terminos si no existe (migración)
+        try:
+            conn.execute("ALTER TABLE usuarios ADD COLUMN acepto_terminos INTEGER DEFAULT 0")
+            log.info("✅ Columna acepto_terminos añadida a tabla usuarios")
+        except sqlite3.OperationalError:
+            pass  # Ya existe
+            
         return conn
     
     def init_db(self):
@@ -266,6 +274,35 @@ class Database:
                 "SELECT user_id, username, created_at FROM usuarios WHERE status='rejected' ORDER BY created_at DESC"
             ).fetchall()
             return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_user(self, user_id: int) -> Optional[dict]:
+        """Obtener todos los datos de un usuario.
+        
+        Retorna dict con todos los campos o None si no existe.
+        """
+        conn = self.get_conn()
+        try:
+            row = conn.execute(
+                "SELECT * FROM usuarios WHERE user_id = ?", (user_id,)
+            ).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    def aceptar_terminos(self, user_id: int) -> bool:
+        """Marca que el usuario aceptó los términos legales.
+        Retorna True si se actualizó, False si no existía.
+        """
+        conn = self.get_conn()
+        try:
+            cur = conn.execute(
+                "UPDATE usuarios SET acepto_terminos=1 WHERE user_id=?",
+                (user_id,),
+            )
+            conn.commit()
+            return cur.rowcount > 0
         finally:
             conn.close()
 

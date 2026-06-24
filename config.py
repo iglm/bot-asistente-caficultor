@@ -29,6 +29,23 @@ EXPORTS_DIR = str(BASE_DIR / "exports")
 os.makedirs(BASE_DIR / "data", exist_ok=True)
 os.makedirs(EXPORTS_DIR, exist_ok=True)
 
+# ── Aviso Legal ──
+AVISO_LEGAL = """
+📋 <b>AVISO LEGAL Y PROTECCIÓN DE DATOS</b>
+
+• Los datos que registres (fincas, lotes, costos, ingresos) serán almacenados en nuestra base de datos.
+• Tus datos NO serán compartidos con terceros.
+• Tus datos se sincronizan diariamente con un repositorio privado de GitHub para respaldo.
+• Podés borrar TODOS tus datos en cualquier momento usando el botón "🗑️ Borrar datos".
+• El uso de este bot es bajo tu propia responsabilidad.
+
+👨‍💻 <b>Desarrollado por:</b>
+Lucas Mateo Tabares Franco
+Asesorado por: Ing. Jhoan Sebastian Bustamante Montes
+
+Al usar este bot, aceptás los términos anteriores.
+"""
+
 # ── Categorías de transacciones ──
 BOT_NAME = "Asistente Caficultor ☕"
 
