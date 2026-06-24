@@ -898,6 +898,49 @@ class SimuladorMasivo:
                                 self.estadisticas["errores"] += 1
                                 log_error(f"Error costo ins {cat} ({fecha}): {e}")
 
+        # ── Costos Globales (Toda la finca) ──────────────────────────
+        log_step("Generando costos globales (TODA LA FINCA) — repartidos entre todos los lotes...")
+        costos_globales_creados = 0
+        globales_data = [
+            # (categoria_db, labor, valor_unitario), se inserta por lote con valor_total/lote
+            ("otras_labores_mo", "🌍 PODA GENERAL — Toda la finca", 1_200_000),
+            ("otras_labores_mo", "🌍 ENCALADO GENERAL — Toda la finca", 800_000),
+            ("fertilizacion_mo", "🌍 FERTILIZACIÓN BROADCAST — Toda la finca", 1_500_000),
+            ("fertilizacion_insumos", "🌍 FERTILIZANTE NPK 15-15-15 — Toda la finca", 3_200_000),
+            ("fitosanitario_mo", "🌍 MONITOREO FITOSANITARIO GENERAL — Toda la finca", 600_000),
+            ("fitosanitario_insumos", "🌍 FUNGICIDA PREVENTIVO — Toda la finca", 900_000),
+            ("arvenses_mo", "🌍 CONTROL GENERAL DE ARVENSES — Toda la finca", 500_000),
+            ("sombrio_mo", "🌍 REGULACIÓN DE SOMBRÍO GENERAL — Toda la finca", 400_000),
+        ]
+
+        lotes_ids = [l["id"] for l in self.lotes_en_db]
+        n_lotes = len(lotes_ids)
+
+        for año in [2023, 2024, 2025]:
+            mes = random.randint(3, 6)
+            dia = random.randint(1, 15)
+            fecha = f"{año}-{mes:02d}-{dia:02d}"
+            for cat_db, labor, valor_global in globales_data:
+                if n_lotes == 0:
+                    continue
+                valor_por_lote = max(1, int(valor_global / n_lotes * random.uniform(0.85, 1.15)))
+                for lote_id in lotes_ids:
+                    try:
+                        db_exec(
+                            "INSERT INTO transacciones (finca_id, lote_id, categoria, fecha, labor, "
+                            "producto, cantidad, unidad, valor_unitario, valor_total) "
+                            "VALUES (?, ?, ?, ?, ?, '', 1, 'global', 0, ?)",
+                            (self.finca_id, lote_id, cat_db, fecha, labor, valor_por_lote)
+                        )
+                        costos_globales_creados += 1
+                    except Exception as e:
+                        self.estadisticas["errores"] += 1
+                        log_error(f"Error costo global {cat_db} ({fecha}): {e}")
+
+        if costos_globales_creados > 0:
+            log_ok(f"{costos_globales_creados} costos globales (TODA LA FINCA) creados")
+            costos_creados += costos_globales_creados
+
         self.estadisticas["costos_creados"] = costos_creados
         log_ok(f"{costos_creados} costos creados con estructura FEPCafé 2024")
 
