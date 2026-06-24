@@ -196,3 +196,143 @@ class TestGetResumenFinca:
         assert resumen["egresos"] == 1_600_000
         assert resumen["costo_por_hectarea"] == 200_000  # 1_600_000 / 8
         assert resumen["egresos_por_categoria"]["fertilizacion"] == 1_600_000
+
+
+# ─── Tests: Presupuestos ──────────────────────────────────────
+
+
+class TestPresupuestos:
+    """Prueba los métodos de presupuesto."""
+
+    def test_guardar_y_obtener_presupuesto(self, db: Database, finca_id: int):
+        """Guarda un presupuesto y lo recupera."""
+        datos = {
+            "recoleccion": 5_000_000,
+            "fertilizacion": 2_000_000,
+            "administrativo": 700_000,
+            "arvenses": 600_000,
+            "beneficio": 500_000,
+            "instalacion": 400_000,
+            "fitosanitario": 200_000,
+            "otras_labores": 100_000,
+        }
+        db.guardar_presupuesto(finca_id, 2025, datos)
+
+        rows = db.get_presupuesto(finca_id, 2025)
+        assert len(rows) == 8
+
+        categorias = {r["categoria"]: r["monto_planificado"] for r in rows}
+        assert categorias["recoleccion"] == 5_000_000
+        assert categorias["fertilizacion"] == 2_000_000
+        assert categorias["administrativo"] == 700_000
+
+        total = sum(categorias.values())
+        assert total == 9_500_000
+
+    def test_actualizar_presupuesto(self, db: Database, finca_id: int):
+        """Actualiza un presupuesto existente."""
+        datos = {"recoleccion": 5_000_000, "fertilizacion": 2_000_000}
+        db.guardar_presupuesto(finca_id, 2025, datos)
+
+        # Actualizar
+        datos_actualizados = {"recoleccion": 6_000_000, "fertilizacion": 2_500_000}
+        db.guardar_presupuesto(finca_id, 2025, datos_actualizados)
+
+        rows = db.get_presupuesto(finca_id, 2025)
+        categorias = {r["categoria"]: r["monto_planificado"] for r in rows}
+        assert categorias["recoleccion"] == 6_000_000
+        assert categorias["fertilizacion"] == 2_500_000
+
+    def test_get_presupuesto_anios(self, db: Database, finca_id: int):
+        """Obtiene años disponibles."""
+        db.guardar_presupuesto(finca_id, 2024, {"recoleccion": 4_000_000})
+        db.guardar_presupuesto(finca_id, 2025, {"recoleccion": 5_000_000})
+
+        anios = db.get_presupuesto_anios(finca_id)
+        assert anios == [2025, 2024]  # Orden descendente
+
+    def test_get_presupuesto_anios_vacio(self, db: Database, finca_id: int):
+        """Años disponibles cuando no hay presupuesto."""
+        anios = db.get_presupuesto_anios(finca_id)
+        assert anios == []
+
+    def test_delete_presupuesto(self, db: Database, finca_id: int):
+        """Elimina un presupuesto."""
+        db.guardar_presupuesto(finca_id, 2025, {"recoleccion": 5_000_000})
+        assert len(db.get_presupuesto(finca_id, 2025)) == 1
+
+        db.delete_presupuesto(finca_id, 2025)
+        assert len(db.get_presupuesto(finca_id, 2025)) == 0
+
+    def test_get_ejecucion_sin_presupuesto(self, db: Database, finca_id: int):
+        """Ejecución sin presupuesto: todos los montos en 0."""
+        ej = db.get_ejecucion_presupuesto(finca_id, 2025)
+        assert len(ej["categorias"]) == 8
+        assert ej["total_planificado"] == 0
+        assert ej["total_ejecutado"] == 0
+        assert ej["total_diferencia"] == 0
+        for cat in ej["categorias"]:
+            assert cat["monto_planificado"] == 0
+            assert cat["monto_ejecutado"] == 0
+            assert cat["pct_ejecucion"] == 0
+
+    def test_get_ejecucion_con_presupuesto_y_transacciones(self, db: Database, finca_id: int):
+        """Ejecución con presupuesto y transacciones reales."""
+        # Guardar presupuesto para 2025
+        datos = {
+            "recoleccion": 5_000_000,
+            "fertilizacion": 2_000_000,
+            "administrativo": 700_000,
+            "arvenses": 600_000,
+            "beneficio": 500_000,
+            "instalacion": 400_000,
+            "fitosanitario": 200_000,
+            "otras_labores": 100_000,
+        }
+        db.guardar_presupuesto(finca_id, 2025, datos)
+
+        # Insertar transacciones reales (menores al presupuesto)
+        db.insert_transaccion(finca_id, "recoleccion", "2025-03-01", labor="Corte", valor_total=4_000_000)
+        db.insert_transaccion(finca_id, "fertilizacion_mo", "2025-04-01", labor="Aplicación", valor_total=500_000)
+        db.insert_transaccion(finca_id, "fertilizacion_insumos", "2025-04-01", producto="Urea", cantidad=10, valor_unitario=100_000, valor_total=1_000_000)
+        db.insert_transaccion(finca_id, "administrativo", "2025-05-01", labor="Contador", valor_total=600_000)
+
+        # También una transacción de 2024 que NO debe contar
+        db.insert_transaccion(finca_id, "recoleccion", "2024-03-01", labor="Corte", valor_total=3_000_000)
+
+        ej = db.get_ejecucion_presupuesto(finca_id, 2025)
+
+        # Verificar recolección
+        rec = [c for c in ej["categorias"] if c["categoria"] == "recoleccion"][0]
+        assert rec["monto_planificado"] == 5_000_000
+        assert rec["monto_ejecutado"] == 4_000_000
+        assert rec["diferencia"] == -1_000_000  # Por debajo del presupuesto
+        assert rec["pct_ejecucion"] == 80.0  # 4M / 5M
+
+        # Verificar fertilización (MO + Insumos)
+        fert = [c for c in ej["categorias"] if c["categoria"] == "fertilizacion"][0]
+        assert fert["monto_planificado"] == 2_000_000
+        assert fert["monto_ejecutado"] == 1_500_000
+        assert fert["diferencia"] == -500_000
+        assert fert["pct_ejecucion"] == 75.0  # 1.5M / 2M
+
+        # Verificar administrativo
+        admin = [c for c in ej["categorias"] if c["categoria"] == "administrativo"][0]
+        assert admin["monto_planificado"] == 700_000
+        assert admin["monto_ejecutado"] == 600_000
+        assert admin["diferencia"] == -100_000
+
+        # Verificar totales
+        assert ej["total_planificado"] == 9_500_000
+        assert ej["total_ejecutado"] == 6_100_000  # 4M + 1.5M + 0.6M
+        assert ej["total_diferencia"] == -3_400_000
+
+    def test_get_ejecucion_sobregiro(self, db: Database, finca_id: int):
+        """Ejecución con sobregiro (ejecutado > planificado)."""
+        db.guardar_presupuesto(finca_id, 2025, {"recoleccion": 5_000_000})
+        db.insert_transaccion(finca_id, "recoleccion", "2025-03-01", labor="Corte", valor_total=6_000_000)
+
+        ej = db.get_ejecucion_presupuesto(finca_id, 2025)
+        rec = [c for c in ej["categorias"] if c["categoria"] == "recoleccion"][0]
+        assert rec["diferencia"] == 1_000_000  # Sobregiro
+        assert rec["pct_ejecucion"] == 120.0  # 6M / 5M

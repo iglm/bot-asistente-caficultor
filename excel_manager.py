@@ -554,6 +554,9 @@ class ExcelManager:
         self._llenar_hoja_ingresos(wb, data)
         self._llenar_hojas_costos(wb, data)
 
+        # 3b. Llenar hoja Presupuesto (si existe en template o crearla)
+        self._llenar_hoja_presupuesto(wb, db, finca_id)
+
         # 4. Generar hoja de gráficos
         ws_graficos = wb.create_sheet("Gráficos")
         # Mover "Gráficos" después de "ID lotes"
@@ -1061,6 +1064,214 @@ class ExcelManager:
             ws.cell(row=fila, column=3, value=rec.get("valor_total", 0) or 0)
 
         logger.info(f"Hoja 'Gastos Administrativos' llenada con {num_needed} registros")
+
+    # ------------------------------------------------------------------
+    # Hoja Presupuesto
+    # ------------------------------------------------------------------
+
+    def _llenar_hoja_presupuesto(self, wb, db, finca_id: int):
+        """Llena la hoja 'Presupuesto' con planificación vs ejecución.
+        
+        Estructura:
+        A: Categoría | B: % FEPCafé | C: Monto Planificado | D: Monto Ejecutado 
+        | E: Diferencia | F: % Ejecución
+        
+        Usa colores: Verde si ejecutado <= planificado, Rojo si sobregiro.
+        """
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+        # Definir colores
+        FILL_HEADER = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+        FILL_TOTAL = PatternFill(start_color="D6E4F0", end_color="D6E4F0", fill_type="solid")
+        FILL_VERDE = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+        FILL_ROJO = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+        FONT_HEADER = Font(bold=True, color="FFFFFF", size=11, name="Calibri")
+        FONT_TITLE = Font(bold=True, size=14, name="Calibri", color="1F4E79")
+        FONT_NORMAL = Font(size=10, name="Calibri")
+        FONT_BOLD = Font(bold=True, size=10, name="Calibri")
+        THIN_BORDER = Border(
+            left=Side(style="thin"),
+            right=Side(style="thin"),
+            top=Side(style="thin"),
+            bottom=Side(style="thin"),
+        )
+        CENTER = Alignment(horizontal="center", vertical="center")
+        RIGHT = Alignment(horizontal="right", vertical="center")
+        LEFT = Alignment(horizontal="left", vertical="center")
+
+        # Estructura FEPCafé
+        FEPCAFE = [
+            ("recoleccion", "☕ Recolección", 54),
+            ("fertilizacion", "🧪 Fertilización", 19),
+            ("administrativo", "📋 Gastos Admin/Financieros", 7),
+            ("arvenses", "🌿 Manejo de Arvenses", 6),
+            ("beneficio", "🏭 Beneficio", 6),
+            ("instalacion", "🌱 Renovación", 5),
+            ("fitosanitario", "🛡️ Fitosanitarios", 2),
+            ("otras_labores", "🔧 Otras labores", 1),
+        ]
+
+        # Determinar año más reciente con presupuesto
+        anios = db.get_presupuesto_anios(finca_id)
+        if not anios:
+            logger.info("No hay presupuestos guardados, saltando hoja Presupuesto")
+            return
+
+        anio = anios[0]  # Más reciente
+        presupuesto_data = db.get_ejecucion_presupuesto(finca_id, anio)
+        categorias_data = {c["categoria"]: c for c in presupuesto_data["categorias"]}
+
+        # Crear o reemplazar la hoja
+        hoja_nombre = "Presupuesto"
+        if hoja_nombre in wb.sheetnames:
+            del wb[hoja_nombre]
+        ws = wb.create_sheet(hoja_nombre)
+
+        # ─── Título ───
+        ws.merge_cells("A1:F1")
+        ws.cell(row=1, column=1, value=f"Presupuesto {anio}", font=FONT_TITLE)
+        ws.cell(row=1, column=1).alignment = Alignment(horizontal="center", vertical="center")
+
+        # ─── Encabezados (fila 3) ───
+        headers = ["Categoría", "% FEPCafé", "Monto Planificado", "Monto Ejecutado", "Diferencia", "% Ejecución"]
+        col_widths = [30, 12, 20, 20, 20, 15]
+        for col_idx, (header, width) in enumerate(zip(headers, col_widths), 1):
+            cell = ws.cell(row=3, column=col_idx, value=header)
+            cell.font = FONT_HEADER
+            cell.fill = FILL_HEADER
+            cell.alignment = CENTER
+            cell.border = THIN_BORDER
+            letter = chr(64 + col_idx)
+            ws.column_dimensions[letter].width = width
+
+        # ─── Datos ───
+        DATA_START_ROW = 4
+        row = DATA_START_ROW
+        for cat_id, nombre_cat, pct_ref in FEPCAFE:
+            cat_data = categorias_data.get(cat_id, {"monto_planificado": 0, "monto_ejecutado": 0, "diferencia": 0, "pct_ejecucion": 0})
+            plan = cat_data["monto_planificado"]
+            ejec = cat_data["monto_ejecutado"]
+            diff = cat_data["diferencia"]
+            pct_ejec = cat_data["pct_ejecucion"]
+
+            # Determinar color
+            fill_row = FILL_VERDE if ejec <= plan else FILL_ROJO
+
+            ws.cell(row=row, column=1, value=nombre_cat).font = FONT_NORMAL
+            ws.cell(row=row, column=1).alignment = LEFT
+            ws.cell(row=row, column=1).border = THIN_BORDER
+
+            ws.cell(row=row, column=2, value=pct_ref).font = FONT_NORMAL
+            ws.cell(row=row, column=2).alignment = CENTER
+            ws.cell(row=row, column=2).border = THIN_BORDER
+            ws.cell(row=row, column=2).number_format = '0"%"'
+
+            ws.cell(row=row, column=3, value=plan).font = FONT_NORMAL
+            ws.cell(row=row, column=3).alignment = RIGHT
+            ws.cell(row=row, column=3).border = THIN_BORDER
+            ws.cell(row=row, column=3).number_format = '$#,##0'
+
+            ws.cell(row=row, column=4, value=ejec).font = FONT_NORMAL
+            ws.cell(row=row, column=4).alignment = RIGHT
+            ws.cell(row=row, column=4).border = THIN_BORDER
+            ws.cell(row=row, column=4).number_format = '$#,##0'
+
+            ws.cell(row=row, column=5, value=diff).font = FONT_NORMAL
+            ws.cell(row=row, column=5).alignment = RIGHT
+            ws.cell(row=row, column=5).border = THIN_BORDER
+            ws.cell(row=row, column=5).number_format = '$#,##0'
+            ws.cell(row=row, column=5).fill = fill_row
+
+            ws.cell(row=row, column=6, value=pct_ejec / 100).font = FONT_NORMAL
+            ws.cell(row=row, column=6).alignment = CENTER
+            ws.cell(row=row, column=6).border = THIN_BORDER
+            ws.cell(row=row, column=6).number_format = '0.0%'
+            ws.cell(row=row, column=6).fill = fill_row
+
+            # Aplicar color también a cols 3 y 4 si hay sobregiro
+            if ejec > plan:
+                ws.cell(row=row, column=3).fill = FILL_ROJO
+                ws.cell(row=row, column=4).fill = FILL_ROJO
+
+            row += 1
+
+        # ─── Fila Total ───
+        pct_total = (presupuesto_data["total_ejecutado"] / presupuesto_data["total_planificado"] * 100) if presupuesto_data["total_planificado"] > 0 else 0
+        fill_total = FILL_VERDE if presupuesto_data["total_ejecutado"] <= presupuesto_data["total_planificado"] else FILL_ROJO
+
+        ws.cell(row=row, column=1, value="TOTAL").font = FONT_BOLD
+        ws.cell(row=row, column=1).alignment = LEFT
+        ws.cell(row=row, column=1).border = THIN_BORDER
+        ws.cell(row=row, column=1).fill = FILL_TOTAL
+
+        ws.cell(row=row, column=2, value=100).font = FONT_BOLD
+        ws.cell(row=row, column=2).alignment = CENTER
+        ws.cell(row=row, column=2).border = THIN_BORDER
+        ws.cell(row=row, column=2).fill = FILL_TOTAL
+        ws.cell(row=row, column=2).number_format = '0"%"'
+
+        ws.cell(row=row, column=3, value=presupuesto_data["total_planificado"]).font = FONT_BOLD
+        ws.cell(row=row, column=3).alignment = RIGHT
+        ws.cell(row=row, column=3).border = THIN_BORDER
+        ws.cell(row=row, column=3).fill = fill_total
+        ws.cell(row=row, column=3).number_format = '$#,##0'
+
+        ws.cell(row=row, column=4, value=presupuesto_data["total_ejecutado"]).font = FONT_BOLD
+        ws.cell(row=row, column=4).alignment = RIGHT
+        ws.cell(row=row, column=4).border = THIN_BORDER
+        ws.cell(row=row, column=4).fill = fill_total
+        ws.cell(row=row, column=4).number_format = '$#,##0'
+
+        ws.cell(row=row, column=5, value=presupuesto_data["total_diferencia"]).font = FONT_BOLD
+        ws.cell(row=row, column=5).alignment = RIGHT
+        ws.cell(row=row, column=5).border = THIN_BORDER
+        ws.cell(row=row, column=5).fill = fill_total
+        ws.cell(row=row, column=5).number_format = '$#,##0'
+
+        ws.cell(row=row, column=6, value=pct_total / 100).font = FONT_BOLD
+        ws.cell(row=row, column=6).alignment = CENTER
+        ws.cell(row=row, column=6).border = THIN_BORDER
+        ws.cell(row=row, column=6).fill = fill_total
+        ws.cell(row=row, column=6).number_format = '0.0%'
+
+        # ─── Gráfico de barras ───
+        try:
+            chart_data_row = row + 3
+            ws.cell(row=chart_data_row, column=1, value="Categoría")
+            ws.cell(row=chart_data_row, column=2, value="Planificado")
+            ws.cell(row=chart_data_row, column=3, value="Ejecutado")
+
+            for i, (cat_id, nombre_cat, _) in enumerate(FEPCAFE):
+                r = chart_data_row + 1 + i
+                cat_data = categorias_data.get(cat_id, {})
+                # Usar nombre corto para el gráfico
+                label = nombre_cat.split(" ")[-1] if " " in nombre_cat else nombre_cat
+                ws.cell(row=r, column=1, value=label)
+                ws.cell(row=r, column=2, value=cat_data.get("monto_planificado", 0))
+                ws.cell(row=r, column=3, value=cat_data.get("monto_ejecutado", 0))
+
+            chart = BarChart()
+            chart.type = "col"
+            chart.title = f"Planificado vs Ejecutado — {anio}"
+            chart.y_axis.title = "Monto ($)"
+            chart.style = 10
+            chart.width = 24
+            chart.height = 14
+
+            data_ref = Reference(ws, min_col=1, min_row=chart_data_row, max_col=3, max_row=chart_data_row + len(FEPCAFE))
+            cats_ref = Reference(ws, min_col=1, min_row=chart_data_row + 1, max_row=chart_data_row + len(FEPCAFE))
+            chart.add_data(data_ref, titles_from_data=True)
+            chart.set_categories(cats_ref)
+
+            chart.series[0].graphicalProperties.solidFill = "1565C0"
+            chart.series[1].graphicalProperties.solidFill = "C62828"
+
+            ws.add_chart(chart, f"A{chart_data_row + len(FEPCAFE) + 2}")
+
+        except Exception as e:
+            logger.warning(f"No se pudo generar el gráfico de presupuesto: {e}")
+
+        logger.info(f"Hoja 'Presupuesto' generada para finca {finca_id} año {anio}")
 
     # ------------------------------------------------------------------
     # Gráficos de tendencia (MEJORA 4)

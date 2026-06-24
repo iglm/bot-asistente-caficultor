@@ -14,6 +14,7 @@ from handlers.reportes import get_reportes_router
 from handlers.importar import get_importar_router
 from handlers.ayuda import get_ayuda_router
 from handlers.voice import get_voice_router
+from handlers.presupuesto import get_presupuesto_router
 
 __all__ = [
     "get_menu_router",
@@ -27,4 +28,5 @@ __all__ = [
     "get_importar_router",
     "get_ayuda_router",
     "get_voice_router",
+    "get_presupuesto_router",
 ]
