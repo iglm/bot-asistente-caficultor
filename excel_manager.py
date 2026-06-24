@@ -557,6 +557,9 @@ class ExcelManager:
         # 3b. Llenar hoja Presupuesto (si existe en template o crearla)
         self._llenar_hoja_presupuesto(wb, db, finca_id)
 
+        # 3c. Llenar hoja Indicadores
+        self._llenar_hoja_indicadores(wb, db, finca_id)
+
         # 4. Generar hoja de gráficos
         ws_graficos = wb.create_sheet("Gráficos")
         # Mover "Gráficos" después de "ID lotes"
@@ -1273,6 +1276,224 @@ class ExcelManager:
             logger.warning(f"No se pudo generar el gráfico de presupuesto: {e}")
 
         logger.info(f"Hoja 'Presupuesto' generada para finca {finca_id} año {anio}")
+
+    # ------------------------------------------------------------------
+    # Hoja Indicadores Técnicos
+    # ------------------------------------------------------------------
+
+    def _llenar_hoja_indicadores(self, wb, db, finca_id: int):
+        """Crea la hoja 'Indicadores' con los indicadores técnicos de rendimiento.
+        
+        Incluye:
+        - Tabla de indicadores agrupados (Área, MO, Insumos, Financiero, Productividad)
+        - Gráfico de barras: MO vs Insumos por ha
+        - Gráfico de barras: Productividad vs Rendimiento
+        """
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
+
+        indicadores = db.get_indicadores_tecnicos(finca_id)
+        finca = db.get_finca_by_id(finca_id)
+
+        if not finca:
+            logger.warning(f"Finca {finca_id} no encontrada para indicadores")
+            return
+
+        # Crear o reemplazar la hoja
+        hoja_nombre = "Indicadores"
+        if hoja_nombre in wb.sheetnames:
+            del wb[hoja_nombre]
+        ws = wb.create_sheet(hoja_nombre)
+
+        # ─── Estilos ───
+        FILL_HEADER = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+        FILL_SECTION = PatternFill(start_color="D6E4F0", end_color="D6E4F0", fill_type="solid")
+        FILL_VERDE = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+        FONT_HEADER = Font(bold=True, color="FFFFFF", size=11, name="Calibri")
+        FONT_TITLE = Font(bold=True, size=14, name="Calibri", color="1F4E79")
+        FONT_SECTION = Font(bold=True, size=11, name="Calibri", color="1F4E79")
+        FONT_NORMAL = Font(size=10, name="Calibri")
+        FONT_BOLD = Font(bold=True, size=10, name="Calibri")
+        FONT_VALUE = Font(bold=True, size=11, name="Calibri", color="2E7D32")
+        THIN_BORDER = Border(
+            left=Side(style="thin"), right=Side(style="thin"),
+            top=Side(style="thin"), bottom=Side(style="thin"),
+        )
+        CENTER = Alignment(horizontal="center", vertical="center")
+        RIGHT = Alignment(horizontal="right", vertical="center")
+        LEFT = Alignment(horizontal="left", vertical="center")
+
+        # ─── Título ───
+        ws.merge_cells("A1:D1")
+        cell = ws.cell(row=1, column=1, value=f"📊 Indicadores Técnicos — {finca['nombre']}")
+        cell.font = FONT_TITLE
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        # ─── Encabezados (fila 3) ───
+        headers = ["Indicador", "Valor", "Unidad", "Referencia FNC"]
+        col_widths = [35, 25, 15, 20]
+        for col_idx, (header, width) in enumerate(zip(headers, col_widths), 1):
+            cell = ws.cell(row=3, column=col_idx, value=header)
+            cell.font = FONT_HEADER
+            cell.fill = FILL_HEADER
+            cell.alignment = CENTER
+            cell.border = THIN_BORDER
+            letter = chr(64 + col_idx)
+            ws.column_dimensions[letter].width = width
+
+        # ─── Datos ───
+        row = 4
+
+        def escribir_indicador(ws, row, label, valor, unidad, ref_fnc=""):
+            ws.cell(row=row, column=1, value=label).font = FONT_NORMAL
+            ws.cell(row=row, column=1).alignment = LEFT
+            ws.cell(row=row, column=1).border = THIN_BORDER
+
+            cell_val = ws.cell(row=row, column=2, value=valor)
+            cell_val.font = FONT_VALUE
+            cell_val.alignment = RIGHT
+            cell_val.border = THIN_BORDER
+            cell_val.number_format = '#,##0.00'
+
+            ws.cell(row=row, column=3, value=unidad).font = FONT_NORMAL
+            ws.cell(row=row, column=3).alignment = CENTER
+            ws.cell(row=row, column=3).border = THIN_BORDER
+
+            ws.cell(row=row, column=4, value=ref_fnc).font = FONT_NORMAL
+            ws.cell(row=row, column=4).alignment = CENTER
+            ws.cell(row=row, column=4).border = THIN_BORDER
+
+        def escribir_seccion(ws, row, titulo):
+            ws.merge_cells(f"A{row}:D{row}")
+            cell = ws.cell(row=row, column=1, value=titulo)
+            cell.font = FONT_SECTION
+            cell.fill = FILL_SECTION
+            cell.alignment = LEFT
+            cell.border = THIN_BORDER
+            for c in range(2, 5):
+                ws.cell(row=row, column=c).fill = FILL_SECTION
+                ws.cell(row=row, column=c).border = THIN_BORDER
+            return row + 1
+
+        def formatear_moneda_indicador(valor):
+            """Formato moneda para el Excel (número con formato $)."""
+            return round(valor, 2)
+
+        # Sección: Área
+        row = escribir_seccion(ws, row, "🌱 Área")
+        escribir_indicador(ws, row, "Área Total", round(indicadores['area_total'], 2), "ha", "")
+        row += 1
+        escribir_indicador(ws, row, "Área Productiva", round(indicadores['area_productiva'], 2), "ha", "")
+        row += 2
+
+        # Sección: Mano de Obra
+        row = escribir_seccion(ws, row, "👷 Mano de Obra")
+        escribir_indicador(ws, row, "Total Jornales", round(indicadores['total_jornales'], 0), "jornales", "")
+        row += 1
+        escribir_indicador(ws, row, "Jornales por Hectárea", round(indicadores['jornales_por_ha'], 2), "jornales/ha", "80-120")
+        row += 1
+        escribir_indicador(ws, row, "Costo MO por Hectárea", formatear_moneda_indicador(indicadores['costo_mo_por_ha']), "$/ha", "")
+        row += 1
+        escribir_indicador(ws, row, "Eficiencia de MO", round(indicadores['eficiencia_mo'], 2), "kg/jornal", "0.3-0.5")
+        row += 2
+
+        # Sección: Insumos
+        row = escribir_seccion(ws, row, "🧪 Insumos")
+        escribir_indicador(ws, row, "Costo Insumos por Hectárea", formatear_moneda_indicador(indicadores['costo_insumos_por_ha']), "$/ha", "")
+        row += 1
+        escribir_indicador(ws, row, "Kg Producidos (CPS)", round(indicadores['kg_producidos'], 2), "kg", "")
+        row += 2
+
+        # Sección: Financiero
+        row = escribir_seccion(ws, row, "💰 Financiero")
+        escribir_indicador(ws, row, "Ingresos Totales", formatear_moneda_indicador(indicadores['ingresos_totales']), "$", "")
+        row += 1
+        escribir_indicador(ws, row, "Costos MO", formatear_moneda_indicador(indicadores['costos_mo']), "$", "")
+        row += 1
+        escribir_indicador(ws, row, "Costos Insumos", formatear_moneda_indicador(indicadores['costos_insumos']), "$", "")
+        row += 1
+        escribir_indicador(ws, row, "Costos Totales", formatear_moneda_indicador(indicadores['costos_total']), "$", "")
+        row += 1
+        escribir_indicador(ws, row, "Costo Total por Hectárea", formatear_moneda_indicador(indicadores['costo_total_por_ha']), "$/ha", "")
+        row += 1
+        escribir_indicador(ws, row, "Costo por Kg CPS", formatear_moneda_indicador(indicadores['costo_por_kilo']), "$/kg", "")
+        row += 1
+        escribir_indicador(ws, row, "Precio Venta Promedio", formatear_moneda_indicador(indicadores['precio_venta_promedio']), "$/kg", "")
+        row += 1
+
+        margen = indicadores['margen_por_ha']
+        escribir_indicador(ws, row, "Margen por Hectárea", formatear_moneda_indicador(margen), "$/ha", "")
+        row += 2
+
+        # Sección: Productividad
+        row = escribir_seccion(ws, row, "📈 Productividad")
+        escribir_indicador(ws, row, "Productividad (kg/ha total)", round(indicadores['productividad'], 2), "kg/ha", "60-80")
+        row += 1
+        escribir_indicador(ws, row, "Rendimiento (kg/ha productivo)", round(indicadores['rendimiento'], 2), "kg/ha", "70-100")
+        row += 2
+
+        # ─── Gráfico 1: MO vs Insumos por Hectárea ───
+        chart_start = row + 1
+        try:
+            ws.cell(row=chart_start, column=1, value="Tipo")
+            ws.cell(row=chart_start, column=2, value="Costo por ha ($)")
+
+            ws.cell(row=chart_start + 1, column=1, value="Mano de Obra")
+            ws.cell(row=chart_start + 1, column=2, value=round(indicadores['costo_mo_por_ha'], 2))
+
+            ws.cell(row=chart_start + 2, column=1, value="Insumos")
+            ws.cell(row=chart_start + 2, column=2, value=round(indicadores['costo_insumos_por_ha'], 2))
+
+            chart1 = BarChart()
+            chart1.type = "col"
+            chart1.title = "Costo MO vs Insumos por Hectárea"
+            chart1.y_axis.title = "Costo ($/ha)"
+            chart1.style = 10
+            chart1.width = 16
+            chart1.height = 10
+
+            data1 = Reference(ws, min_col=2, min_row=chart_start, max_row=chart_start + 2)
+            cats1 = Reference(ws, min_col=1, min_row=chart_start + 1, max_row=chart_start + 2)
+            chart1.add_data(data1, titles_from_data=True)
+            chart1.set_categories(cats1)
+
+            chart1.series[0].graphicalProperties.solidFill = "1565C0"
+
+            ws.add_chart(chart1, f"A{chart_start + 4}")
+        except Exception as e:
+            logger.warning(f"No se pudo generar gráfico MO vs Insumos: {e}")
+
+        # ─── Gráfico 2: Productividad vs Rendimiento ───
+        try:
+            chart2_start = chart_start
+            ws.cell(row=chart2_start, column=4, value="Métrica")
+            ws.cell(row=chart2_start, column=5, value="kg/ha")
+
+            ws.cell(row=chart2_start + 1, column=4, value="Productividad")
+            ws.cell(row=chart2_start + 1, column=5, value=round(indicadores['productividad'], 2))
+
+            ws.cell(row=chart2_start + 2, column=4, value="Rendimiento")
+            ws.cell(row=chart2_start + 2, column=5, value=round(indicadores['rendimiento'], 2))
+
+            chart2 = BarChart()
+            chart2.type = "col"
+            chart2.title = "Productividad vs Rendimiento"
+            chart2.y_axis.title = "kg/ha"
+            chart2.style = 10
+            chart2.width = 16
+            chart2.height = 10
+
+            data2 = Reference(ws, min_col=5, min_row=chart2_start, max_row=chart2_start + 2)
+            cats2 = Reference(ws, min_col=4, min_row=chart2_start + 1, max_row=chart2_start + 2)
+            chart2.add_data(data2, titles_from_data=True)
+            chart2.set_categories(cats2)
+
+            chart2.series[0].graphicalProperties.solidFill = "2E7D32"
+
+            ws.add_chart(chart2, f"D{chart2_start + 4}")
+        except Exception as e:
+            logger.warning(f"No se pudo generar gráfico de productividad: {e}")
+
+        logger.info(f"Hoja 'Indicadores' generada para finca {finca_id}")
 
     # ------------------------------------------------------------------
     # Gráficos de tendencia (MEJORA 4)

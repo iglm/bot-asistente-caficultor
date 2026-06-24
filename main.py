@@ -38,6 +38,7 @@ from handlers import (
     get_ayuda_router,
     get_voice_router,
     get_presupuesto_router,
+    get_indicadores_router,
 )
 
 # ─── Logging ───────────────────────────────────────────────────
@@ -82,6 +83,7 @@ async def main():
     dp.include_router(get_ayuda_router(db))
     dp.include_router(get_voice_router(db))
     dp.include_router(get_presupuesto_router(db))
+    dp.include_router(get_indicadores_router(db))
     log.info("✅ Handlers registrados")
     
     # ── Obtener info del bot ──

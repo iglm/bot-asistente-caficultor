@@ -628,6 +628,142 @@ class Database:
         finally:
             conn.close()
 
+    # ─── Indicadores Técnicos ───
+
+    @staticmethod
+    def _lote_es_productivo(lote: dict) -> bool:
+        """Determina si un lote es productivo (tiene árboles y fecha de siembra)."""
+        return bool(lote.get("num_arboles", 0) and lote.get("fecha_siembra", ""))
+
+    def _get_total_ingresos(self, finca_id: int) -> float:
+        """Obtiene el total de ingresos de una finca."""
+        conn = self.get_conn()
+        try:
+            row = conn.execute(
+                "SELECT COALESCE(SUM(valor_total), 0) FROM transacciones WHERE finca_id = ? AND categoria LIKE 'ingreso_%'",
+                (finca_id,)
+            ).fetchone()
+            return row[0] if row else 0.0
+        finally:
+            conn.close()
+
+    def _get_costos_por_tipo(self, finca_id: int, tipo: str) -> float:
+        """Obtiene costos por tipo: 'mo' o 'insumos'.
+        
+        MO: categorías que terminan en _mo + categorías simples (recoleccion, beneficio, administrativo)
+        Insumos: categorías que terminan en _insumos
+        """
+        conn = self.get_conn()
+        try:
+            if tipo == 'mo':
+                # Sumar todas las categorías _mo
+                total = 0.0
+                for cat_base in self.CATEGORIAS_CON_MO_Y_INSUMOS:
+                    row = conn.execute(
+                        "SELECT COALESCE(SUM(valor_total), 0) FROM transacciones WHERE finca_id = ? AND categoria = ?",
+                        (finca_id, f"{cat_base}_mo")
+                    ).fetchone()
+                    total += row[0] if row else 0.0
+                # Sumar categorías simples (recoleccion, beneficio, administrativo)
+                for cat in self.CATEGORIAS_SIMPLE:
+                    row = conn.execute(
+                        "SELECT COALESCE(SUM(valor_total), 0) FROM transacciones WHERE finca_id = ? AND categoria = ?",
+                        (finca_id, cat)
+                    ).fetchone()
+                    total += row[0] if row else 0.0
+                return total
+            elif tipo == 'insumos':
+                total = 0.0
+                for cat_base in self.CATEGORIAS_CON_MO_Y_INSUMOS:
+                    row = conn.execute(
+                        "SELECT COALESCE(SUM(valor_total), 0) FROM transacciones WHERE finca_id = ? AND categoria = ?",
+                        (finca_id, f"{cat_base}_insumos")
+                    ).fetchone()
+                    total += row[0] if row else 0.0
+                return total
+            return 0.0
+        finally:
+            conn.close()
+
+    def _get_kg_producidos(self, finca_id: int) -> float:
+        """Obtiene kg totales producidos (de transacciones ingreso_cps e ingreso_pasilla)."""
+        conn = self.get_conn()
+        try:
+            row = conn.execute(
+                "SELECT COALESCE(SUM(cantidad), 0) FROM transacciones WHERE finca_id = ? AND categoria IN ('ingreso_cps', 'ingreso_pasilla')",
+                (finca_id,)
+            ).fetchone()
+            return row[0] if row else 0.0
+        finally:
+            conn.close()
+
+    def _get_total_jornales(self, finca_id: int) -> float:
+        """Obtiene total de jornales registrados en la finca.
+        
+        Busca transacciones de categorías MO donde unidad sea 'día', 'jornal' o vacío (asume jornal).
+        """
+        conn = self.get_conn()
+        try:
+            # Categorías MO: todas las _mo + categorías simples
+            categorias_mo = [f"{c}_mo" for c in self.CATEGORIAS_CON_MO_Y_INSUMOS] + list(self.CATEGORIAS_SIMPLE)
+            placeholders = ",".join("?" for _ in categorias_mo)
+            row = conn.execute(
+                f"SELECT COALESCE(SUM(cantidad), 0) FROM transacciones "
+                f"WHERE finca_id = ? AND categoria IN ({placeholders}) "
+                f"AND (unidad IN ('día', 'dia', 'jornal', 'jornales', '') OR unidad IS NULL)",
+                (finca_id, *categorias_mo)
+            ).fetchone()
+            return row[0] if row else 0.0
+        finally:
+            conn.close()
+
+    def get_indicadores_tecnicos(self, finca_id: int) -> dict:
+        """Calcula todos los indicadores técnicos de la finca.
+        
+        Basado en metodología FNC/CENICafé.
+        """
+        # Obtener área total y productiva
+        conn = self.get_conn()
+        try:
+            lotes = [dict(r) for r in conn.execute(
+                "SELECT * FROM lotes WHERE finca_id = ?", (finca_id,)
+            ).fetchall()]
+        finally:
+            conn.close()
+
+        area_total = sum(l['area_hectareas'] for l in lotes)
+        area_productiva = sum(l['area_hectareas'] for l in lotes if self._lote_es_productivo(l))
+
+        # Obtener datos financieros y productivos
+        ingresos = self._get_total_ingresos(finca_id)
+        costos_mo = self._get_costos_por_tipo(finca_id, 'mo')
+        costos_insumos = self._get_costos_por_tipo(finca_id, 'insumos')
+        costos_total = costos_mo + costos_insumos
+        kg_producidos = self._get_kg_producidos(finca_id)
+        total_jornales = self._get_total_jornales(finca_id)
+
+        # Calcular indicadores con división segura
+        return {
+            'area_total': area_total,
+            'area_productiva': area_productiva,
+            'ingresos_totales': ingresos,
+            'costos_mo': costos_mo,
+            'costos_insumos': costos_insumos,
+            'costos_total': costos_total,
+            'kg_producidos': kg_producidos,
+            'total_jornales': total_jornales,
+            'productividad': kg_producidos / area_total if area_total > 0 else 0,
+            'rendimiento': kg_producidos / area_productiva if area_productiva > 0 else 0,
+            'jornales_por_ha': total_jornales / area_total if area_total > 0 else 0,
+            'costo_mo_por_ha': costos_mo / area_total if area_total > 0 else 0,
+            'costo_insumos_por_ha': costos_insumos / area_total if area_total > 0 else 0,
+            'costo_total_por_ha': costos_total / area_total if area_total > 0 else 0,
+            'costo_por_kilo': costos_total / kg_producidos if kg_producidos > 0 else 0,
+            'margen_por_ha': (ingresos - costos_total) / area_total if area_total > 0 else 0,
+            'precio_venta_promedio': ingresos / kg_producidos if kg_producidos > 0 else 0,
+            'eficiencia_mo': kg_producidos / total_jornales if total_jornales > 0 else 0,
+        }
+
     def get_ejecucion_presupuesto(self, finca_id: int, anio: int) -> dict:
         """Compara presupuesto planificado vs ejecutado real.
         
