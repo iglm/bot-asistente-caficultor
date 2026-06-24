@@ -93,8 +93,8 @@ def get_menu_router(db: Database) -> Router:
         fincas = db.get_fincas(user_id)
         if not fincas:
             await callback.message.answer(
-                "ℹ️ <b>No tenés datos para borrar.</b>\n\n"
-                "Usá /fincas para crear tu primera finca.",
+                "✅ <b>No tenés datos en el sistema.</b>\n\n"
+                "Ya estás limpio. Podés empezar creando una finca con /fincas.",
                 parse_mode="HTML",
             )
             return

@@ -179,10 +179,51 @@ def get_reportes_router(db: Database) -> Router:
             user_id = callback.from_user.id
             fincas = db.get_fincas(user_id)
             if not fincas:
-                await callback.message.edit_text(
-                    "❌ <b>No tienes fincas registradas.</b>",
-                    parse_mode="HTML",
-                )
+                # ✅ Generar plantilla vacía (template sin datos) incluso si no hay fincas
+                try:
+                    await callback.message.edit_text(
+                        "⏳ <b>Generando plantilla Excel vacía...</b>",
+                        parse_mode="HTML",
+                    )
+
+                    import shutil
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    output_filename = f"plantilla_vacia_{timestamp}.xlsx"
+                    output_path = os.path.join(EXPORTS_DIR, output_filename)
+
+                    # Copiar el template directamente (sin datos = plantilla vacía)
+                    shutil.copy2(EXCEL_TEMPLATE, output_path)
+
+                    # Enviar archivo
+                    with open(output_path, "rb") as f:
+                        await callback.message.answer_document(
+                            types.FSInputFile(output_path, filename="Plantilla_Vacia.xlsx"),
+                            caption="📋 <b>Plantilla Excel generada</b> ☕\n\n"
+                                    "No tenés fincas registradas, pero acá tenés el formato "
+                                    "del Excel. Podés llenarlo manualmente o crear una finca "
+                                    "con /fincas y volver a exportar.",
+                            parse_mode="HTML",
+                        )
+
+                    # Limpiar archivo temporal
+                    try:
+                        os.remove(output_path)
+                    except Exception:
+                        pass
+
+                except FileNotFoundError as e:
+                    logger.error(f"Template no encontrado: {e}")
+                    await callback.message.edit_text(
+                        "❌ <b>Error:</b> El template Excel no está disponible.\n\n"
+                        "Contacta al administrador.",
+                        parse_mode="HTML",
+                    )
+                except Exception as e:
+                    logger.error(f"Error al generar plantilla vacía: {e}", exc_info=True)
+                    await callback.message.edit_text(
+                        "❌ <b>Error al generar la plantilla.</b> Intenta de nuevo más tarde.",
+                        parse_mode="HTML",
+                    )
                 return
 
             if len(fincas) == 1:
