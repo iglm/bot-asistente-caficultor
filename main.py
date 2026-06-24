@@ -22,7 +22,16 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from config import BOT_TOKEN, ADMIN_IDS
 from database import Database
-from handlers import start, admin, fincas, lotes, ingresos, costos, reportes, ayuda
+from handlers import (
+    get_start_router,
+    get_admin_router,
+    get_fincas_router,
+    get_lotes_router,
+    get_ingresos_router,
+    get_costos_router,
+    get_reportes_router,
+    get_ayuda_router,
+)
 
 # ─── Logging ───────────────────────────────────────────────────
 logging.basicConfig(
@@ -50,16 +59,14 @@ async def main():
     dp = Dispatcher(storage=MemoryStorage())
     
     # ── Registrar handlers ──
-    dp.include_routers(
-        start.router,
-        admin.router,
-        fincas.router,
-        lotes.router,
-        ingresos.router,
-        costos.router,
-        reportes.router,
-        ayuda.router,
-    )
+    dp.include_router(get_start_router(db))
+    dp.include_router(get_admin_router(db))
+    dp.include_router(get_fincas_router(db))
+    dp.include_router(get_lotes_router(db))
+    dp.include_router(get_ingresos_router(db))
+    dp.include_router(get_costos_router(db))
+    dp.include_router(get_reportes_router(db))
+    dp.include_router(get_ayuda_router(db))
     log.info("✅ Handlers registrados")
     
     # ── Obtener info del bot ──

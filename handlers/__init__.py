@@ -3,14 +3,14 @@ Handlers del Bot Asistente Caficultor.
 Cada módulo exporta una función get_*_router(db) que retorna un Router de aiogram.
 """
 
-from.handlers.start import get_start_router
-from.handlers.admin import get_admin_router
-from.handlers.fincas import get_fincas_router
-from.handlers.lotes import get_lotes_router
-from.handlers.ingresos import get_ingresos_router
-from.handlers.costos import get_costos_router
-from.handlers.reportes import get_reportes_router
-from.handlers.ayuda import get_ayuda_router
+from handlers.start import get_start_router
+from handlers.admin import get_admin_router
+from handlers.fincas import get_fincas_router
+from handlers.lotes import get_lotes_router
+from handlers.ingresos import get_ingresos_router
+from handlers.costos import get_costos_router
+from handlers.reportes import get_reportes_router
+from handlers.ayuda import get_ayuda_router
 
 __all__ = [
     "get_start_router",

@@ -27,6 +27,28 @@ os.makedirs(BASE_DIR / "data", exist_ok=True)
 os.makedirs(EXPORTS_DIR, exist_ok=True)
 
 # ── Categorías de transacciones ──
+BOT_NAME = "Asistente Caficultor ☕"
+
+CATEGORIAS_PADRE = {
+    "instalacion": {"nombre": "🌱 Instalación", "mo": "instalacion_mo", "insumos": "instalacion_insumos"},
+    "arvenses": {"nombre": "🌿 Arvenses", "mo": "arvenses_mo", "insumos": "arvenses_insumos"},
+    "fertilizacion": {"nombre": "🧪 Fertilización", "mo": "fertilizacion_mo", "insumos": "fertilizacion_insumos"},
+    "fitosanitario": {"nombre": "🛡️ Fitosanitario", "mo": "fitosanitario_mo", "insumos": "fitosanitario_insumos"},
+    "sombrio": {"nombre": "🌳 Sombrío", "mo": "sombrio_mo", "insumos": "sombrio_insumos"},
+    "otras_labores": {"nombre": "🔧 Otras Labores", "mo": "otras_labores_mo", "insumos": "otras_labores_insumos"},
+    "recoleccion": {"nombre": "☕ Recolección", "mo": "recoleccion"},
+    "beneficio": {"nombre": "🏭 Beneficio", "mo": "beneficio"},
+    "administrativo": {"nombre": "📋 Administrativo", "mo": "administrativo"},
+}
+
+CATEGORIAS_SIMPLE = ["recoleccion", "beneficio", "administrativo"]
+
+TIPOS_CAFE = {
+    "cps": "CPS (Café Pergamino Seco)",
+    "pasilla": "Pasilla",
+    "rere": "Re-re (Re-recolección)",
+}
+
 CATEGORIAS = {
     "ingreso_cps": {"nombre": "Ingreso CPS", "hoja": "Ingresos", "tipo": "ingreso"},
     "ingreso_pasilla": {"nombre": "Ingreso Pasilla", "hoja": "Ingresos", "tipo": "ingreso"},
