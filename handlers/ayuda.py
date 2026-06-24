@@ -4,6 +4,7 @@ Handler de /ayuda - Guía de uso del bot.
 import logging
 from aiogram import Router, types, F
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 
 logger = logging.getLogger(__name__)
 

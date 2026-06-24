@@ -259,6 +259,261 @@ class ExcelManager:
                     logger.debug(f"Subtotal col {col} actualizado: {val} → {new_val}")
 
     # ------------------------------------------------------------------
+    # Generar plantilla vacía (sin datos, solo headers + ejemplo)
+    # ------------------------------------------------------------------
+
+    def generar_plantilla_vacia(self, output_path: str) -> str:
+        """
+        Genera una plantilla Excel vacía a partir del template.
+        - Mantiene TODAS las hojas con su formato
+        - Limpia filas de datos (desde fila 3 en adelante)
+        - Agrega fila de ejemplo (fila 2) con datos de muestra
+        - Agrega hoja NOTAS con instrucciones detalladas
+        
+        Args:
+            output_path: Ruta donde guardar el Excel
+            
+        Returns:
+            Ruta del archivo generado
+        """
+        self._validar_template()
+        
+        import shutil
+        
+        # 1. Copiar template
+        shutil.copy2(self.template_path, output_path)
+        
+        # 2. Abrir con openpyxl
+        wb = openpyxl.load_workbook(output_path, keep_vba=False)
+        
+        # 3. Limpiar datos y agregar ejemplos en hojas de datos
+        self._preparar_hojas_plantilla(wb)
+        
+        # 4. Agregar hoja NOTAS
+        self._agregar_hoja_notas(wb)
+        
+        # 5. Guardar
+        wb.save(output_path)
+        wb.close()
+        logger.info(f"Plantilla vacía generada: {output_path}")
+        
+        return output_path
+
+    def _preparar_hojas_plantilla(self, wb):
+        """
+        Prepara las hojas de datos en la plantilla:
+        - Limpia filas de datos desde fila 3
+        - Agrega fila 2 con datos de ejemplo
+        - Mantiene headers y formato intactos
+        """
+        from openpyxl.styles import Font, PatternFill, Alignment
+        
+        # Hojas que deben tener datos de ejemplo
+        HOJAS_EJEMPLO = {
+            "ID lotes": {
+                "ejemplo": ["Ejemplo Lote 1", 1.5, 7500, "Castillo", "", "", 3, "", ""],
+                "limpiar_desde": 2,
+            },
+            "Ingresos por ventas de cafe": {
+                "ejemplo": ["", "", "CPS", 150, None, 0],
+                "limpiar_desde": 3,
+            },
+            "Instalacion de Cafe": {
+                "mo": ["Ejemplo Lote 1", None, "Trazo y ahoyado", 20, 50000, None],
+                "insumos": [None, "Fertilizante 15-15-15", 10, 120000, None],
+                "limpiar_desde": 3,
+            },
+            "Control de arvenses": {
+                "mo": ["Ejemplo Lote 1", None, "Control manual de arvenses", 8, 45000, None],
+                "insumos": [None, "Control químico", "Glifosato", 4, 25000, None],
+                "limpiar_desde": 3,
+            },
+            "Fertilizacion": {
+                "mo": ["Ejemplo Lote 1", None, "Aplicación de fertilizante", 10, 50000, None],
+                "insumos": [None, "Urea", 100, 2800, None],
+                "limpiar_desde": 3,
+            },
+            "Control Fitosanitario": {
+                "mo": ["Ejemplo Lote 1", None, "Aplicación de fungicida", 5, 45000, None],
+                "insumos": [None, "Aplicación fitosanitaria", "Fungicida cúprico", 3, 35000, None],
+                "limpiar_desde": 3,
+            },
+            "Regulacion de sombrio": {
+                "mo": ["Ejemplo Lote 1", None, "Regulación de sombra", 6, 45000, None],
+                "insumos": [None, "Machete", 2, 12000, None],
+                "limpiar_desde": 3,
+            },
+            "Otras Labores": {
+                "mo": ["Ejemplo Lote 1", None, "Mantenimiento general", 5, 45000, None],
+                "insumos": [None, "Herramientas varias", 1, 85000, None],
+                "limpiar_desde": 3,
+            },
+            "Recoleccion": {
+                "ejemplo": [None, "recolección cereza", 200, None, 0],
+                "limpiar_desde": 3,
+            },
+            "Beneficio": {
+                "ejemplo": [None, "Beneficio húmedo", 10, 25000, None],
+                "limpiar_desde": 3,
+            },
+            "Gastos Administrativos": {
+                "ejemplo": [None, "Pago servicios públicos", 0],
+                "limpiar_desde": 3,
+            },
+        }
+        
+        for hoja_nombre, config in HOJAS_EJEMPLO.items():
+            if hoja_nombre not in wb.sheetnames:
+                logger.warning(f"Hoja '{hoja_nombre}' no encontrada en template, saltando")
+                continue
+            
+            ws = wb[hoja_nombre]
+            limpiar_desde = config.get("limpiar_desde", 3)
+            max_col = ws.max_column
+            
+            # Limpiar filas de datos desde 'limpiar_desde' en adelante
+            for row in range(limpiar_desde, ws.max_row + 1):
+                for col in range(1, max_col + 1):
+                    cell = ws.cell(row=row, column=col)
+                    # Verificar si la celda está fusionada (no se puede escribir en merged cells hijas)
+                    try:
+                        cell.value = None
+                    except AttributeError:
+                        # MergedCell — ignorar
+                        pass
+            
+            # Agregar fila de ejemplo (fila 2)
+            estilo_ejemplo = Font(italic=True, color="999999", size=10, name="Calibri")
+            
+            def _escribir_si_posible(ws, row, col, valor, font):
+                """Escribe un valor en una celda si no está fusionada."""
+                try:
+                    cell = ws.cell(row=row, column=col, value=valor)
+                    cell.font = font
+                except AttributeError:
+                    # MergedCell — ignorar
+                    pass
+            
+            if "ejemplo" in config:
+                for col_idx, valor in enumerate(config["ejemplo"], 1):
+                    if valor is not None:
+                        _escribir_si_posible(ws, 2, col_idx, valor, estilo_ejemplo)
+            
+            if "mo" in config:
+                for col_idx, valor in enumerate(config["mo"], 1):
+                    if valor is not None:
+                        _escribir_si_posible(ws, 2, col_idx, valor, estilo_ejemplo)
+            
+            if "insumos" in config:
+                for col_idx, valor in enumerate(config["insumos"], 1):
+                    col_real = 8 + col_idx - 1  # Insumos empiezan en col H (8)
+                    if valor is not None and col_real <= max_col:
+                        _escribir_si_posible(ws, 2, col_real, valor, estilo_ejemplo)
+            
+            logger.debug(f"Hoja '{hoja_nombre}' preparada en plantilla vacía")
+
+    def _agregar_hoja_notas(self, wb):
+        """
+        Agrega o actualiza la hoja NOTAS con instrucciones detalladas
+        para llenar la plantilla.
+        """
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        
+        # Eliminar si ya existe para recrearla
+        if 'NOTAS' in wb.sheetnames:
+            del wb['NOTAS']
+        
+        ws_notas = wb.create_sheet('NOTAS', 0)  # Primera posición
+        
+        notas = [
+            ("📋 INSTRUCCIONES PARA LLENAR LA PLANTILLA", True, 14, "1F4E79"),
+            ("", False, 10, "000000"),
+            ("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", False, 10, "2E7D32"),
+            ("📄 HOJA: Fincas (solo para importación — no está en este Excel)", True, 11, "000000"),
+            ("   • Crea las fincas desde el bot con /fincas", False, 10, "000000"),
+            ("", False, 10, "000000"),
+            ("📄 HOJA: ID lotes", True, 11, "000000"),
+            ("   • Agrega aquí los lotes de tu finca", False, 10, "000000"),
+            ("   • nombre: Nombre del lote (ej: Lote La Esperanza 1)", False, 10, "000000"),
+            ("   • area_hectareas: Área en hectáreas (ej: 1.5)", False, 10, "000000"),
+            ("   • num_arboles: Número de árboles (ej: 7500)", False, 10, "000000"),
+            ("   • variedad: Castillo, Caturra, Colombia, etc.", False, 10, "000000"),
+            ("   • fecha_siembra: Formato DD/MM/AAAA o AAAA-MM-DD", False, 10, "000000"),
+            ("", False, 10, "000000"),
+            ("📄 HOJA: Ingresos por ventas de cafe", True, 11, "000000"),
+            ("   • Tipo café: CPS (Pergamino Seco), Pasilla, Re-re", False, 10, "000000"),
+            ("   • Cantidad (kg): Kilos vendidos (número)", False, 10, "000000"),
+            ("   • Valor Unitario: Se calcula automáticamente (Valor Total / Cantidad)", False, 10, "000000"),
+            ("   • Valor Total: Valor total de la venta en COP", False, 10, "000000"),
+            ("", False, 10, "000000"),
+            ("📄 HOJAS DE COSTOS (Instalacion, Arvenses, Fertilizacion, etc.)", True, 11, "000000"),
+            ("   ESTRUCTURA: Col A-F = Mano de Obra (MO), Col H+ = Insumos", False, 10, "000000"),
+            ("", False, 10, "000000"),
+            ("   SECCIÓN MO (Columnas A-F):", True, 10, "1565C0"),
+            ("   • Lote: Nombre del lote donde se realizó la labor", False, 10, "000000"),
+            ("   • Fecha: Fecha de la labor (DD/MM/AAAA)", False, 10, "000000"),
+            ("   • Labor: Descripción de la labor realizada", False, 10, "000000"),
+            ("   • Cantidad: Número de jornales o unidades", False, 10, "000000"),
+            ("   • Valor Unitario: Costo por jornal/unidad en COP", False, 10, "000000"),
+            ("   • Valor Total: Se calcula automáticamente (Cant. × V.Unitario)", False, 10, "000000"),
+            ("", False, 10, "000000"),
+            ("   SECCIÓN INSUMOS (Columnas H+):", True, 10, "C62828"),
+            ("   • Fecha: Fecha de la compra/aplicación", False, 10, "000000"),
+            ("   • Producto: Nombre del producto/insumo", False, 10, "000000"),
+            ("   • Cantidad: Cantidad adquirida", False, 10, "000000"),
+            ("   • Valor Unitario: Precio por unidad en COP", False, 10, "000000"),
+            ("   • Valor Total: Se calcula automáticamente (Cant. × V.Unitario)", False, 10, "000000"),
+            ("", False, 10, "000000"),
+            ("📄 HOJA: Recoleccion", True, 11, "000000"),
+            ("   • Fecha: Fecha de recolección", False, 10, "000000"),
+            ("   • Labor: Descripción (ej: recolección cereza)", False, 10, "000000"),
+            ("   • Kilos: Kilos de café cereza recolectados", False, 10, "000000"),
+            ("   • V.Unitario: Se calcula automáticamente (V.Total / Kilos)", False, 10, "000000"),
+            ("   • V.Total: Valor total pagado por la recolección", False, 10, "000000"),
+            ("", False, 10, "000000"),
+            ("📄 HOJA: Beneficio", True, 11, "000000"),
+            ("   • Fecha: Fecha del beneficio", False, 10, "000000"),
+            ("   • Labor: Descripción (ej: Beneficio húmedo)", False, 10, "000000"),
+            ("   • Jornales: Número de jornales", False, 10, "000000"),
+            ("   • V.Unitario: Valor por jornal", False, 10, "000000"),
+            ("   • V.Total: Se calcula automáticamente (Jornales × V.Unitario)", False, 10, "000000"),
+            ("", False, 10, "000000"),
+            ("📄 HOJA: Gastos Administrativos", True, 11, "000000"),
+            ("   • Fecha: Fecha del gasto", False, 10, "000000"),
+            ("   • Gasto: Descripción del gasto administrativo", False, 10, "000000"),
+            ("   • V.Total: Valor total del gasto", False, 10, "000000"),
+            ("", False, 10, "000000"),
+            ("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", False, 10, "C62828"),
+            ("⚠️ IMPORTANTE:", True, 12, "C62828"),
+            ("   • No modifiques los nombres de las columnas (fila 1)", False, 10, "000000"),
+            ("   • No agregues ni elimines hojas", False, 10, "000000"),
+            ("   • Los valores numéricos usan punto como decimal (ej: 1.5)", False, 10, "000000"),
+            ("   • Usa el formato de fecha DD/MM/AAAA o AAAA-MM-DD", False, 10, "000000"),
+            ("   • Las fórmulas en Valor Total se calculan automáticamente", False, 10, "000000"),
+            ("   • Guarda el archivo y súbelo al bot con /importar", False, 10, "000000"),
+            ("", False, 10, "000000"),
+            ("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", False, 10, "2E7D32"),
+            ("💡 EJEMPLO RÁPIDO:", True, 12, "2E7D32"),
+            ("   1. Crea una finca con /fincas", False, 10, "000000"),
+            ("   2. Abre este Excel (la fila 2 tiene datos de ejemplo como guía)", False, 10, "000000"),
+            ("   3. Reemplaza los datos de ejemplo con tus datos reales", False, 10, "000000"),
+            ("   4. Guarda el archivo", False, 10, "000000"),
+            ("   5. Subilo al bot con /importar", False, 10, "000000"),
+            ("", False, 10, "000000"),
+            ("📌 Los datos se importarán a tu cuenta automáticamente.", False, 10, "000000"),
+        ]
+        
+        for i, (texto, negrita, tamano, color) in enumerate(notas, 1):
+            cell = ws_notas.cell(row=i, column=1, value=texto)
+            cell.font = Font(bold=negrita, size=tamano, color=color, name="Calibri")
+            cell.alignment = Alignment(vertical="center")
+        
+        ws_notas.column_dimensions['A'].width = 85
+        ws_notas.sheet_properties.tabColor = "1F4E79"
+        
+        logger.info("Hoja NOTAS agregada a la plantilla vacía")
+
+    # ------------------------------------------------------------------
     # Método principal
     # ------------------------------------------------------------------
 

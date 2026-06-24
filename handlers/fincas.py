@@ -24,8 +24,9 @@ def get_fincas_router(db: Database) -> Router:
 
     @router.message(Command("fincas"))
     @router.callback_query(F.data == "menu_fincas")
-    async def cmd_fincas(event: types.Message | types.CallbackQuery):
+    async def cmd_fincas(event: types.Message | types.CallbackQuery, state: FSMContext):
         """Muestra el menú de fincas."""
+        await state.clear()
         user_id = event.from_user.id
 
         if isinstance(event, types.CallbackQuery):

@@ -71,6 +71,7 @@ def get_lotes_router(db: Database) -> Router:
     @router.callback_query(F.data == "menu_lotes")
     async def cmd_lotes(event: types.Message | types.CallbackQuery, state: FSMContext):
         """Muestra el menú de lotes."""
+        await state.clear()
         user_id = event.from_user.id
 
         if isinstance(event, types.CallbackQuery):

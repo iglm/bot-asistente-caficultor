@@ -6,6 +6,7 @@ import logging
 from datetime import datetime
 from aiogram import Router, types, F
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 
 from database import Database
 from config import CATEGORIAS, EXPORTS_DIR, EXCEL_TEMPLATE, ADMIN_IDS
@@ -99,8 +100,9 @@ def get_reportes_router(db: Database) -> Router:
 
     @router.message(Command("resumen"))
     @router.callback_query(F.data == "menu_resumen")
-    async def cmd_resumen(event: types.Message | types.CallbackQuery):
+    async def cmd_resumen(event: types.Message | types.CallbackQuery, state: FSMContext):
         """Muestra el resumen de la finca."""
+        await state.clear()
         user_id = event.from_user.id
 
         if isinstance(event, types.CallbackQuery):
@@ -179,20 +181,22 @@ def get_reportes_router(db: Database) -> Router:
             user_id = callback.from_user.id
             fincas = db.get_fincas(user_id)
             if not fincas:
-                # ✅ Generar plantilla vacía (template sin datos) incluso si no hay fincas
+                # ✅ Generar plantilla vacía usando ExcelManager
                 try:
                     await callback.message.edit_text(
                         "⏳ <b>Generando plantilla Excel vacía...</b>",
                         parse_mode="HTML",
                     )
 
-                    import shutil
+                    from excel_manager import ExcelManager
+                    manager = ExcelManager(EXCEL_TEMPLATE)
+
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     output_filename = f"plantilla_vacia_{timestamp}.xlsx"
                     output_path = os.path.join(EXPORTS_DIR, output_filename)
 
-                    # Copiar el template directamente (sin datos = plantilla vacía)
-                    shutil.copy2(EXCEL_TEMPLATE, output_path)
+                    # Usar el método del manager
+                    manager.generar_plantilla_vacia(output_path)
 
                     # Enviar archivo
                     with open(output_path, "rb") as f:
@@ -200,7 +204,8 @@ def get_reportes_router(db: Database) -> Router:
                             types.FSInputFile(output_path, filename="Plantilla_Vacia.xlsx"),
                             caption="📋 <b>Plantilla Excel generada</b> ☕\n\n"
                                     "No tenés fincas registradas, pero acá tenés el formato "
-                                    "del Excel. Podés llenarlo manualmente o crear una finca "
+                                    "del Excel con datos de ejemplo como guía.\n"
+                                    "Podés llenarlo manualmente o crear una finca "
                                     "con /fincas y volver a exportar.",
                             parse_mode="HTML",
                         )

@@ -5,7 +5,7 @@ Limpia el estado y deja que el mensaje original continúe hacia el handler de me
 import logging
 from typing import Any, Awaitable, Callable, Dict
 from aiogram import BaseMiddleware
-from aiogram.types import TelegramObject, Message
+from aiogram.types import TelegramObject, Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 
@@ -39,5 +39,16 @@ class CancelMiddleware(BaseMiddleware):
                         if current:
                             logger.info(f"🔄 [Middleware] Cancelando estado {current} por {cmd}")
                             await state.clear()
+
+        # Limpiar estado para callbacks de menú (botones inline)
+        if isinstance(event, CallbackQuery):
+            callback_data = event.data or ""
+            if callback_data.startswith("menu_") or callback_data.startswith("ir_"):
+                state: FSMContext = data.get("state")
+                if state:
+                    current = await state.get_state()
+                    if current:
+                        logger.info(f"🔄 [Middleware] Cancelando estado {current} por callback {callback_data}")
+                        await state.clear()
         
         return await handler(event, data)
