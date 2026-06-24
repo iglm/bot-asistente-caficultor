@@ -441,7 +441,7 @@ class ExcelManager:
             ("   • fecha_siembra: Formato DD/MM/AAAA o AAAA-MM-DD", False, 10, "000000"),
             ("", False, 10, "000000"),
             ("📄 HOJA: Ingresos por ventas de cafe", True, 11, "000000"),
-            ("   • Tipo café: CPS (Pergamino Seco), Pasilla, Re-re", False, 10, "000000"),
+            ("   • Tipo café: CPS (Pergamino Seco), Pasilla", False, 10, "000000"),
             ("   • Cantidad (kg): Kilos vendidos (número)", False, 10, "000000"),
             ("   • Valor Unitario: Se calcula automáticamente (Valor Total / Cantidad)", False, 10, "000000"),
             ("   • Valor Total: Valor total de la venta en COP", False, 10, "000000"),
@@ -648,9 +648,9 @@ class ExcelManager:
 
         # Recolectar todos los ingresos
         ingresos = []
-        for cat in ["ingreso_cps", "ingreso_pasilla", "ingreso_rere"]:
+        for cat in ["ingreso_cps", "ingreso_pasilla"]:
             for t in data.get(cat, []):
-                tipo_map = {"ingreso_cps": "CPS", "ingreso_pasilla": "Pasilla", "ingreso_rere": "Re-re"}
+                tipo_map = {"ingreso_cps": "CPS", "ingreso_pasilla": "Pasilla"}
                 ingresos.append({
                     "fecha": t["fecha"],
                     "tipo": tipo_map[cat],

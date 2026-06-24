@@ -83,7 +83,6 @@ INGRESO_KEYWORDS = {
     "vend": "ingreso", "venta": "ingreso", "entreg": "ingreso",
     "cps": "cps", "pergamino": "cps",
     "pasilla": "pasilla",
-    "re-re": "rere", "rere": "rere", "re re": "rere",
 }
 
 # Mapeo de palabras → unidades
@@ -207,7 +206,6 @@ def extract_categoria(text: str) -> Optional[str]:
                 "ingreso": None,  # genérico, no podemos determinar
                 "cps": "ingreso_cps",
                 "pasilla": "ingreso_pasilla",
-                "rere": "ingreso_rere",
             }
             mapped = ingreso_map.get(cat)
             if mapped:

@@ -53,19 +53,16 @@ CATEGORIAS_SIMPLE = {
 TIPOS_CAFE_LIST = [
     "CPS (Café Pergamino Seco)",
     "Pasilla",
-    "Re-re (Re-recolección)",
 ]
 
 TIPOS_CAFE = {
     "CPS (Café Pergamino Seco)": "CPS",
     "Pasilla": "Pasilla",
-    "Re-re (Re-recolección)": "Re-re",
 }
 
 CATEGORIAS = {
     "ingreso_cps": {"nombre": "Ingreso CPS", "hoja": "Ingresos", "tipo": "ingreso"},
     "ingreso_pasilla": {"nombre": "Ingreso Pasilla", "hoja": "Ingresos", "tipo": "ingreso"},
-    "ingreso_rere": {"nombre": "Ingreso Re-re", "hoja": "Ingresos", "tipo": "ingreso"},
     "instalacion_mo": {"nombre": "Instalación MO", "hoja": "Instalacion de Cafe", "seccion": "MO"},
     "instalacion_insumos": {"nombre": "Instalación Insumos", "hoja": "Instalacion de Cafe", "seccion": "Insumos"},
     "instalacion": {"nombre": "Instalación", "hoja": "Instalacion de Cafe", "seccion": "Total"},

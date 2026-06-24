@@ -98,7 +98,7 @@ class TestGetResumenFinca:
                 f"Se esperaba 0 para '{cat}'"
             )
         # Todos los ingresos_por_tipo deben ser 0
-        for tipo in ("ingreso_cps", "ingreso_pasilla", "ingreso_rere"):
+        for tipo in ("ingreso_cps", "ingreso_pasilla"):
             assert resumen["ingresos_por_tipo"][tipo] == 0, (
                 f"Se esperaba 0 para '{tipo}'"
             )
@@ -160,9 +160,6 @@ class TestGetResumenFinca:
         db.insert_transaccion(finca_id, "ingreso_pasilla", "2024-04-10",
                               producto="Pasilla", cantidad=100, valor_unitario=3_000,
                               valor_total=300_000)
-        db.insert_transaccion(finca_id, "ingreso_rere", "2024-04-15",
-                              producto="Re-re", cantidad=50, valor_unitario=1_000,
-                              valor_total=50_000)
 
         # Agregar un egreso para verificar margen
         db.insert_transaccion(finca_id, "recoleccion", "2024-04-20",
@@ -172,10 +169,9 @@ class TestGetResumenFinca:
 
         assert resumen["ingresos_por_tipo"]["ingreso_cps"] == 4_000_000
         assert resumen["ingresos_por_tipo"]["ingreso_pasilla"] == 300_000
-        assert resumen["ingresos_por_tipo"]["ingreso_rere"] == 50_000
-        assert resumen["ingresos"] == 4_350_000
+        assert resumen["ingresos"] == 4_300_000
         assert resumen["egresos"] == 1_000_000
-        assert resumen["margen"] == 3_350_000
+        assert resumen["margen"] == 3_300_000
 
     def test_resumen_con_lotes_y_costo_hectarea(self, db: Database, finca_id: int):
         """

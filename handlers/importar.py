@@ -47,7 +47,7 @@ def get_importar_router(db: Database) -> Router:
         "instalacion_insumos", "arvenses_insumos", "fertilizacion_insumos",
         "fitosanitario_insumos", "sombrio_insumos", "otras_labores_insumos",
     ]
-    CATEGORIAS_INGRESO_VALIDAS = ["ingreso_cps", "ingreso_pasilla", "ingreso_rere"]
+    CATEGORIAS_INGRESO_VALIDAS = ["ingreso_cps", "ingreso_pasilla"]
 
     def normalizar_tipo_cafe(tipo: str) -> str:
         """Normaliza el tipo de café a clave interna."""
@@ -56,8 +56,6 @@ def get_importar_router(db: Database) -> Router:
             return "ingreso_cps"
         elif tipo == "PASILLA" or "PASILLA" in tipo:
             return "ingreso_pasilla"
-        elif "RE" in tipo or "RERE" in tipo.replace("-", ""):
-            return "ingreso_rere"
         return tipo.lower().replace(" ", "_")
 
     @router.callback_query(F.data == "menu_importar")

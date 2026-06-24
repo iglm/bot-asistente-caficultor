@@ -300,7 +300,7 @@ def get_ingresos_router(db: Database) -> Router:
         # Mapear tipo a categoría
         tipo_raw = data.get("tipo") or ""
         tipo_corto = TIPOS_CAFE.get(tipo_raw, tipo_raw)
-        tipo_map = {"CPS": "ingreso_cps", "Pasilla": "ingreso_pasilla", "Re-re": "ingreso_rere"}
+        tipo_map = {"CPS": "ingreso_cps", "Pasilla": "ingreso_pasilla"}
         categoria = tipo_map.get(tipo_corto, "ingreso_cps")
 
         try:

@@ -121,7 +121,6 @@ INSUMOS_DATA = {
 
 # Precios de pasilla y rere por año (factor del precio CPS)
 PASILLA_PRECIO_FACTOR = 0.40
-RERE_PRECIO_FACTOR = 0.20
 
 # ── Rendimiento por edad del lote (kg/ha) ──────────────────────────────
 # Basado en datos técnicos para la zona cafetera colombiana
@@ -617,7 +616,6 @@ class SimuladorCaficultor:
             cosecha_principal = produccion_total * 0.70
             mitaca = produccion_total * 0.20
             pasilla_total = produccion_total * 0.07
-            rere_total = produccion_total * 0.03
 
             # Precios del año
             precios_mes = PRECIOS_CAFE[año]
@@ -705,30 +703,8 @@ class SimuladorCaficultor:
                     self.estadisticas["errores"] += 1
                     log_error(f"Error pasilla {año}-{mes}: {e}")
 
-            # -- Re-re (re-recolección) --
-            for mes in [11, 12]:
-                cantidad = rere_total / 2
-                cantidad *= random.uniform(0.5, 1.5)
-                if cantidad < 3:
-                    continue
-
-                precio_rere = precios_mes[mes - 1] * RERE_PRECIO_FACTOR
-                dia = random.randint(5, 25)
-                fecha = f"{año}-{mes:02d}-{dia:02d}"
-
-                try:
-                    db_exec(
-                        "INSERT INTO transacciones (finca_id, lote_id, categoria, fecha, labor, "
-                        "producto, cantidad, unidad, valor_unitario, valor_total) "
-                        "VALUES (?, 0, 'ingreso_rere', ?, ?, ?, ?, ?, ?, ?)",
-                        (self.finca_id, fecha, f"Venta Re-re", "Re-re",
-                         round(cantidad, 1), "kg",
-                         round(precio_rere), int(cantidad * precio_rere))
-                    )
-                    ingresos_creados += 1
-                except Exception as e:
-                    self.estadisticas["errores"] += 1
-                    log_error(f"Error rere {año}-{mes}: {e}")
+            # -- Re-re (re-recolección) -- (ya no es ingreso, es costo de recolección)
+            # No generar ingresos de Re-re
 
         self.estadisticas["ingresos_creados"] = ingresos_creados
         log_ok(f"{ingresos_creados} ingresos creados")
@@ -739,9 +715,8 @@ class SimuladorCaficultor:
             total = db_sum("valor_total", f"WHERE categoria LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
             cps = db_sum("valor_total", f"WHERE categoria='ingreso_cps' AND fecha LIKE '{año}-%'")
             pas = db_sum("valor_total", f"WHERE categoria='ingreso_pasilla' AND fecha LIKE '{año}-%'")
-            rere = db_sum("valor_total", f"WHERE categoria='ingreso_rere' AND fecha LIKE '{año}-%'")
             log_money(f"   {año}: {cnt} ventas, total {format_pesos(total)} "
-                      f"(CPS: {format_pesos(cps)}, Pasilla: {format_pesos(pas)}, Re-re: {format_pesos(rere)})")
+                      f"(CPS: {format_pesos(cps)}, Pasilla: {format_pesos(pas)})")
 
     # ── Fase 5: Generar costos ─────────────────────────────────────────
 
@@ -1048,7 +1023,7 @@ class SimuladorCaficultor:
 
         # Verificar cada categoría
         categorias_check = [
-            "ingreso_cps", "ingreso_pasilla", "ingreso_rere",
+            "ingreso_cps", "ingreso_pasilla",
             "instalacion_mo", "instalacion_insumos",
             "arvenses_mo", "arvenses_insumos",
             "fertilizacion_mo", "fertilizacion_insumos",

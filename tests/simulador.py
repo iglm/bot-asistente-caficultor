@@ -87,7 +87,7 @@ CAT_MAIN = {
     "administrativo": ("administrativo", None),
 }
 
-TIPO_CAFE_MAP = {"CPS": "ingreso_cps", "Pasilla": "ingreso_pasilla", "Re-re": "ingreso_rere"}
+TIPO_CAFE_MAP = {"CPS": "ingreso_cps", "Pasilla": "ingreso_pasilla"}
 
 PRODUCTOS_INSUMOS = {
     "instalacion": ["Plántulas de café", "Abono orgánico", "Cal agrícola", "Yeso agrícola"],
@@ -314,8 +314,8 @@ class Simulador:
             self.log("   ❌ No hay finca_id — saltando")
             return
 
-        tipos = ["CPS", "Pasilla", "Re-re"]
-        tipos_weight = [0.7, 0.2, 0.1]  # CPS es el más común
+        tipos = ["CPS", "Pasilla"]
+        tipos_weight = [0.7, 0.3]  # CPS es el más común
 
         ingresos_creados = 0
         for i in range(50):

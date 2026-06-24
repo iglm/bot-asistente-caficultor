@@ -458,7 +458,7 @@ class Database:
                 result[cat] = rows
 
             # Ingresos
-            for cat_ing in ["ingreso_cps", "ingreso_pasilla", "ingreso_rere"]:
+            for cat_ing in ["ingreso_cps", "ingreso_pasilla"]:
                 rows = [dict(r) for r in conn.execute(
                     "SELECT * FROM transacciones WHERE finca_id = ? AND categoria = ? ORDER BY fecha, id",
                     (finca_id, cat_ing)
@@ -482,7 +482,7 @@ class Database:
             data = {"lotes": lotes}
             
             categorias = [
-                "ingreso_cps", "ingreso_pasilla", "ingreso_rere",
+                "ingreso_cps", "ingreso_pasilla",
                 "instalacion_mo", "instalacion_insumos",
                 "arvenses_mo", "arvenses_insumos",
                 "fertilizacion_mo", "fertilizacion_insumos",
@@ -548,7 +548,7 @@ class Database:
 
             # Ingresos por tipo
             ingresos_tipos = {}
-            for cat_ing in ["ingreso_cps", "ingreso_pasilla", "ingreso_rere"]:
+            for cat_ing in ["ingreso_cps", "ingreso_pasilla"]:
                 total = conn.execute(
                     "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria = ?",
                     (finca_id, cat_ing)

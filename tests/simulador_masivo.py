@@ -54,7 +54,6 @@ PRECIOS_CAFE = {
 }
 
 PASILLA_PRECIO_FACTOR = 0.40
-RERE_PRECIO_FACTOR = 0.20
 
 # Precios unitarios
 JORNAL = 55_000
@@ -469,7 +468,6 @@ class SimuladorMasivo:
             cosecha_principal = produccion_total * 0.70
             mitaca = produccion_total * 0.20
             pasilla_total = produccion_total * 0.07
-            rere_total = produccion_total * 0.03
 
             precios_mes = PRECIOS_CAFE[año]
 
@@ -544,29 +542,6 @@ class SimuladorMasivo:
                     except Exception as e:
                         self.estadisticas["errores"] += 1
                         log_error(f"Error pasilla {año}-{mes}: {e}")
-
-            # ── Re-re — 2 ventas ──
-            for mes in [11, 12]:
-                cantidad = rere_total / 2
-                cantidad *= random.uniform(0.5, 1.5)
-                if cantidad < 3:
-                    continue
-                precio_rere = precios_mes[mes - 1] * RERE_PRECIO_FACTOR
-                dia = random.randint(5, 25)
-                fecha = f"{año}-{mes:02d}-{dia:02d}"
-                try:
-                    db_exec(
-                        "INSERT INTO transacciones (finca_id, lote_id, categoria, fecha, labor, "
-                        "producto, cantidad, unidad, valor_unitario, valor_total) "
-                        "VALUES (?, 0, 'ingreso_rere', ?, ?, ?, ?, ?, ?, ?)",
-                        (self.finca_id, fecha, f"Venta Re-re",
-                         "Re-re", round(cantidad, 1), "kg",
-                         round(precio_rere), int(cantidad * precio_rere))
-                    )
-                    ingresos_creados += 1
-                except Exception as e:
-                    self.estadisticas["errores"] += 1
-                    log_error(f"Error rere {año}-{mes}: {e}")
 
         self.estadisticas["ingresos_creados"] = ingresos_creados
         log_ok(f"{ingresos_creados} ingresos creados")
@@ -955,7 +930,7 @@ class SimuladorMasivo:
         area_total = sum(l[1] for l in LOTES_DATA)
 
         categorias_check = [
-            "ingreso_cps", "ingreso_pasilla", "ingreso_rere",
+            "ingreso_cps", "ingreso_pasilla",
             "instalacion_mo", "instalacion_insumos",
             "arvenses_mo", "arvenses_insumos",
             "fertilizacion_mo", "fertilizacion_insumos",
@@ -1255,7 +1230,6 @@ class SimuladorMasivo:
         categorias = [
             ("ingreso_cps", "Venta CPS", True),
             ("ingreso_pasilla", "Venta Pasilla", True),
-            ("ingreso_rere", "Venta Re-re", True),
             ("instalacion_mo", "Instalación MO", False),
             ("instalacion_insumos", "Instalación Insumos", False),
             ("arvenses_mo", "Arvenses MO", False),
@@ -1296,7 +1270,6 @@ class SimuladorMasivo:
             lines.append(f"| {mes} | ${p23:,} | ${p24:,} | ${p25:,} |")
         lines.append(f"")
         lines.append(f"| **Pasilla** | 40% del CPS | | |")
-        lines.append(f"| **Re-re** | 20% del CPS | | |")
         lines.append(f"")
         lines.append(f"### Costos Unitarios")
         lines.append(f"")
