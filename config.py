@@ -33,7 +33,7 @@ os.makedirs(EXPORTS_DIR, exist_ok=True)
 AVISO_LEGAL = """
 ☕ <b>ASISTENTE DE COSTOS PARA CAFICULTORES</b>
 
-📋 <b>AVISO LEGAL Y TÉRMINOS DE USO</b>
+📋 <b>AVISO DE PRIVACIDAD Y TÉRMINOS DE USO</b>
 
 <b>1. ACEPTACIÓN DE TÉRMINOS</b>
 Al utilizar este bot, aceptás estos términos en su totalidad. Si no estás de acuerdo, no uses este servicio.
@@ -44,12 +44,14 @@ Al utilizar este bot, aceptás estos términos en su totalidad. Si no estás de 
 • NO se responsabiliza por pérdida de datos por fallos técnicos ajenos al desarrollador.
 • La información proporcionada es orientativa y NO reemplaza el asesoramiento profesional agrícola o financiero.
 
-<b>3. PROTECCIÓN DE DATOS PERSONALES (Ley 1581/2012)</b>
+<b>3. PROTECCIÓN DE DATOS PERSONALES (Ley 1581/2012 - Colombia)</b>
 • Los datos registrados son almacenados de forma segura en servidores privados.
 • Tus datos NO serán vendidos, compartidos ni transferidos a terceros.
 • Los datos se respaldan diariamente para prevenir pérdidas.
 • Podés solicitar la eliminación completa de tus datos en cualquier momento.
+• Podés ejercer acceso, rectificación, supresión y oposición de tus datos.
 • Responsable del tratamiento: Lucas Mateo Tabares Franco.
+• Contacto: mateo.tabares@outlook.com
 
 <b>4. PROPIEDAD INTELECTUAL</b>
 • Este software es propiedad de Lucas Mateo Tabares Franco.
@@ -60,9 +62,17 @@ Al utilizar este bot, aceptás estos términos en su totalidad. Si no estás de 
 • El bot se provee "TAL CUAL" (AS-IS), sin garantías de ningún tipo.
 • El uso de este bot es bajo tu exclusiva responsabilidad.
 
-<b>6. CONTACTO</b>
+<b>6. LEGISLACIÓN APLICABLE</b>
+• Ley 1581 de 2012 (Protección de Datos Personales - Colombia).
+• Decreto 1377 de 2013 (Reglamentación Ley 1581).
+• Jurisdicción: República de Colombia.
+
+<b>7. CONTACTO</b>
 • Desarrollador: Lucas Mateo Tabares Franco
 • Asesor: Ing. Jhoan Sebastian Bustamante Montes
+• Correo: mateo.tabares@outlook.com
+
+Al usar este bot, aceptás los términos anteriores.
 """
 
 # ── Categorías de transacciones ──
