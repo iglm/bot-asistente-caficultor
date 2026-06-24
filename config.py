@@ -31,48 +31,47 @@ os.makedirs(EXPORTS_DIR, exist_ok=True)
 
 # ── Aviso Legal (Ley 1581 de 2012 — Protección robusta contra demandas) ──
 AVISO_LEGAL = """
-☕ <b>ASISTENTE DE COSTOS PARA CAFICULTORES</b>
+<b>ASISTENTE DE COSTOS PARA CAFICULTORES</b>
 
-📋 <b>AVISO DE PRIVACIDAD Y TÉRMINOS DE USO</b>
+<b>AVISO DE PRIVACIDAD Y TÉRMINOS DE USO</b>
 
 <b>1. ACEPTACIÓN DE TÉRMINOS</b>
-Al utilizar este bot, aceptás estos términos en su totalidad. Si no estás de acuerdo, no uses este servicio.
+El uso de este servicio implica la aceptación plena e incondicional de los presentes términos. Si usted no está de acuerdo con alguno de ellos, deberá abstenerse de utilizar el servicio.
 
 <b>2. EXCLUSIÓN DE RESPONSABILIDAD</b>
-• El desarrollador NO se responsabiliza por pérdidas económicas derivadas de decisiones basadas en la información del bot.
-• NO se garantiza la disponibilidad continua del servicio.
-• NO se responsabiliza por pérdida de datos por fallos técnicos ajenos al desarrollador.
-• La información proporcionada es orientativa y NO reemplaza el asesoramiento profesional agrícola o financiero.
+• El desarrollador no se responsabiliza por pérdidas económicas, daños o perjuicios derivados de decisiones tomadas con base en la información proporcionada por el servicio.
+• No se garantiza la disponibilidad, continuidad o el funcionamiento libre de errores del servicio.
+• El desarrollador no se responsabiliza por la pérdida de datos causada por fallos técnicos, interrupciones del servicio o causas de fuerza mayor.
+• La información proporcionada tiene carácter orientativo e informativo, y no constituye asesoramiento profesional agrícola, financiero o legal.
 
-<b>3. PROTECCIÓN DE DATOS PERSONALES (Ley 1581/2012 - Colombia)</b>
-• Los datos registrados son almacenados de forma segura en servidores privados.
-• Tus datos NO serán vendidos, compartidos ni transferidos a terceros.
-• Los datos se respaldan diariamente para prevenir pérdidas.
-• Podés solicitar la eliminación completa de tus datos en cualquier momento.
-• Podés ejercer acceso, rectificación, supresión y oposición de tus datos.
+<b>3. PROTECCIÓN DE DATOS PERSONALES</b>
+• Los datos personales suministrados serán almacenados de forma segura en servidores privados.
+• Sus datos no serán vendidos, cedidos, compartidos ni transferidos a terceros sin su autorización expresa.
+• Se realizan respaldos diarios para prevenir la pérdida de información.
+• Usted tiene derecho a ejercer las acciones de acceso, rectificación, supresión y oposición sobre sus datos personales, conforme a la Ley 1581 de 2012 y el Decreto 1377 de 2013.
 • Responsable del tratamiento: Lucas Mateo Tabares Franco.
-• Contacto: mateo.tabares@outlook.com
+• Correo electrónico de contacto: mateotabares7@gmail.com
 
 <b>4. PROPIEDAD INTELECTUAL</b>
-• Este software es propiedad de Lucas Mateo Tabares Franco.
-• Asesoría técnica: Ing. Jhoan Sebastian Bustamante Montes.
-• Queda prohibida la redistribución sin autorización.
+• El software, contenidos y documentación son propiedad de Lucas Mateo Tabares Franco.
+• Asesoría técnica: Ingeniero Jhoan Sebastian Bustamante Montes.
+• Queda prohibida la reproducción, distribución o modificación sin autorización expresa.
 
-<b>5. USO DEL SERVICIO</b>
-• El bot se provee "TAL CUAL" (AS-IS), sin garantías de ningún tipo.
-• El uso de este bot es bajo tu exclusiva responsabilidad.
+<b>5. CONDICIONES DE USO</b>
+• El servicio se proporciona "TAL CUAL", sin garantías de ningún tipo, expresas o implícitas.
+• El uso del servicio es bajo la exclusiva responsabilidad del usuario.
 
-<b>6. LEGISLACIÓN APLICABLE</b>
-• Ley 1581 de 2012 (Protección de Datos Personales - Colombia).
-• Decreto 1377 de 2013 (Reglamentación Ley 1581).
-• Jurisdicción: República de Colombia.
+<b>6. LEGISLACIÓN APLICABLE Y JURISDICCIÓN</b>
+• Ley 1581 de 2012 (Régimen de Protección de Datos Personales).
+• Decreto 1377 de 2013 (Reglamentación de la Ley 1581).
+• Jurisdicción competente: República de Colombia.
 
 <b>7. CONTACTO</b>
 • Desarrollador: Lucas Mateo Tabares Franco
-• Asesor: Ing. Jhoan Sebastian Bustamante Montes
-• Correo: mateo.tabares@outlook.com
+• Asesor técnico: Ingeniero Jhoan Sebastian Bustamante Montes
+• Correo electrónico: mateotabares7@gmail.com
 
-Al usar este bot, aceptás los términos anteriores.
+Al utilizar este servicio, usted declara haber leído, comprendido y aceptado los presentes términos en su totalidad.
 """
 
 # ── Categorías de transacciones ──
