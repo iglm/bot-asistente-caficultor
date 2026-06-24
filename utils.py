@@ -5,7 +5,31 @@ el botón "🏠 Menú Principal" y/o "❌ Cancelar".
 El usuario NUNCA debe quedarse sin opción de escape visible.
 """
 
+from datetime import datetime, timedelta
+
 from aiogram import types
+
+
+def fecha_hoy() -> str:
+    """Retorna la fecha de hoy en formato DD/MM/AAAA."""
+    return datetime.now().strftime("%d/%m/%Y")
+
+
+def fecha_ayer() -> str:
+    """Retorna la fecha de ayer en formato DD/MM/AAAA."""
+    return (datetime.now() - timedelta(days=1)).strftime("%d/%m/%Y")
+
+
+def botones_fecha() -> types.InlineKeyboardMarkup:
+    """Retorna teclado con opciones rápidas de fecha."""
+    kb = types.InlineKeyboardMarkup(inline_keyboard=[
+        [
+            types.InlineKeyboardButton(text="📅 Hoy", callback_data="fecha:hoy"),
+            types.InlineKeyboardButton(text="📆 Ayer", callback_data="fecha:ayer"),
+        ],
+        [types.InlineKeyboardButton(text="✏️ Otra fecha", callback_data="fecha:custom")],
+    ])
+    return agregar_menu_cancelar(kb)
 
 
 def boton_menu():

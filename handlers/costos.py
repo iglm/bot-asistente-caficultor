@@ -10,7 +10,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 from database import Database
 from config import CATEGORIAS_PADRE, CATEGORIAS_SIMPLE
-from utils import boton_menu, botones_menu_cancelar, agregar_boton_menu, agregar_menu_cancelar
+from utils import boton_menu, botones_menu_cancelar, agregar_boton_menu, agregar_menu_cancelar, botones_fecha, fecha_hoy, fecha_ayer
 
 logger = logging.getLogger(__name__)
 
@@ -306,12 +306,19 @@ def get_costos_router(db: Database) -> Router:
             await state.clear()
             return
 
-        await callback.message.edit_text(texto, parse_mode="HTML", reply_markup=CANCEL_KB)
+        await callback.message.edit_text(texto, parse_mode="HTML", reply_markup=botones_fecha())
         await state.set_state(CostoForm.esperando_fecha)
 
     @router.message(CostoForm.esperando_fecha, F.text)
     async def recibir_fecha_costo(message: types.Message, state: FSMContext):
         fecha_str = message.text.strip()
+
+        # Atajos de texto
+        if fecha_str.lower() in ["hoy", "today"]:
+            fecha_str = fecha_hoy()
+        elif fecha_str.lower() in ["ayer", "yesterday"]:
+            fecha_str = fecha_ayer()
+
         fecha_valida = None
         for fmt in ["%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"]:
             try:
@@ -321,7 +328,7 @@ def get_costos_router(db: Database) -> Router:
                 continue
 
         if not fecha_valida:
-            await message.answer("❌ Fecha inválida. Usa formato DD/MM/AAAA:", reply_markup=botones_menu_cancelar())
+            await message.answer("❌ Fecha inválida. Usá los botones o escribí en formato DD/MM/AAAA:", reply_markup=botones_fecha())
             return
 
         fecha_iso = fecha_valida.strftime("%Y-%m-%d")
@@ -341,6 +348,44 @@ def get_costos_router(db: Database) -> Router:
             await state.set_state(CostoForm.esperando_labor)
         else:
             await message.answer(
+                f"✅ <b>Fecha:</b> {fecha_str}\n\n"
+                "¿Cuál es la <b>labor realizada</b>?\n\n"
+                "<i>(Describe la labor o actividad)</i>",
+                parse_mode="HTML",
+                reply_markup=botones_menu_cancelar(),
+            )
+            await state.set_state(CostoForm.esperando_labor)
+
+    @router.callback_query(CostoForm.esperando_fecha, F.data.startswith("fecha:"))
+    async def procesar_fecha_callback_costo(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        opcion = callback.data.split(":", 1)[1]
+
+        if opcion == "hoy":
+            fecha_str = fecha_hoy()
+        elif opcion == "ayer":
+            fecha_str = fecha_ayer()
+        else:  # custom
+            await callback.message.answer("✏️ Escribí la fecha en formato DD/MM/AAAA:", reply_markup=botones_fecha())
+            return
+
+        fecha_iso = datetime.strptime(fecha_str, "%d/%m/%Y").strftime("%Y-%m-%d")
+        await state.update_data(fecha=fecha_iso)
+
+        data = await state.get_data()
+        cat_key = data.get("cat_key", "")
+
+        if cat_key == "administrativo":
+            await callback.message.answer(
+                f"✅ <b>Fecha:</b> {fecha_str}\n\n"
+                "¿Cuál es el <b>gasto administrativo</b>?\n\n"
+                "<i>(Describe el gasto, ej: Servicios públicos, Transporte)</i>",
+                parse_mode="HTML",
+                reply_markup=botones_menu_cancelar(),
+            )
+            await state.set_state(CostoForm.esperando_labor)
+        else:
+            await callback.message.answer(
                 f"✅ <b>Fecha:</b> {fecha_str}\n\n"
                 "¿Cuál es la <b>labor realizada</b>?\n\n"
                 "<i>(Describe la labor o actividad)</i>",

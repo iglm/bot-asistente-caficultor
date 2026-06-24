@@ -10,7 +10,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 from database import Database
 from config import TIPOS_CAFE, TIPOS_CAFE_LIST
-from utils import boton_menu, botones_menu_cancelar, agregar_boton_menu
+from utils import boton_menu, botones_menu_cancelar, agregar_boton_menu, botones_fecha, fecha_hoy, fecha_ayer
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +28,9 @@ async def preguntar_fecha(message: types.Message, state: FSMContext):
     """Pregunta la fecha de la venta."""
     await message.answer(
         "💰 <b>Registrar Ingreso</b>\n\n"
-        "¿Cuál es la <b>fecha</b> de la venta?\n\n"
-        "<i>(Formato: DD/MM/AAAA)</i>",
+        "¿Cuál es la <b>fecha</b> de la venta?",
         parse_mode="HTML",
-        reply_markup=botones_menu_cancelar(),
+        reply_markup=botones_fecha(),
     )
     await state.set_state(IngresoForm.esperando_fecha)
 
@@ -124,6 +123,12 @@ def get_ingresos_router(db: Database) -> Router:
     async def recibir_fecha(message: types.Message, state: FSMContext):
         fecha_str = message.text.strip()
 
+        # Atajos de texto
+        if fecha_str.lower() in ["hoy", "today"]:
+            fecha_str = fecha_hoy()
+        elif fecha_str.lower() in ["ayer", "yesterday"]:
+            fecha_str = fecha_ayer()
+
         fecha_valida = None
         for fmt in ["%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"]:
             try:
@@ -133,7 +138,7 @@ def get_ingresos_router(db: Database) -> Router:
                 continue
 
         if not fecha_valida:
-            await message.answer("❌ Fecha inválida. Usa formato DD/MM/AAAA:", reply_markup=botones_menu_cancelar())
+            await message.answer("❌ Fecha inválida. Usá los botones o escribí en formato DD/MM/AAAA:", reply_markup=botones_fecha())
             return
 
         # Guardar en ISO
@@ -151,6 +156,40 @@ def get_ingresos_router(db: Database) -> Router:
         keyboard = agregar_boton_menu(keyboard)
 
         await message.answer(
+            f"✅ <b>Fecha:</b> {fecha_str}\n\n"
+            "¿Qué <b>tipo de café</b> vendiste?",
+            parse_mode="HTML",
+            reply_markup=keyboard,
+        )
+        await state.set_state(IngresoForm.esperando_tipo)
+
+    @router.callback_query(IngresoForm.esperando_fecha, F.data.startswith("fecha:"))
+    async def procesar_fecha_callback_ingreso(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        opcion = callback.data.split(":", 1)[1]
+
+        if opcion == "hoy":
+            fecha_str = fecha_hoy()
+        elif opcion == "ayer":
+            fecha_str = fecha_ayer()
+        else:  # custom
+            await callback.message.answer("✏️ Escribí la fecha en formato DD/MM/AAAA:", reply_markup=botones_fecha())
+            return
+
+        fecha_iso = datetime.strptime(fecha_str, "%d/%m/%Y").strftime("%Y-%m-%d")
+        await state.update_data(fecha=fecha_iso)
+
+        keyboard = types.InlineKeyboardMarkup(
+            inline_keyboard=[
+                [types.InlineKeyboardButton(text=tipo, callback_data=f"tipo_cafe:{tipo}")]
+                for tipo in TIPOS_CAFE_LIST
+            ] + [
+                [types.InlineKeyboardButton(text="🔙 Volver", callback_data="ingreso_volver_fecha")],
+            ]
+        )
+        keyboard = agregar_boton_menu(keyboard)
+
+        await callback.message.answer(
             f"✅ <b>Fecha:</b> {fecha_str}\n\n"
             "¿Qué <b>tipo de café</b> vendiste?",
             parse_mode="HTML",

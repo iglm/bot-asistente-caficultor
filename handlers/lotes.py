@@ -8,7 +8,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 from database import Database
-from utils import boton_menu, botones_menu_cancelar, agregar_boton_menu
+from utils import boton_menu, botones_menu_cancelar, agregar_boton_menu, botones_fecha, fecha_hoy, fecha_ayer
 
 logger = logging.getLogger(__name__)
 
@@ -241,15 +241,22 @@ def get_lotes_router(db: Database) -> Router:
         await message.answer(
             f"✅ <b>Variedad:</b> {variedad or '(omitido)'}\n\n"
             "Paso 5/5: ¿Cuál es la <b>fecha de siembra</b>?\n\n"
-            "<i>(Formato: DD/MM/AAAA o AAAA-MM-DD — o '/' para omitir)</i>",
+            "<i>(Formato: DD/MM/AAAA — o '/' para omitir)</i>",
             parse_mode="HTML",
-            reply_markup=botones_menu_cancelar(),
+            reply_markup=botones_fecha(),
         )
         await state.set_state(LoteForm.esperando_fecha_siembra)
 
     @router.message(LoteForm.esperando_fecha_siembra, F.text)
     async def recibir_fecha_lote(message: types.Message, state: FSMContext):
         fecha = message.text.strip()
+
+        # Atajos de texto
+        if fecha.lower() in ["hoy", "today"]:
+            fecha = fecha_hoy()
+        elif fecha.lower() in ["ayer", "yesterday"]:
+            fecha = fecha_ayer()
+
         if fecha == "/":
             fecha = ""
         else:
@@ -258,14 +265,8 @@ def get_lotes_router(db: Database) -> Router:
             fecha_valida = False
             for fmt in ["%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"]:
                 try:
-                    datetime.strptime(fecha, fmt)
-                    # Convertir a ISO
-                    if fmt == "%d/%m/%Y":
-                        d = datetime.strptime(fecha, fmt)
-                        fecha = d.strftime("%Y-%m-%d")
-                    elif fmt == "%d-%m-%Y":
-                        d = datetime.strptime(fecha, fmt)
-                        fecha = d.strftime("%Y-%m-%d")
+                    d = datetime.strptime(fecha, fmt)
+                    fecha = d.strftime("%Y-%m-%d")
                     fecha_valida = True
                     break
                 except ValueError:
@@ -273,8 +274,8 @@ def get_lotes_router(db: Database) -> Router:
 
             if not fecha_valida:
                 await message.answer(
-                    "❌ Fecha inválida. Usa formato DD/MM/AAAA o AAAA-MM-DD:",
-                    reply_markup=botones_menu_cancelar(),
+                    "❌ Fecha inválida. Usá los botones o escribí en formato DD/MM/AAAA:",
+                    reply_markup=botones_fecha(),
                 )
                 return
 
@@ -310,6 +311,59 @@ def get_lotes_router(db: Database) -> Router:
         except Exception as e:
             logger.error(f"Error al crear lote: {e}", exc_info=True)
             await message.answer("❌ <b>Error al crear el lote.</b> Intenta de nuevo.", parse_mode="HTML", reply_markup=boton_menu())
+
+        await state.clear()
+
+    @router.callback_query(LoteForm.esperando_fecha_siembra, F.data.startswith("fecha:"))
+    async def procesar_fecha_callback_lote(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        opcion = callback.data.split(":", 1)[1]
+
+        if opcion == "hoy":
+            fecha = fecha_hoy()
+        elif opcion == "ayer":
+            fecha = fecha_ayer()
+        else:  # custom
+            await callback.message.answer("✏️ Escribí la fecha en formato DD/MM/AAAA:", reply_markup=botones_fecha())
+            return
+
+        # Convertir a ISO
+        from datetime import datetime
+        d = datetime.strptime(fecha, "%d/%m/%Y")
+        fecha_iso = d.strftime("%Y-%m-%d")
+
+        data = await state.get_data()
+        nombre = data.get("nombre", "")
+        area = data.get("area", 0)
+        arboles = data.get("arboles", 0)
+        variedad = data.get("variedad", "")
+        finca_id = data.get("finca_id", 0)
+
+        try:
+            lote_id = db.create_lote(
+                finca_id=finca_id,
+                nombre=nombre,
+                area=area,
+                num_arboles=arboles,
+                variedad=variedad,
+                fecha_siembra=fecha_iso,
+            )
+
+            await callback.message.answer(
+                f"✅ <b>¡Lote creado exitosamente!</b> 🎉\n\n"
+                f"📍 <b>Nombre:</b> {nombre}\n"
+                f"📐 <b>Área:</b> {area} ha\n"
+                f"🌳 <b>Árboles:</b> {arboles}\n"
+                f"🌱 <b>Variedad:</b> {variedad or 'No especificada'}\n"
+                f"📅 <b>Siembra:</b> {fecha}\n\n"
+                "Usa /lotes para ver tus lotes o /ingreso para registrar ventas. ☕",
+                parse_mode="HTML",
+                reply_markup=boton_menu(),
+            )
+
+        except Exception as e:
+            logger.error(f"Error al crear lote: {e}", exc_info=True)
+            await callback.message.answer("❌ <b>Error al crear el lote.</b> Intenta de nuevo.", parse_mode="HTML", reply_markup=boton_menu())
 
         await state.clear()
 
