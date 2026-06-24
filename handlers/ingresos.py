@@ -9,7 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 from database import Database
-from config import TIPOS_CAFE
+from config import TIPOS_CAFE, TIPOS_CAFE_LIST
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +129,9 @@ def get_ingresos_router(db: Database) -> Router:
         keyboard = types.InlineKeyboardMarkup(
             inline_keyboard=[
                 [types.InlineKeyboardButton(text=tipo, callback_data=f"tipo_cafe:{tipo}")]
-                for tipo in TIPOS_CAFE
+                for tipo in TIPOS_CAFE_LIST
+            ] + [
+                [types.InlineKeyboardButton(text="🔙 Volver", callback_data="ingreso_volver_fecha")],
             ]
         )
 
@@ -140,6 +142,12 @@ def get_ingresos_router(db: Database) -> Router:
             reply_markup=keyboard,
         )
         await state.set_state(IngresoForm.esperando_tipo)
+
+    @router.callback_query(IngresoForm.esperando_tipo, F.data == "ingreso_volver_fecha")
+    async def volver_fecha(callback: types.CallbackQuery, state: FSMContext):
+        """Vuelve al paso de fecha."""
+        await callback.answer()
+        await preguntar_fecha(callback.message, state)
 
     @router.callback_query(IngresoForm.esperando_tipo, F.data.startswith("tipo_cafe:"))
     async def recibir_tipo(callback: types.CallbackQuery, state: FSMContext):
@@ -232,8 +240,10 @@ def get_ingresos_router(db: Database) -> Router:
         data = await state.get_data()
 
         # Mapear tipo a categoría
+        tipo_raw = data.get("tipo") or ""
+        tipo_corto = TIPOS_CAFE.get(tipo_raw, tipo_raw)
         tipo_map = {"CPS": "ingreso_cps", "Pasilla": "ingreso_pasilla", "Re-re": "ingreso_rere"}
-        categoria = tipo_map.get(data.get("tipo", ""), "ingreso_cps")
+        categoria = tipo_map.get(tipo_corto, "ingreso_cps")
 
         try:
             db.insert_transaccion(
@@ -267,10 +277,5 @@ def get_ingresos_router(db: Database) -> Router:
 
         await state.clear()
 
-    @router.callback_query(F.data == "menu_ingresos")
-    async def menu_ingresos_callback(callback: types.CallbackQuery):
-        await callback.answer()
-        # Reenviar al comando
-        await cmd_ingreso(callback, None)
 
     return router

@@ -107,11 +107,11 @@ def get_reportes_router(db: Database) -> Router:
             await send_func("❌ *Error al obtener el resumen.*", parse_mode="Markdown")
             return
 
-        total_ingresos = resumen["total_ingresos"]
-        total_egresos = resumen["total_egresos"]
-        margen = resumen["margen"]
-        area = resumen["area_total"]
-        costo_ha = resumen["costo_por_hectarea"]
+        total_ingresos = resumen.get("ingresos", 0)
+        total_egresos = resumen.get("egresos", 0)
+        margen = resumen.get("margen", 0)
+        area = resumen.get("area_total", 0)
+        costo_ha = resumen.get("costo_por_hectarea", 0)
 
         texto = (
             f"📊 *Resumen — {finca_nombre}*\n\n"

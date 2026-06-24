@@ -2,7 +2,7 @@
 Handler de /start - Registro y verificación de acceso.
 """
 import logging
-from aiogram import Router, types
+from aiogram import Router, types, F
 from aiogram.filters import CommandStart
 
 from database import Database
@@ -106,6 +106,12 @@ def get_start_router(db: Database) -> Router:
                 "Ocurrió un error al procesar tu solicitud. Intenta de nuevo más tarde.",
                 parse_mode="Markdown",
             )
+
+    @router.callback_query(F.data == "volver_menu")
+    async def volver_al_menu(callback: types.CallbackQuery):
+        """Vuelve al menú principal."""
+        await callback.answer()
+        await mostrar_menu_principal(callback.message)
 
     return router
 

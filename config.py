@@ -41,12 +41,22 @@ CATEGORIAS_PADRE = {
     "administrativo": {"nombre": "📋 Administrativo", "mo": "administrativo"},
 }
 
-CATEGORIAS_SIMPLE = ["recoleccion", "beneficio", "administrativo"]
+CATEGORIAS_SIMPLE = {
+    "recoleccion": {"nombre": "☕ Recolección", "mo": "recoleccion"},
+    "beneficio": {"nombre": "🏭 Beneficio", "mo": "beneficio"},
+    "administrativo": {"nombre": "📋 Administrativo", "mo": "administrativo"},
+}
+
+TIPOS_CAFE_LIST = [
+    "CPS (Café Pergamino Seco)",
+    "Pasilla",
+    "Re-re (Re-recolección)",
+]
 
 TIPOS_CAFE = {
-    "cps": "CPS (Café Pergamino Seco)",
-    "pasilla": "Pasilla",
-    "rere": "Re-re (Re-recolección)",
+    "CPS (Café Pergamino Seco)": "CPS",
+    "Pasilla": "Pasilla",
+    "Re-re (Re-recolección)": "Re-re",
 }
 
 CATEGORIAS = {

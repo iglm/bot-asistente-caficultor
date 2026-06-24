@@ -17,6 +17,8 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
+from aiogram import types
+
 logger = logging.getLogger(__name__)
 
 # ── Modelo Whisper (tiny = rápido, base = balance, small = mejor) ──
@@ -28,32 +30,52 @@ WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "base")
 COSTO_KEYWORDS = {
     # Instalación
     "siembr": "instalacion", "trasplant": "instalacion", "vivero": "instalacion",
-    "colino": "instalacion", "hoyo": "instalacion",
+    "colino": "instalacion", "hoyo": "instalacion", "ahoy": "instalacion",
+    "chapol": "instalacion", "matachapol": "instalacion",
     # Arvenses
     "maleza": "arvenses", "guadañ": "arvenses", "deshierb": "arvenses",
     "plateo": "arvenses", "machete": "arvenses", "herbicid": "arvenses",
     "gramoxon": "arvenses", "matamalez": "arvenses",
+    "limpi": "arvenses", "rocer": "arvenses", "roza": "arvenses",
+    "chapia": "arvenses", "chapiamos": "arvenses", "chape": "arvenses",
+    "corte de arvense": "arvenses", "control maleza": "arvenses",
     # Fertilización
     "abon": "fertilizacion", "fertiliz": "fertilizacion", "enmiend": "fertilizacion",
     "urea": "fertilizacion", "npk": "fertilizacion", "cal": "fertilizacion",
-    "dolomita": "fertilizacion",
+    "dolomita": "fertilizacion", "abono organico": "fertilizacion",
+    "compost": "fertilizacion", "gallinaza": "fertilizacion", "bokashi": "fertilizacion",
+    "edáfic": "fertilizacion", "foliar": "fertilizacion",
     # Fitosanitario
     "fumig": "fitosanitario", "roya": "fitosanitario", "broca": "fitosanitario",
     "insecticid": "fitosanitario", "fungicid": "fitosanitario",
+    "plaga": "fitosanitario", "enfermed": "fitosanitario",
+    "mancha de hierro": "fitosanitario", "gotera": "fitosanitario",
+    "antracnosis": "fitosanitario", "ojo de gallo": "fitosanitario",
+    "cercospora": "fitosanitario", "minador": "fitosanitario",
     # Sombrío
     "sombri": "sombrio", "podar": "sombrio", "arbol": "sombrio",
     "guamo": "sombrio", "carbonero": "sombrio",
+    "regulacion sombrio": "sombrio", "sombrío": "sombrio",
+    "poda de sombra": "sombrio", "tumbar palo": "sombrio",
+    "rale": "sombrio", "árbol": "sombrio",
     # Recolección
     "cosech": "recoleccion", "recog": "recoleccion", "cort": "recoleccion",
     "cafeter": "recoleccion", "grano": "recoleccion",
+    "recolect": "recoleccion", "pisca": "recoleccion", "piscar": "recoleccion",
+    "café cereza": "recoleccion", "cereza": "recoleccion",
     # Beneficio
     "despulpar": "beneficio", "lavar cafe": "beneficio", "secar cafe": "beneficio",
     "beneficio": "beneficio", "trill": "beneficio",
+    "despulp": "beneficio", "ferment": "beneficio",
+    "canal de beneficio": "beneficio", "marquesina": "beneficio",
+    "secadero": "beneficio", "máquina beneficios": "beneficio",
     # Administrativo
     "mayordomo": "administrativo", "administrad": "administrativo",
     "servicio": "administrativo", "impuesto": "administrativo",
     "predial": "administrativo", "herramienta": "administrativo",
     "transport": "administrativo", "vehiculo": "administrativo",
+    "arriendo": "administrativo", "contador": "administrativo",
+    "papelería": "administrativo", "seguro": "administrativo",
 }
 
 # Mapeo de palabras clave → categorías de ingreso
@@ -103,29 +125,35 @@ def transcribe_audio(audio_path: str) -> str:
 
 def parse_number(text: str) -> Optional[float]:
     """Extrae un número de un texto (soporta '40 mil', '3.5', 'cinco', etc.)."""
-    # Buscar patrones como "40 mil", "3.500", "cinco"
     text_lower = text.lower()
-    
+
     # "X mil" pattern
-    match = re.search(r'(\d+(?:\.\d+)?)\s*mil', text_lower)
+    match = re.search(r'(\d+(?:[.,]\d+)?)\s*mil', text_lower)
     if match:
-        return float(match.group(1)) * 1000
-    
+        return float(match.group(1).replace(".", "").replace(",", ".")) * 1000
+
     # "X millones" pattern
-    match = re.search(r'(\d+(?:\.\d+)?)\s*millones?', text_lower)
+    match = re.search(r'(\d+(?:[.,]\d+)?)\s*millones?', text_lower)
     if match:
-        return float(match.group(1)) * 1000000
-    
-    # Número normal (con puntos como separador de miles)
-    match = re.search(r'(\d+(?:\.\d+)?)', text.replace(".", "").replace(",", "."))
+        return float(match.group(1).replace(".", "").replace(",", ".")) * 1000000
+
+    # Buscar patrón de número con separador de miles colombiano: 1.500.000 o 1.500.000,50
+    # Primero intentar formato colombiano: puntos como miles, coma como decimal
+    match_col = re.search(r'(\d{1,3}(?:\.\d{3})*(?:,\d+)?)', text.replace(" ", ""))
+    if match_col:
+        num_str = match_col.group(1).replace(".", "").replace(",", ".")
+        return float(num_str)
+
+    # Número normal (con punto como decimal)
+    match = re.search(r'(\d+(?:\.\d+)?)', text.replace(",", "."))
     if match:
         return float(match.group(1))
-    
+
     # Número en palabras
     for palabra, valor in NUMEROS.items():
         if palabra in text_lower:
             return float(valor)
-    
+
     return None
 
 
@@ -171,10 +199,21 @@ def extract_categoria(text: str) -> Optional[str]:
     """Determina la categoría basándose en palabras clave."""
     text_lower = text.lower()
     
-    # Primero verificar si es ingreso
+    # Primero verificar si es ingreso (keywords más específicos)
     for keyword, cat in INGRESO_KEYWORDS.items():
         if keyword in text_lower:
-            return f"ingreso_{cat}" if cat == "ingreso" else f"ingreso_{cat}"
+            # Mapear keywords de ingreso a categorías DB
+            ingreso_map = {
+                "ingreso": None,  # genérico, no podemos determinar
+                "cps": "ingreso_cps",
+                "pasilla": "ingreso_pasilla",
+                "rere": "ingreso_rere",
+            }
+            mapped = ingreso_map.get(cat)
+            if mapped:
+                return mapped
+            # Si es genérico "venta" → no podemos determinar subtipo
+            return None
     
     # Luego verificar costos
     for keyword, cat in COSTO_KEYWORDS.items():
@@ -261,15 +300,22 @@ def parse_voice_text(text: str) -> dict:
     return result
 
 
-def format_parsed_data(data: dict) -> str:
-    """Formatea los datos parseados para mostrar al usuario."""
+def format_parsed_data(data: dict) -> tuple:
+    """
+    Formatea los datos parseados para mostrar al usuario.
+    Retorna (texto, keyboard) para usar con reply_markup.
+    """
     lines = [
         "🎤 *Mensaje de voz recibido*",
         "",
-        f"📝 _\"{data['texto_original'][:100]}...\"_" if len(data['texto_original']) > 100 else f"📝 _\"{data['texto_original']}_\"",
-        "",
-        "📊 *Datos extraídos:*",
     ]
+    texto_original = data.get('texto_original', '')
+    if len(texto_original) > 100:
+        lines.append(f"📝 _\"{texto_original[:100]}...\"_")
+    else:
+        lines.append(f"📝 _\"{texto_original}_\"")
+    lines.append("")
+    lines.append("📊 *Datos extraídos:*")
     
     if data.get("fecha"):
         lines.append(f"📅 Fecha: {data['fecha']}")
@@ -279,7 +325,8 @@ def format_parsed_data(data: dict) -> str:
     if data.get("labor"):
         lines.append(f"🔨 Labor: {data['labor']}")
     if data.get("cantidad"):
-        lines.append(f"🔢 Cantidad: {data['cantidad']} {data.get('unidad', '')}")
+        unidad = data.get('unidad', '')
+        lines.append(f"🔢 Cantidad: {data['cantidad']} {unidad}")
     if data.get("valor_unitario"):
         lines.append(f"💵 Valor unitario: ${data['valor_unitario']:,.0f}")
     if data.get("valor_total"):
@@ -287,10 +334,16 @@ def format_parsed_data(data: dict) -> str:
     if data.get("lote"):
         lines.append(f"🌱 {data['lote']}")
     
-    lines.extend([
-        "",
-        "¿Estos datos están correctos?",
-        "[✅ Confirmar] [❌ Cancelar] [✏️ Corregir]",
-    ])
+    lines.extend(["", "¿Estos datos están correctos?"])
     
-    return "\n".join(lines)
+    keyboard = types.InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                types.InlineKeyboardButton(text="✅ Confirmar", callback_data="voice_confirm:si"),
+                types.InlineKeyboardButton(text="❌ Cancelar", callback_data="voice_confirm:no"),
+                types.InlineKeyboardButton(text="✏️ Corregir", callback_data="voice_confirm:corregir"),
+            ],
+        ]
+    )
+    
+    return "\n".join(lines), keyboard

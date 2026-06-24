@@ -13,6 +13,13 @@ from config import CATEGORIAS_PADRE, CATEGORIAS_SIMPLE
 
 logger = logging.getLogger(__name__)
 
+# Botón de cancelar reutilizable
+CANCEL_KB = types.InlineKeyboardMarkup(
+    inline_keyboard=[
+        [types.InlineKeyboardButton(text="❌ Cancelar", callback_data="cancelar_operacion")],
+    ]
+)
+
 
 class CostoForm(StatesGroup):
     esperando_finca = State()
@@ -183,7 +190,7 @@ def get_costos_router(db: Database) -> Router:
             await state.clear()
             return
 
-        await callback.message.edit_text(texto, parse_mode="Markdown")
+        await callback.message.edit_text(texto, parse_mode="Markdown", reply_markup=CANCEL_KB)
         await state.set_state(CostoForm.esperando_fecha)
 
     @router.message(CostoForm.esperando_fecha, F.text)
@@ -653,5 +660,15 @@ def get_costos_router(db: Database) -> Router:
                 parse_mode="Markdown",
             )
             await state.clear()
+
+    @router.callback_query(F.data == "cancelar_operacion")
+    async def cancelar_operacion(callback: types.CallbackQuery, state: FSMContext):
+        """Cancela la operación actual desde un botón inline."""
+        await callback.answer()
+        await state.clear()
+        await callback.message.edit_text(
+            "❌ *Operación cancelada.*\n\nUsa /costo para intentar de nuevo.",
+            parse_mode="Markdown",
+        )
 
     return router

@@ -21,7 +21,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from config import EXPORTS_DIR, BASE_DIR
+from config import EXPORTS_DIR, BASE_DIR, EXCEL_TEMPLATE
 from database import Database
 from excel_manager import ExcelManager
 
@@ -186,7 +186,7 @@ def main():
     
     db = Database()
     db.init_db()
-    em = ExcelManager()
+    em = ExcelManager(EXCEL_TEMPLATE)
     
     # Obtener usuarios aprobados
     conn = db.get_conn()

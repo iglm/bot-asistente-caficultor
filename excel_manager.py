@@ -327,12 +327,9 @@ class ExcelManager:
             elif campo == "valor_unitario":
                 ws.cell(row=fila, column=col, value=record.get("valor_unitario", 0) or 0)
             elif campo == "valor_total_formula":
-                # Valor Total con fórmula =D*E (D×E en el Excel)
-                # La fórmula ya está en el template, no sobreescribir
-                # Pero ponemos el valor por si acaso no hay fórmula
-                if record.get("valor_total", 0):
-                    ws.cell(row=fila, column=col, value=record["valor_total"])
-                # La fórmula original del template se mantiene
+                # ✅ NUNCA sobreescribir la fórmula del template (F = D×E)
+                # La fórmula ya calcula el valor automáticamente
+                pass
             else:
                 ws.cell(row=fila, column=col, value="")
 
@@ -354,9 +351,8 @@ class ExcelManager:
             elif campo == "valor_unitario":
                 ws.cell(row=fila, column=col, value=record.get("valor_unitario", 0) or 0)
             elif campo == "valor_total_formula":
-                # Mantener fórmula del template
-                if record.get("valor_total", 0):
-                    ws.cell(row=fila, column=col, value=record["valor_total"])
+                # ✅ NUNCA sobreescribir la fórmula del template (L/M = K×J)
+                pass
             else:
                 ws.cell(row=fila, column=col, value="")
 
@@ -409,10 +405,8 @@ class ExcelManager:
             # D: V.Unitario (valor_unitario)
             ws.cell(row=fila, column=4, value=rec.get("valor_unitario", 0) or 0)
 
-            # E: V.Total - DEJAR FÓRMULA =D*C
-            # Mantener fórmula del template; poner valor por si acaso
-            if rec.get("valor_total", 0):
-                ws.cell(row=fila, column=5, value=rec["valor_total"])
+            # E: V.Total - DEJAR FÓRMULA =D*C (no sobreescribir)
+            # La fórmula del template se mantiene sola
 
     def _llenar_hoja_gastos_admin(self, wb, data: dict):
         """Llena la hoja 'Gastos Administrativos'."""

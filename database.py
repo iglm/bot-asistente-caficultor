@@ -242,7 +242,7 @@ class Database:
     
     # ─── Transacciones ───
     
-    def insert_transaccion(self, finca_id: int, categoria: int, fecha: str,
+    def insert_transaccion(self, finca_id: int, categoria: str, fecha: str,
                            labor: str = "", producto: str = "", cantidad: float = 0,
                            unidad: str = "", valor_unitario: float = 0, 
                            valor_total: float = 0, lote_id: int = 0) -> int:
@@ -353,6 +353,15 @@ class Database:
                     (finca_id, f"{cat}_insumos")
                 ).fetchone()["total"] or 0
                 egresos_cat[cat] = total_mo + total_ins
+
+            # Ingresos por tipo
+            ingresos_tipos = {}
+            for cat_ing in ["ingreso_cps", "ingreso_pasilla", "ingreso_rere"]:
+                total = conn.execute(
+                    "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria = ?",
+                    (finca_id, cat_ing)
+                ).fetchone()["total"] or 0
+                ingresos_tipos[cat_ing] = total
             
             return {
                 "ingresos": ingresos,
@@ -361,6 +370,7 @@ class Database:
                 "area_total": area,
                 "costo_por_hectarea": (egresos / area) if area > 0 else 0,
                 "egresos_por_categoria": egresos_cat,
+                "ingresos_por_tipo": ingresos_tipos,
             }
         finally:
             conn.close()
