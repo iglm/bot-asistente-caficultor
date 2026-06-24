@@ -410,6 +410,110 @@ class Database:
         finally:
             conn.close()
     
+    def get_transacciones_por_periodo(self, finca_id: int, fecha_inicio: str, fecha_fin: str) -> list:
+        """Obtiene transacciones en un rango de fechas."""
+        conn = self.get_conn()
+        try:
+            rows = conn.execute(
+                "SELECT * FROM transacciones WHERE finca_id=? AND fecha BETWEEN ? AND ? ORDER BY fecha",
+                (finca_id, fecha_inicio, fecha_fin)
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_resumen_por_periodo(self, finca_id: int, fecha_inicio: str, fecha_fin: str) -> dict:
+        """Obtiene resumen financiero de una finca en un período específico."""
+        conn = self.get_conn()
+        try:
+            # Total ingresos en el período
+            ingresos = conn.execute(
+                "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria LIKE 'ingreso_%' AND fecha BETWEEN ? AND ?",
+                (finca_id, fecha_inicio, fecha_fin)
+            ).fetchone()["total"] or 0
+
+            # Total egresos en el período
+            egresos = conn.execute(
+                "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria NOT LIKE 'ingreso_%' AND fecha BETWEEN ? AND ?",
+                (finca_id, fecha_inicio, fecha_fin)
+            ).fetchone()["total"] or 0
+
+            # Egresos por categoría en el período
+            egresos_cat = {}
+            for cat in self.CATEGORIAS_CON_MO_Y_INSUMOS:
+                total_mo = conn.execute(
+                    "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria = ? AND fecha BETWEEN ? AND ?",
+                    (finca_id, f"{cat}_mo", fecha_inicio, fecha_fin)
+                ).fetchone()["total"] or 0
+                total_ins = conn.execute(
+                    "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria = ? AND fecha BETWEEN ? AND ?",
+                    (finca_id, f"{cat}_insumos", fecha_inicio, fecha_fin)
+                ).fetchone()["total"] or 0
+                egresos_cat[cat] = total_mo + total_ins
+            for cat in self.CATEGORIAS_SIMPLE:
+                total = conn.execute(
+                    "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria = ? AND fecha BETWEEN ? AND ?",
+                    (finca_id, cat, fecha_inicio, fecha_fin)
+                ).fetchone()["total"] or 0
+                egresos_cat[cat] = total
+
+            # Ingresos por tipo en el período
+            ingresos_tipos = {}
+            for cat_ing in ["ingreso_cps", "ingreso_pasilla"]:
+                total = conn.execute(
+                    "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria = ? AND fecha BETWEEN ? AND ?",
+                    (finca_id, cat_ing, fecha_inicio, fecha_fin)
+                ).fetchone()["total"] or 0
+                ingresos_tipos[cat_ing] = total
+
+            return {
+                "ingresos": ingresos,
+                "egresos": egresos,
+                "margen": ingresos - egresos,
+                "fecha_inicio": fecha_inicio,
+                "fecha_fin": fecha_fin,
+                "egresos_por_categoria": egresos_cat,
+                "ingresos_por_tipo": ingresos_tipos,
+            }
+        finally:
+            conn.close()
+
+    def get_resumen_semanal(self, finca_id: int, año: int, semana: int) -> dict:
+        """Resumen de una semana específica (ISO week)."""
+        from datetime import datetime, timedelta
+        # Calcular lunes de la semana ISO
+        # Usar el 4 de enero como referencia ISO
+        jan4 = datetime(año, 1, 4)
+        # Día de la semana (lunes=0)
+        jan4_weekday = (jan4.weekday() + 1) % 7  # Lunes=0
+        # Primer día de semana 1
+        week1_start = jan4 - timedelta(days=jan4_weekday)
+        # Fecha inicio de la semana solicitada
+        inicio = week1_start + timedelta(weeks=semana - 1)
+        fin = inicio + timedelta(days=6)
+        fecha_inicio = inicio.strftime("%Y-%m-%d")
+        fecha_fin = fin.strftime("%Y-%m-%d")
+        return self.get_resumen_por_periodo(finca_id, fecha_inicio, fecha_fin)
+
+    def get_resumen_mensual(self, finca_id: int, año: int, mes: int) -> dict:
+        """Resumen de un mes específico."""
+        fecha_inicio = f"{año}-{mes:02d}-01"
+        if mes == 12:
+            fecha_fin = f"{año + 1}-01-01"
+        else:
+            fecha_fin = f"{año}-{mes + 1:02d}-01"
+        from datetime import datetime, timedelta
+        # Restar 1 día para llegar al último día del mes
+        fin_dt = datetime.strptime(fecha_fin, "%Y-%m-%d") - timedelta(days=1)
+        fecha_fin = fin_dt.strftime("%Y-%m-%d")
+        return self.get_resumen_por_periodo(finca_id, fecha_inicio, fecha_fin)
+
+    def get_resumen_anual(self, finca_id: int, año: int) -> dict:
+        """Resumen de un año específico."""
+        fecha_inicio = f"{año}-01-01"
+        fecha_fin = f"{año}-12-31"
+        return self.get_resumen_por_periodo(finca_id, fecha_inicio, fecha_fin)
+
     def get_transacciones(self, finca_id: int, categoria: str) -> list:
         """Obtener transacciones de una finca por categoría."""
         conn = self.get_conn()
@@ -512,7 +616,7 @@ class Database:
             conn.close()
     
     def get_resumen_finca(self, finca_id: int) -> dict:
-        """Obtener resumen financiero de una finca."""
+        """Obtener resumen financiero de una finca usando GROUP BY."""
         conn = self.get_conn()
         try:
             # Total ingresos
@@ -520,49 +624,46 @@ class Database:
                 "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria LIKE 'ingreso_%'",
                 (finca_id,)
             ).fetchone()["total"] or 0
-            
+
             # Total egresos
             egresos = conn.execute(
                 "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria NOT LIKE 'ingreso_%'",
                 (finca_id,)
             ).fetchone()["total"] or 0
-            
+
             # Área total
             area = conn.execute(
                 "SELECT SUM(area_hectareas) as total FROM lotes WHERE finca_id = ?",
                 (finca_id,)
             ).fetchone()["total"] or 0
-            
-            # Egresos por categoría
-            egresos_cat = {}
-            # Categorías con sufijo _mo/_insumos
-            for cat in self.CATEGORIAS_CON_MO_Y_INSUMOS:
-                total_mo = conn.execute(
-                    "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria = ?",
-                    (finca_id, f"{cat}_mo")
-                ).fetchone()["total"] or 0
-                total_ins = conn.execute(
-                    "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria = ?",
-                    (finca_id, f"{cat}_insumos")
-                ).fetchone()["total"] or 0
-                egresos_cat[cat] = total_mo + total_ins
-            # Categorías sin sufijo (recoleccion, beneficio, administrativo)
-            for cat in self.CATEGORIAS_SIMPLE:
-                total = conn.execute(
-                    "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria = ?",
-                    (finca_id, cat)
-                ).fetchone()["total"] or 0
-                egresos_cat[cat] = total
 
-            # Ingresos por tipo
+            # Egresos e ingresos por categoría en UNA sola query GROUP BY
+            rows = conn.execute(
+                """SELECT categoria, SUM(valor_total) as total, COUNT(*) as cantidad
+                   FROM transacciones WHERE finca_id = ?
+                   GROUP BY categoria""",
+                (finca_id,)
+            ).fetchall()
+
+            # Construir dicts a partir del resultado GROUP BY
+            egresos_cat = {}
             ingresos_tipos = {}
-            for cat_ing in ["ingreso_cps", "ingreso_pasilla"]:
-                total = conn.execute(
-                    "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria = ?",
-                    (finca_id, cat_ing)
-                ).fetchone()["total"] or 0
-                ingresos_tipos[cat_ing] = total
-            
+            for r in rows:
+                cat = r["categoria"]
+                total = r["total"] or 0
+                if cat.startswith("ingreso_"):
+                    ingresos_tipos[cat] = total
+                else:
+                    # Agrupar categorías compuestas (con _mo / _insumos) bajo su nombre base
+                    if cat.endswith("_mo"):
+                        base = cat[:-3]
+                        egresos_cat[base] = egresos_cat.get(base, 0) + total
+                    elif cat.endswith("_insumos"):
+                        base = cat[:-8]
+                        egresos_cat[base] = egresos_cat.get(base, 0) + total
+                    else:
+                        egresos_cat[cat] = egresos_cat.get(cat, 0) + total
+
             return {
                 "ingresos": ingresos,
                 "egresos": egresos,

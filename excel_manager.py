@@ -1956,6 +1956,250 @@ class ExcelManager:
         logger.info(f"Hoja 'Configuración' creada para finca {finca_id}")
 
     # ------------------------------------------------------------------
+    # Hoja de período — Datos filtrados por rango de fechas
+    # ------------------------------------------------------------------
+
+    def _llenar_hoja_periodo(self, wb, db, finca_id: int, fecha_inicio: str, fecha_fin: str, etiqueta: str = ""):
+        """Crea una hoja con datos filtrados por período (semana/mes/año/personalizado).
+
+        Incluye:
+        - Tabla de transacciones filtradas
+        - Resumen de totales del período
+        - Gráfico de barras con evolución diaria/semanal
+        """
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from datetime import datetime
+
+        if etiqueta:
+            hoja_nombre = f"Período {etiqueta}"
+        else:
+            hoja_nombre = f"Período {fecha_inicio} a {fecha_fin}"
+
+        # Acortar nombre de hoja (Excel max 31 chars)
+        if len(hoja_nombre) > 31:
+            hoja_nombre = hoja_nombre[:31]
+
+        if hoja_nombre in wb.sheetnames:
+            del wb[hoja_nombre]
+        ws = wb.create_sheet(hoja_nombre)
+
+        # Obtener datos del período
+        transacciones = db.get_transacciones_por_periodo(finca_id, fecha_inicio, fecha_fin)
+        resumen = db.get_resumen_por_periodo(finca_id, fecha_inicio, fecha_fin)
+
+        # ─── Estilos ───
+        FILL_HEADER = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+        FILL_TOTAL = PatternFill(start_color="D6E4F0", end_color="D6E4F0", fill_type="solid")
+        FILL_VERDE = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+        FILL_ROJO = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+        FONT_HEADER = Font(bold=True, color="FFFFFF", size=10, name="Calibri")
+        FONT_TITLE = Font(bold=True, size=14, name="Calibri", color="1F4E79")
+        FONT_SUBTITLE = Font(bold=True, size=11, name="Calibri", color="1F4E79")
+        FONT_NORMAL = Font(size=10, name="Calibri")
+        FONT_BOLD = Font(bold=True, size=10, name="Calibri")
+        THIN_BORDER = Border(
+            left=Side(style="thin"), right=Side(style="thin"),
+            top=Side(style="thin"), bottom=Side(style="thin"),
+        )
+        CENTER = Alignment(horizontal="center", vertical="center")
+        RIGHT = Alignment(horizontal="right", vertical="center")
+        LEFT = Alignment(horizontal="left", vertical="center")
+
+        # ─── Título ───
+        ws.merge_cells("A1:G1")
+        cell = ws.cell(row=1, column=1, value=f"📊 Datos del Período: {fecha_inicio} al {fecha_fin}")
+        cell.font = FONT_TITLE
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        # ─── Resumen de Totales (fila 3) ───
+        row = 3
+        ws.merge_cells(f"A{row}:G{row}")
+        ws.cell(row=row, column=1, value="💰 RESUMEN DEL PERÍODO").font = FONT_SUBTITLE
+        ws.cell(row=row, column=1).fill = FILL_TOTAL
+        row += 1
+
+        resumen_items = [
+            ("Total Ingresos", f"${resumen['ingresos']:,.0f}", "💰"),
+            ("Total Egresos", f"${resumen['egresos']:,.0f}", "📉"),
+            ("Margen", f"${resumen['margen']:,.0f}", "✅" if resumen['margen'] >= 0 else "❌"),
+            ("Cant. Transacciones", str(len(transacciones)), "📋"),
+        ]
+        for label, valor, icono in resumen_items:
+            ws.cell(row=row, column=1, value=f"{icono} {label}").font = FONT_BOLD
+            ws.cell(row=row, column=1).border = THIN_BORDER
+            ws.cell(row=row, column=2, value=valor).font = FONT_NORMAL
+            ws.cell(row=row, column=2).border = THIN_BORDER
+            ws.cell(row=row, column=2).alignment = RIGHT
+            row += 1
+        row += 1
+
+        # ─── Egresos por categoría ───
+        if resumen["egresos_por_categoria"]:
+            ws.merge_cells(f"A{row}:G{row}")
+            ws.cell(row=row, column=1, value="📉 Egresos por Categoría").font = FONT_SUBTITLE
+            row += 1
+
+            ws.cell(row=row, column=1, value="Categoría").font = FONT_HEADER
+            ws.cell(row=row, column=1).fill = FILL_HEADER
+            ws.cell(row=row, column=1).border = THIN_BORDER
+            ws.cell(row=row, column=2, value="Total ($)").font = FONT_HEADER
+            ws.cell(row=row, column=2).fill = FILL_HEADER
+            ws.cell(row=row, column=2).border = THIN_BORDER
+            row += 1
+
+            from config import CATEGORIAS
+            for cat, total in sorted(resumen["egresos_por_categoria"].items(), key=lambda x: x[1], reverse=True):
+                if total > 0:
+                    nombre_cat = CATEGORIAS.get(cat, {}).get("nombre", cat)
+                    ws.cell(row=row, column=1, value=nombre_cat).font = FONT_NORMAL
+                    ws.cell(row=row, column=1).border = THIN_BORDER
+                    ws.cell(row=row, column=2, value=total).font = FONT_NORMAL
+                    ws.cell(row=row, column=2).border = THIN_BORDER
+                    ws.cell(row=row, column=2).number_format = '$#,##0'
+                    ws.cell(row=row, column=2).alignment = RIGHT
+                    row += 1
+            row += 1
+
+        # ─── Tabla de Transacciones ───
+        if transacciones:
+            ws.merge_cells(f"A{row}:G{row}")
+            ws.cell(row=row, column=1, value="📋 Transacciones del Período").font = FONT_SUBTITLE
+            row += 1
+
+            headers = ["Fecha", "Categoría", "Labor", "Producto", "Cantidad", "V.Unitario", "V.Total"]
+            col_widths = [14, 22, 25, 22, 10, 14, 14]
+            for col_idx, (header, width) in enumerate(zip(headers, col_widths), 1):
+                cell = ws.cell(row=row, column=col_idx, value=header)
+                cell.font = FONT_HEADER
+                cell.fill = FILL_HEADER
+                cell.alignment = CENTER
+                cell.border = THIN_BORDER
+                letter = get_column_letter(col_idx)
+                ws.column_dimensions[letter].width = width
+            row += 1
+
+            from config import CATEGORIAS
+            for t in transacciones:
+                cat_nombre = CATEGORIAS.get(t["categoria"], {}).get("nombre", t["categoria"])
+                ws.cell(row=row, column=1, value=t["fecha"]).font = FONT_NORMAL
+                ws.cell(row=row, column=1).border = THIN_BORDER
+                ws.cell(row=row, column=2, value=cat_nombre).font = FONT_NORMAL
+                ws.cell(row=row, column=2).border = THIN_BORDER
+                ws.cell(row=row, column=3, value=t["labor"] or "").font = FONT_NORMAL
+                ws.cell(row=row, column=3).border = THIN_BORDER
+                ws.cell(row=row, column=4, value=t["producto"] or "").font = FONT_NORMAL
+                ws.cell(row=row, column=4).border = THIN_BORDER
+                ws.cell(row=row, column=5, value=t["cantidad"] or 0).font = FONT_NORMAL
+                ws.cell(row=row, column=5).border = THIN_BORDER
+                ws.cell(row=row, column=5).alignment = RIGHT
+                ws.cell(row=row, column=6, value=t["valor_unitario"] or 0).font = FONT_NORMAL
+                ws.cell(row=row, column=6).border = THIN_BORDER
+                ws.cell(row=row, column=6).alignment = RIGHT
+                ws.cell(row=row, column=6).number_format = '$#,##0'
+                ws.cell(row=row, column=7, value=t["valor_total"] or 0).font = FONT_NORMAL
+                ws.cell(row=row, column=7).border = THIN_BORDER
+                ws.cell(row=row, column=7).alignment = RIGHT
+                ws.cell(row=row, column=7).number_format = '$#,##0'
+                row += 1
+
+            # ─── Gráfico: Evolución diaria/semanal ───
+            chart_start = row + 2
+            try:
+                # Agrupar por fecha
+                from collections import defaultdict
+                daily_totals = defaultdict(float)
+                daily_ingresos = defaultdict(float)
+                for t in transacciones:
+                    fecha = t["fecha"]
+                    daily_totals[fecha] += t["valor_total"] or 0
+                    if t["categoria"].startswith("ingreso_"):
+                        daily_ingresos[fecha] += t["valor_total"] or 0
+
+                # Si hay muchas fechas, agrupar por semana
+                sorted_fechas = sorted(daily_totals.keys())
+                if len(sorted_fechas) > 31:
+                    # Agrupar por semana
+                    ws.cell(row=chart_start, column=1, value="Semana")
+                    ws.cell(row=chart_start, column=2, value="Ingresos")
+                    ws.cell(row=chart_start, column=3, value="Egresos")
+
+                    weekly_ing = defaultdict(float)
+                    weekly_egr = defaultdict(float)
+                    for t in transacciones:
+                        try:
+                            d = datetime.strptime(t["fecha"], "%Y-%m-%d")
+                            week_label = d.strftime("%d/%m")
+                            if t["categoria"].startswith("ingreso_"):
+                                weekly_ing[week_label] += t["valor_total"] or 0
+                            else:
+                                weekly_egr[week_label] += t["valor_total"] or 0
+                        except ValueError:
+                            pass
+
+                    sorted_weeks = sorted(set(list(weekly_ing.keys()) + list(weekly_egr.keys())))
+                    for i, w in enumerate(sorted_weeks):
+                        r = chart_start + 1 + i
+                        ws.cell(row=r, column=1, value=w)
+                        ws.cell(row=r, column=2, value=weekly_ing.get(w, 0))
+                        ws.cell(row=r, column=3, value=weekly_egr.get(w, 0))
+
+                    chart = BarChart()
+                    chart.type = "col"
+                    chart.title = "Evolución Semanal — Ingresos vs Egresos"
+                    chart.y_axis.title = "Valor ($)"
+                    chart.style = 10
+                    chart.width = 20
+                    chart.height = 12
+
+                    data_ref = Reference(ws, min_col=1, min_row=chart_start, max_col=3, max_row=chart_start + len(sorted_weeks))
+                    cats_ref = Reference(ws, min_col=1, min_row=chart_start + 1, max_row=chart_start + len(sorted_weeks))
+                    chart.add_data(data_ref, titles_from_data=True)
+                    chart.set_categories(cats_ref)
+                    if len(chart.series) > 0:
+                        chart.series[0].graphicalProperties.solidFill = "2E7D32"
+                    if len(chart.series) > 1:
+                        chart.series[1].graphicalProperties.solidFill = "C62828"
+
+                    ws.add_chart(chart, f"A{chart_start + len(sorted_weeks) + 2}")
+                else:
+                    # Evolución diaria
+                    ws.cell(row=chart_start, column=1, value="Fecha")
+                    ws.cell(row=chart_start, column=2, value="Ingresos")
+                    ws.cell(row=chart_start, column=3, value="Egresos")
+
+                    for i, fecha in enumerate(sorted_fechas):
+                        r = chart_start + 1 + i
+                        ws.cell(row=r, column=1, value=fecha)
+                        ws.cell(row=r, column=2, value=daily_ingresos.get(fecha, 0))
+                        ws.cell(row=r, column=3, value=daily_totals.get(fecha, 0) - daily_ingresos.get(fecha, 0))
+
+                    chart = BarChart()
+                    chart.type = "col"
+                    chart.title = "Evolución Diaria — Ingresos vs Egresos"
+                    chart.y_axis.title = "Valor ($)"
+                    chart.style = 10
+                    chart.width = 22
+                    chart.height = 12
+
+                    num_dias = len(sorted_fechas)
+                    data_ref = Reference(ws, min_col=1, min_row=chart_start, max_col=3, max_row=chart_start + num_dias)
+                    cats_ref = Reference(ws, min_col=1, min_row=chart_start + 1, max_row=chart_start + num_dias)
+                    chart.add_data(data_ref, titles_from_data=True)
+                    chart.set_categories(cats_ref)
+                    if len(chart.series) > 0:
+                        chart.series[0].graphicalProperties.solidFill = "2E7D32"
+                    if len(chart.series) > 1:
+                        chart.series[1].graphicalProperties.solidFill = "C62828"
+
+                    ws.add_chart(chart, f"A{chart_start + num_dias + 2}")
+
+            except Exception as e:
+                logger.warning(f"No se pudo generar el gráfico de período: {e}")
+
+        ws.sheet_properties.tabColor = "1565C0"
+        logger.info(f"Hoja '{hoja_nombre}' generada: {len(transacciones)} transacciones")
+
+    # ------------------------------------------------------------------
     # Gráficos de tendencia (MEJORA 4)
 
     def _generar_hoja_graficos(self, db, finca_id: int, ws):
@@ -1968,13 +2212,24 @@ class ExcelManager:
         conn = db.get_conn()
         try:
             # =============================================================
-            # 1. BARCHART: Ingresos vs Egresos por año
+            # 1. BARCHART: Ingresos vs Egresos por año (DINÁMICO)
             # =============================================================
+            # Detectar años disponibles en los datos
+            years_raw = conn.execute(
+                "SELECT DISTINCT substr(fecha, 1, 4) as yr FROM transacciones WHERE finca_id = ? ORDER BY yr",
+                (finca_id,)
+            ).fetchall()
+            years = sorted(set(int(r["yr"]) for r in years_raw if r["yr"] and r["yr"].isdigit()))
+            if not years:
+                # Usar año actual por defecto
+                from datetime import datetime as dt
+                years = [dt.now().year]
+
             ws['A1'] = 'Año'
             ws['B1'] = 'Ingresos'
             ws['C1'] = 'Egresos'
 
-            for i, year in enumerate([2023, 2024, 2025]):
+            for i, year in enumerate(years):
                 row = 2 + i
                 ws.cell(row=row, column=1, value=year)
 
@@ -1998,8 +2253,9 @@ class ExcelManager:
             chart1.y_axis.title = "Valor ($)"
             chart1.style = 10
 
-            data1 = Reference(ws, min_col=1, min_row=1, max_col=3, max_row=4)
-            cats1 = Reference(ws, min_col=1, min_row=2, max_row=4)
+            num_years = len(years)
+            data1 = Reference(ws, min_col=1, min_row=1, max_col=3, max_row=1 + num_years)
+            cats1 = Reference(ws, min_col=1, min_row=2, max_row=1 + num_years)
             chart1.add_data(data1, titles_from_data=True)
             chart1.set_categories(cats1)
 

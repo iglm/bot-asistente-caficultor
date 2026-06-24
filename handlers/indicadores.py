@@ -39,6 +39,34 @@ def _indicador_o_cero(valor: float, etiqueta: str = "") -> str:
         return _formatear_numero(valor, 2) if valor > 0 else "—"
 
 
+def _construir_teclado_indicadores(finca_id: int) -> types.InlineKeyboardMarkup:
+    """Construye el teclado de navegación de indicadores."""
+    return types.InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                types.InlineKeyboardButton(text="📈 General", callback_data=f"indicador:general:{finca_id}"),
+                types.InlineKeyboardButton(text="👷 MO", callback_data=f"indicador:mo:{finca_id}"),
+            ],
+            [
+                types.InlineKeyboardButton(text="🧪 Insumos", callback_data=f"indicador:insumos:{finca_id}"),
+                types.InlineKeyboardButton(text="💰 Financiero", callback_data=f"indicador:financiero:{finca_id}"),
+            ],
+            [
+                types.InlineKeyboardButton(text="📥 Exportar Excel", callback_data=f"indicador_excel:{finca_id}"),
+            ],
+            [
+                types.InlineKeyboardButton(text="📄 Exportar PDF", callback_data=f"indicador_pdf:{finca_id}"),
+            ],
+            [
+                types.InlineKeyboardButton(text="📅 Filtrar por período", callback_data=f"indicador_periodo:{finca_id}"),
+            ],
+            [
+                types.InlineKeyboardButton(text="🏠 Menú Principal", callback_data="volver_menu"),
+            ],
+        ]
+    )
+
+
 async def mostrar_indicadores(db: Database, send_func, finca_id: int, finca_nombre: str, filtro: str = "general"):
     """Muestra los indicadores técnicos según el filtro seleccionado."""
     indicadores = db.get_indicadores_tecnicos(finca_id)
@@ -102,37 +130,16 @@ async def mostrar_indicadores(db: Database, send_func, finca_id: int, finca_nomb
         texto += f"• Productividad: {_formatear_numero(indicadores['productividad'], 2)} kg/ha\n"
         texto += f"• Rendimiento: {_formatear_numero(indicadores['rendimiento'], 2)} kg/ha productivo\n\n"
 
-    # ─── Alertas automáticas (MEJORA 3) ───
+    # ─── Alertas automáticas ───
     texto += _generar_alertas(indicadores, db, finca_id)
 
-    # Teclado de navegación
-    keyboard = types.InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                types.InlineKeyboardButton(text="📈 General", callback_data=f"indicador:general:{finca_id}"),
-                types.InlineKeyboardButton(text="👷 MO", callback_data=f"indicador:mo:{finca_id}"),
-            ],
-            [
-                types.InlineKeyboardButton(text="🧪 Insumos", callback_data=f"indicador:insumos:{finca_id}"),
-                types.InlineKeyboardButton(text="💰 Financiero", callback_data=f"indicador:financiero:{finca_id}"),
-            ],
-            [
-                types.InlineKeyboardButton(text="📥 Exportar Excel", callback_data=f"indicador_excel:{finca_id}"),
-            ],
-            [
-                types.InlineKeyboardButton(text="📄 Exportar PDF", callback_data=f"indicador_pdf:{finca_id}"),
-            ],
-            [
-                types.InlineKeyboardButton(text="🏠 Menú Principal", callback_data="volver_menu"),
-            ],
-        ]
-    )
+    keyboard = _construir_teclado_indicadores(finca_id)
 
     await send_func(texto, parse_mode="HTML", reply_markup=keyboard)
 
 
 def _generar_alertas(indicadores: dict, db, finca_id: int) -> str:
-    """Genera alertas automáticas basadas en los indicadores (MEJORA 3)."""
+    """Genera alertas automáticas basadas en los indicadores."""
     alertas = []
     if indicadores.get('area_total', 0) == 0:
         return ""
@@ -160,6 +167,22 @@ def _generar_alertas(indicadores: dict, db, finca_id: int) -> str:
         texto += f"{al}\n"
     texto += "\n"
     return texto
+
+
+def _split_texto(texto: str, max_len: int = 4096) -> list:
+    """Divide un texto largo en partes."""
+    if len(texto) <= max_len:
+        return [texto]
+    partes = []
+    while len(texto) > max_len:
+        corte = texto.rfind("\n", 0, max_len)
+        if corte == -1:
+            corte = max_len
+        partes.append(texto[:corte])
+        texto = texto[corte:].strip()
+    if texto:
+        partes.append(texto)
+    return partes
 
 
 def get_indicadores_router(db: Database) -> Router:
@@ -201,24 +224,7 @@ def get_indicadores_router(db: Database) -> Router:
 
             # Si tiene una sola finca, mostrar el menú de indicadores directamente
             if len(fincas) == 1:
-                keyboard = types.InlineKeyboardMarkup(
-                    inline_keyboard=[
-                        [
-                            types.InlineKeyboardButton(text="📈 General", callback_data=f"indicador:general:{fincas[0]['id']}"),
-                            types.InlineKeyboardButton(text="👷 MO", callback_data=f"indicador:mo:{fincas[0]['id']}"),
-                        ],
-                        [
-                            types.InlineKeyboardButton(text="🧪 Insumos", callback_data=f"indicador:insumos:{fincas[0]['id']}"),
-                            types.InlineKeyboardButton(text="💰 Financiero", callback_data=f"indicador:financiero:{fincas[0]['id']}"),
-                        ],
-                        [
-                            types.InlineKeyboardButton(text="📥 Exportar Excel", callback_data=f"indicador_excel:{fincas[0]['id']}"),
-                        ],
-                        [
-                            types.InlineKeyboardButton(text="🏠 Menú Principal", callback_data="volver_menu"),
-                        ],
-                    ]
-                )
+                keyboard = _construir_teclado_indicadores(fincas[0]['id'])
                 await send(
                     f"📊 <b>Indicadores Técnicos de Rendimiento</b>\n\n"
                     f"🏠 Finca: {fincas[0]['nombre']}\n\n"
@@ -277,24 +283,7 @@ def get_indicadores_router(db: Database) -> Router:
             )
             return
 
-        keyboard = types.InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    types.InlineKeyboardButton(text="📈 General", callback_data=f"indicador:general:{finca_id}"),
-                    types.InlineKeyboardButton(text="👷 MO", callback_data=f"indicador:mo:{finca_id}"),
-                ],
-                [
-                    types.InlineKeyboardButton(text="🧪 Insumos", callback_data=f"indicador:insumos:{finca_id}"),
-                    types.InlineKeyboardButton(text="💰 Financiero", callback_data=f"indicador:financiero:{finca_id}"),
-                ],
-                [
-                    types.InlineKeyboardButton(text="📥 Exportar Excel", callback_data=f"indicador_excel:{finca_id}"),
-                ],
-                [
-                    types.InlineKeyboardButton(text="🏠 Menú Principal", callback_data="volver_menu"),
-                ],
-            ]
-        )
+        keyboard = _construir_teclado_indicadores(finca_id)
         await callback.message.edit_text(
             f"📊 <b>Indicadores Técnicos de Rendimiento</b>\n\n"
             f"🏠 Finca: {finca['nombre']}\n\n"
@@ -337,8 +326,6 @@ def get_indicadores_router(db: Database) -> Router:
             )
             return
 
-        # Usar la exportación a Excel normal que ya existe (incluye indicadores)
-        # Redirigir al flujo de generación de Excel
         await callback.message.edit_text(
             "📥 <b>Exportar Indicadores</b>\n\n"
             "Los indicadores se incluyen en el Excel de costos de producción.\n"
@@ -462,5 +449,168 @@ def get_indicadores_router(db: Database) -> Router:
                 parse_mode="HTML",
                 reply_markup=boton_menu(),
             )
+
+    @router.callback_query(F.data.startswith("indicador_periodo:"))
+    async def indicador_ir_a_filtro(callback: types.CallbackQuery):
+        """Redirige al menú de filtrado por período."""
+        await callback.answer()
+        user_id = callback.from_user.id
+        finca_id = int(callback.data.split(":")[1])
+        finca = db.get_finca_by_id(finca_id)
+        if not finca or finca["user_id"] != user_id:
+            await callback.message.edit_text(
+                "❌ <b>Finca no encontrada.</b>",
+                parse_mode="HTML",
+                reply_markup=boton_menu(),
+            )
+            return
+
+        # Importar y usar el menú de filtrado desde reportes
+        # Redirect usando callback data de filtrar
+        ahora = datetime.now()
+        año_actual = ahora.year
+        mes_actual = ahora.month
+
+        keyboard = types.InlineKeyboardMarkup(
+            inline_keyboard=[
+                [types.InlineKeyboardButton(
+                    text="📅 Este mes",
+                    callback_data=f"indic_filtro:mes:{finca_id}:{año_actual}:{mes_actual}",
+                )],
+                [types.InlineKeyboardButton(
+                    text=f"📅 Año {año_actual}",
+                    callback_data=f"indic_filtro:anio:{finca_id}:{año_actual}",
+                )],
+                [types.InlineKeyboardButton(
+                    text=f"📅 Año {año_actual - 1}",
+                    callback_data=f"indic_filtro:anio:{finca_id}:{año_actual - 1}",
+                )],
+                [types.InlineKeyboardButton(
+                    text="📅 Personalizado",
+                    callback_data=f"indic_filtro:personalizado:{finca_id}",
+                )],
+            ]
+        )
+        keyboard = agregar_boton_menu(keyboard)
+
+        await callback.message.edit_text(
+            "📈 <b>Indicadores por período</b>\n\n"
+            f"🏠 Finca: {finca['nombre']}\n\n"
+            f"¿Qué período querés ver?",
+            parse_mode="HTML",
+            reply_markup=keyboard,
+        )
+
+    @router.callback_query(F.data.startswith("indic_filtro:"))
+    async def ejecutar_indicador_periodo(callback: types.CallbackQuery):
+        """Muestra indicadores para un período específico."""
+        await callback.answer()
+        user_id = callback.from_user.id
+        parts = callback.data.split(":")
+        tipo = parts[1]
+        finca_id = int(parts[2])
+
+        finca = db.get_finca_by_id(finca_id)
+        if not finca or finca["user_id"] != user_id:
+            await callback.message.edit_text("❌ <b>Finca no encontrada.</b>", parse_mode="HTML")
+            return
+
+        if tipo == "mes":
+            año = int(parts[3])
+            mes = int(parts[4])
+            resumen = db.get_resumen_mensual(finca_id, año, mes)
+            meses_nombre = ["Ene", "Feb", "Mar", "Abr", "May", "Jun",
+                           "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+            etiqueta = f"{meses_nombre[mes - 1]} {año}"
+        elif tipo == "anio":
+            año = int(parts[3])
+            resumen = db.get_resumen_anual(finca_id, año)
+            etiqueta = f"Año {año}"
+        elif tipo == "personalizado":
+            # Redirigir al flujo de filtro personalizado del menú /filtrar
+            await callback.message.edit_text(
+                "📅 <b>Indicadores por período personalizado</b>\n\n"
+                "Usá el comando <b>/filtrar</b> para seleccionar fechas personalizadas "
+                "y luego pedí los indicadores desde el menú.",
+                parse_mode="HTML",
+                reply_markup=types.InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [types.InlineKeyboardButton(
+                            text="📊 Ir a filtrar",
+                            callback_data=f"filtrar_seleccion:{finca_id}",
+                        )],
+                        [types.InlineKeyboardButton(text="🔙 Volver", callback_data="volver_menu")],
+                    ]
+                ),
+            )
+            return
+        else:
+            await callback.message.edit_text("❌ <b>Opción no válida.</b>", parse_mode="HTML")
+            return
+
+        if not resumen or (resumen["ingresos"] == 0 and resumen["egresos"] == 0):
+            await callback.message.edit_text(
+                f"📭 <b>No hay datos en {etiqueta}</b>\n\n"
+                f"No se encontraron transacciones para <b>{finca['nombre']}</b> en este período.",
+                parse_mode="HTML",
+                reply_markup=boton_menu(),
+            )
+            return
+
+        # Mostrar indicadores del período
+        from config import CATEGORIAS as CAT_MAP
+        ingresos = resumen["ingresos"]
+        egresos = resumen["egresos"]
+        margen = resumen["margen"]
+
+        texto = (
+            f"📈 <b>Indicadores por período — {finca['nombre']}</b>\n\n"
+            f"📅 <b>Período:</b> {etiqueta}\n\n"
+            f"💰 <b>Ingresos:</b> ${ingresos:,.0f}\n"
+            f"📉 <b>Egresos:</b> ${egresos:,.0f}\n"
+        )
+        if margen >= 0:
+            texto += f"✅ <b>Margen:</b> ${margen:,.0f}\n"
+        else:
+            texto += f"❌ <b>Margen:</b> -${abs(margen):,.0f} (pérdida)\n"
+        texto += "\n"
+
+        # Egresos por categoría
+        if resumen["egresos_por_categoria"]:
+            texto += "<b>Egresos por categoría:</b>\n"
+            for cat, total in sorted(resumen["egresos_por_categoria"].items(), key=lambda x: x[1], reverse=True):
+                if total > 0:
+                    nombre_cat = CAT_MAP.get(cat, {}).get("nombre", cat)
+                    pct = (total / egresos * 100) if egresos > 0 else 0
+                    texto += f"  • {nombre_cat}: ${total:,.0f} ({pct:.1f}%)\n"
+
+        # Ingresos por tipo
+        if resumen["ingresos_por_tipo"]:
+            texto += "\n<b>Ingresos por tipo:</b>\n"
+            for cat, total in resumen["ingresos_por_tipo"].items():
+                if total > 0:
+                    nombre_cat = CAT_MAP.get(cat, {}).get("nombre", cat)
+                    texto += f"  • {nombre_cat}: ${total:,.0f}\n"
+
+        keyboard = types.InlineKeyboardMarkup(
+            inline_keyboard=[
+                [types.InlineKeyboardButton(
+                    text="📅 Otro período",
+                    callback_data=f"indicador_periodo:{finca_id}",
+                )],
+                [types.InlineKeyboardButton(
+                    text="📊 Indicadores generales",
+                    callback_data=f"indicador:general:{finca_id}",
+                )],
+            ]
+        )
+        keyboard = agregar_boton_menu(keyboard)
+
+        partes = _split_texto(texto)
+        for i, parte in enumerate(partes):
+            if i == len(partes) - 1:
+                await callback.message.edit_text(parte, parse_mode="HTML", reply_markup=keyboard)
+            else:
+                await callback.message.answer(parte, parse_mode="HTML")
 
     return router

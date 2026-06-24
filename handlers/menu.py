@@ -65,6 +65,7 @@ def get_menu_router(db: Database) -> Router:
                 ],
                 [
                     types.InlineKeyboardButton(text="📊 Dashboard", callback_data="menu_dashboard"),
+                    types.InlineKeyboardButton(text="📊 Filtrar", callback_data="menu_filtrar"),
                 ],
                 [
                     types.InlineKeyboardButton(text="📥 Importar Excel", callback_data="menu_importar"),
@@ -263,6 +264,7 @@ def get_menu_router(db: Database) -> Router:
                 ],
                 [
                     types.InlineKeyboardButton(text="📊 Dashboard", callback_data="menu_dashboard"),
+                    types.InlineKeyboardButton(text="📊 Filtrar", callback_data="menu_filtrar"),
                 ],
                 [
                     types.InlineKeyboardButton(text="📥 Importar Excel", callback_data="menu_importar"),
