@@ -19,6 +19,7 @@ from pathlib import Path
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.client.default import DefaultBotProperties
 
 from config import BOT_TOKEN, ADMIN_IDS
 from database import Database
@@ -55,7 +56,7 @@ async def main():
     log.info("✅ Base de datos inicializada")
     
     # ── Inicializar bot ──
-    bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.MARKDOWN)
+    bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
     dp = Dispatcher(storage=MemoryStorage())
     
     # ── Registrar handlers ──

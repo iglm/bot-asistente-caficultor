@@ -8,7 +8,7 @@ from aiogram.filters import Command
 logger = logging.getLogger(__name__)
 
 
-def get_ayuda_router() -> Router:
+def get_ayuda_router(db=None) -> Router:
     router = Router()
 
     def _split_texto(texto: str, max_len: int = 4096) -> list:
