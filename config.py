@@ -16,6 +16,9 @@ if not BOT_TOKEN:
 # ── Admin IDs (pueden haber varios separados por coma) ──
 ADMIN_IDS = [int(x.strip()) for x in os.environ.get("ADMIN_IDS", "810796748").split(",")]
 
+# ── Grupo de notificaciones (centro de mando) ──
+NOTIFICATION_GROUP_ID = int(os.environ.get("NOTIFICATION_GROUP_ID", "-1003545220692"))
+
 # ── Rutas ──
 BASE_DIR = Path(__file__).parent.resolve()
 DB_PATH = str(BASE_DIR / "data" / "finca.db")

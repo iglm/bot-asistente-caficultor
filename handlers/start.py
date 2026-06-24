@@ -6,7 +6,7 @@ from aiogram import Router, types, F
 from aiogram.filters import CommandStart
 
 from database import Database
-from config import ADMIN_IDS, BOT_NAME
+from config import ADMIN_IDS, BOT_NAME, NOTIFICATION_GROUP_ID
 
 logger = logging.getLogger(__name__)
 
@@ -40,20 +40,50 @@ def get_start_router(db: Database) -> Router:
                         parse_mode="Markdown",
                     )
 
-                    # Notificar a los admins
+                    # Notificar a los admins con botones inline
+                    keyboard = types.InlineKeyboardMarkup(
+                        inline_keyboard=[
+                            [
+                                types.InlineKeyboardButton(
+                                    text="✅ Aprobar",
+                                    callback_data=f"aprobar:{user_id}",
+                                ),
+                                types.InlineKeyboardButton(
+                                    text="❌ Rechazar",
+                                    callback_data=f"rechazar:{user_id}",
+                                ),
+                            ],
+                        ]
+                    )
                     for admin_id in ADMIN_IDS:
                         try:
                             await message.bot.send_message(
                                 admin_id,
-                                f"🆕 *Nuevo usuario pendiente:*\n\n"
-                                f"👤 ID: `{user_id}`\n"
-                                f"📝 Username: @{username}\n"
-                                f"📛 Nombre: {full_name}\n\n"
-                                f"Usa `/usuarios` para gestionar las solicitudes.",
+                                f"🆕 *Nuevo usuario pendiente:*\\n\\n"
+                                f"👤 ID: `{user_id}`\\n"
+                                f"📝 Username: @{username}\\n"
+                                f"📛 Nombre: {full_name}\\n\\n"
+                                f"Usa los botones de abajo para gestionar la solicitud.",
                                 parse_mode="Markdown",
+                                reply_markup=keyboard,
                             )
                         except Exception as e:
                             logger.error(f"Error notificando a admin {admin_id}: {e}")
+                    
+                    # Notificar también al grupo de supervision
+                    try:
+                        await message.bot.send_message(
+                            NOTIFICATION_GROUP_ID,
+                            f"🆕 *Nuevo usuario pendiente:*\\n\\n"
+                            f"👤 ID: `{user_id}`\\n"
+                            f"📝 Username: @{username}\\n"
+                            f"📛 Nombre: {full_name}\\n\\n"
+                            f"Usa los botones para gestionar.",
+                            parse_mode="Markdown",
+                            reply_markup=keyboard,
+                        )
+                    except Exception as e:
+                        logger.error(f"Error notificando al grupo: {e}")
                 else:
                     # Usuario ya registrado, verificar si está aprobado
                     if db.is_approved(user_id):
