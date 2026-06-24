@@ -108,6 +108,9 @@ def construir_menu_principal(db=None, user_id=None, is_admin=False):
                 types.InlineKeyboardButton(text="📈 Indicadores", callback_data="menu_indicadores"),
             ],
             [
+                types.InlineKeyboardButton(text="📋 Presupuesto", callback_data="menu_presupuesto"),
+            ],
+            [
                 types.InlineKeyboardButton(text="📋 Exportar Excel", callback_data="menu_excel"),
                 types.InlineKeyboardButton(text="📄 Exportar PDF", callback_data="menu_pdf"),
             ],

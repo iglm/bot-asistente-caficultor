@@ -118,3 +118,19 @@ CATEGORIAS = {
     "beneficio": {"nombre": "Beneficio", "hoja": "Beneficio", "seccion": "unico"},
     "administrativo": {"nombre": "Gastos Admin", "hoja": "Gastos Administrativos", "seccion": "unico"},
 }
+
+# ── Configuración de presupuesto ──
+# Porcentajes de referencia para presupuesto (base 100%)
+PRESUPUESTO_PORCENTAJES = {
+    "recoleccion": 0.54,
+    "fertilizacion": 0.19,
+    "administrativo": 0.07,
+    "arvenses": 0.06,
+    "beneficio": 0.06,
+    "instalacion": 0.05,
+    "fitosanitario": 0.02,
+    "otras_labores": 0.01,
+}
+
+# Rubros que aplican a toda la finca (no por lote)
+RUBROS_GLOBALES = ["administrativo", "beneficio"]

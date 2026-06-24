@@ -98,6 +98,41 @@ class Database:
                     UNIQUE(finca_id, anio, categoria)
                 );
                 
+                -- Detalle del presupuesto (líneas por lote/rubro/mes)
+                CREATE TABLE IF NOT EXISTS presupuesto_detalle (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    presupuesto_id INTEGER REFERENCES presupuestos(id),
+                    lote_id INTEGER DEFAULT 0,
+                    rubro TEXT NOT NULL,
+                    mes INTEGER DEFAULT 0,
+                    cantidad_plan REAL DEFAULT 0,
+                    unidad TEXT DEFAULT '',
+                    valor_unitario REAL DEFAULT 0,
+                    valor_total_plan REAL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                
+                -- Gastos reales ejecutados
+                CREATE TABLE IF NOT EXISTS gastos_reales (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    finca_id INTEGER REFERENCES fincas(id),
+                    lote_id INTEGER DEFAULT 0,
+                    fecha TEXT NOT NULL,
+                    rubro TEXT NOT NULL,
+                    labor TEXT DEFAULT '',
+                    insumo TEXT DEFAULT '',
+                    cantidad REAL DEFAULT 0,
+                    unidad TEXT DEFAULT '',
+                    valor_unitario REAL DEFAULT 0,
+                    valor_total REAL DEFAULT 0,
+                    estado TEXT DEFAULT 'confirmado',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                
+                CREATE INDEX IF NOT EXISTS idx_presupuesto_detalle_presupuesto ON presupuesto_detalle(presupuesto_id);
+                CREATE INDEX IF NOT EXISTS idx_gastos_reales_finca ON gastos_reales(finca_id);
+                CREATE INDEX IF NOT EXISTS idx_gastos_reales_fecha ON gastos_reales(fecha);
+                
                 -- Tabla para cola de sincronización offline
                 CREATE TABLE IF NOT EXISTS sync_queue (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1007,6 +1042,90 @@ class Database:
                 "total_ejecutado": total_ejecutado,
                 "total_diferencia": total_ejecutado - total_planificado,
             }
+        finally:
+            conn.close()
+
+    # ─── Presupuesto Detalle ───
+
+    def guardar_detalle_presupuesto(self, presupuesto_id: int, detalle: dict):
+        """Guarda una línea de detalle del presupuesto."""
+        conn = self.get_conn()
+        try:
+            conn.execute(
+                """INSERT INTO presupuesto_detalle
+                   (presupuesto_id, lote_id, rubro, mes, cantidad_plan, unidad, valor_unitario, valor_total_plan)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    presupuesto_id,
+                    detalle.get("lote_id", 0),
+                    detalle["rubro"],
+                    detalle.get("mes", 0),
+                    detalle.get("cantidad_plan", 0),
+                    detalle.get("unidad", ""),
+                    detalle.get("valor_unitario", 0),
+                    detalle.get("valor_total_plan", 0),
+                ),
+            )
+            conn.commit()
+            return True
+        finally:
+            conn.close()
+
+    def get_ejecucion_por_periodo(self, finca_id: int, fecha_inicio: str, fecha_fin: str) -> dict:
+        """Ejecución presupuestal en un rango de fechas.
+        Compara lo planificado vs lo ejecutado en un período específico.
+        """
+        conn = self.get_conn()
+        try:
+            # Obtener ejecutado real desde transacciones para el período
+            rows = conn.execute(
+                """SELECT categoria, SUM(valor_total) as total
+                   FROM transacciones
+                   WHERE finca_id = ? AND fecha BETWEEN ? AND ?
+                   GROUP BY categoria""",
+                (finca_id, fecha_inicio, fecha_fin),
+            ).fetchall()
+
+            ejecutado_por_categoria = {}
+            total_ejecutado = 0.0
+            for r in rows:
+                cat = r["categoria"]
+                total = r["total"] or 0
+                # Normalizar: agrupar _mo y _insumos bajo su categoría base
+                if cat.endswith("_mo"):
+                    base = cat[:-3]
+                    ejecutado_por_categoria[base] = ejecutado_por_categoria.get(base, 0) + total
+                elif cat.endswith("_insumos"):
+                    base = cat[:-8]
+                    ejecutado_por_categoria[base] = ejecutado_por_categoria.get(base, 0) + total
+                else:
+                    ejecutado_por_categoria[cat] = ejecutado_por_categoria.get(cat, 0) + total
+                total_ejecutado += total
+
+            return {
+                "ejecutado_por_categoria": ejecutado_por_categoria,
+                "total_ejecutado": total_ejecutado,
+                "fecha_inicio": fecha_inicio,
+                "fecha_fin": fecha_fin,
+            }
+        finally:
+            conn.close()
+
+    def get_gastos_por_rubro(self, finca_id: int, fecha_inicio: str, fecha_fin: str) -> list:
+        """Gastos agrupados por rubro en un período.
+        Retorna lista de dicts con rubro y total.
+        """
+        conn = self.get_conn()
+        try:
+            rows = conn.execute(
+                """SELECT rubro, SUM(valor_total) as total
+                   FROM gastos_reales
+                   WHERE finca_id = ? AND fecha BETWEEN ? AND ?
+                   GROUP BY rubro
+                   ORDER BY total DESC""",
+                (finca_id, fecha_inicio, fecha_fin),
+            ).fetchall()
+            return [{"rubro": r["rubro"], "total": r["total"] or 0} for r in rows]
         finally:
             conn.close()
 

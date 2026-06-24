@@ -58,6 +58,9 @@ def _construir_teclado_indicadores(finca_id: int) -> types.InlineKeyboardMarkup:
                 types.InlineKeyboardButton(text="📄 Exportar PDF", callback_data=f"indicador_pdf:{finca_id}"),
             ],
             [
+                types.InlineKeyboardButton(text="📋 Ver presupuesto", callback_data=f"menu_presupuesto"),
+            ],
+            [
                 types.InlineKeyboardButton(text="📅 Filtrar por período", callback_data=f"indicador_periodo:{finca_id}"),
             ],
             [
