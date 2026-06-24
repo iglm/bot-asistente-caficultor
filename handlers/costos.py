@@ -1391,19 +1391,43 @@ def get_costos_router(db: Database) -> Router:
             )
             await state.set_state(CostoForm.esperando_producto)
         else:
-            keyboard_success = types.InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [types.InlineKeyboardButton(text="➕ Otro insumo", callback_data="conf_insumo:otro")],
-                ]
-            )
-            keyboard_success = agregar_boton_menu(keyboard_success)
+            keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+                [types.InlineKeyboardButton(text="➕ Agregar otro insumo", callback_data="agregar_otro_insumo")],
+                [types.InlineKeyboardButton(text="✅ Terminar costo", callback_data="terminar_costo")],
+                [types.InlineKeyboardButton(text="❌ Cancelar", callback_data="cancelar_operacion")],
+            ])
             await callback.message.edit_text(
-                "✅ <b>¡Insumo registrado exitosamente!</b> 🎉📉\n\n"
-                "Usa /costo para registrar otro o /resumen para ver tus datos.",
+                "✅ <b>Insumo guardado. ¿Qué querés hacer?</b>",
                 parse_mode="HTML",
-                reply_markup=keyboard_success,
+                reply_markup=keyboard,
             )
-            await state.clear()
+
+    # ── AGREGAR OTRO INSUMO ────────────────────────────────────
+
+    @router.callback_query(F.data == "agregar_otro_insumo")
+    async def agregar_otro_insumo(callback: types.CallbackQuery, state: FSMContext):
+        """Vuelve a pedir producto/insumo para agregar otro."""
+        await callback.answer()
+        await callback.message.edit_text(
+            "➕ <b>Agregar otro insumo</b>\n\n"
+            "¿Cuál es el siguiente <b>producto/insumo</b>?\n\n"
+            "<i>(Escribe el nombre o /cancelar para terminar)</i>",
+            parse_mode="HTML",
+            reply_markup=botones_menu_cancelar(),
+        )
+        await state.set_state(CostoForm.esperando_producto)
+
+    @router.callback_query(F.data == "terminar_costo")
+    async def terminar_costo(callback: types.CallbackQuery, state: FSMContext):
+        """Termina el registro de costos y vuelve al menú."""
+        await callback.answer()
+        await state.clear()
+        await callback.message.edit_text(
+            "✅ <b>Registro de costos finalizado.</b>\n\n"
+            "Usa /costo para registrar otro o /resumen para ver tus datos.",
+            parse_mode="HTML",
+            reply_markup=boton_menu(),
+        )
 
     # ── EDICIÓN DE INSUMOS ──────────────────────────────────────
 

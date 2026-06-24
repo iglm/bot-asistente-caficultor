@@ -292,16 +292,7 @@ def get_voice_router(db: Database) -> Router:
         await state.clear()
 
     # ────────────────────────────────────────────────────────────
-    # CANCELAR desde selector de finca
+    # CANCELAR desde selector de finca (NO HAY BOTÓN — reservado)
     # ────────────────────────────────────────────────────────────
-    @router.callback_query(F.data == "voice_cancel")
-    async def cancelar_operacion(callback: types.CallbackQuery, state: FSMContext):
-        await callback.answer()
-        await callback.message.edit_text(
-            "❌ <b>Operación cancelada.</b>",
-            parse_mode="HTML",
-            reply_markup=boton_menu(),
-        )
-        await state.clear()
 
     return router
