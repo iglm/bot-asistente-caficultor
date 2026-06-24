@@ -1076,7 +1076,7 @@ class ExcelManager:
         """Llena la hoja 'Presupuesto' con planificación vs ejecución.
         
         Estructura:
-        A: Categoría | B: % Referencia del sector | C: Monto Planificado | D: Monto Ejecutado 
+        A: Categoría | B: % Referencia sugerida | C: Monto Planificado | D: Monto Ejecutado 
         | E: Diferencia | F: % Ejecución
         
         Usa colores: Verde si ejecutado <= planificado, Rojo si sobregiro.
@@ -1329,8 +1329,8 @@ class ExcelManager:
         cell.alignment = Alignment(horizontal="center", vertical="center")
 
         # ─── Encabezados (fila 3) ───
-        headers = ["Indicador", "Valor", "Unidad", "Referencia del sector"]
-        col_widths = [35, 25, 15, 20]
+        headers = ["Indicador", "Valor", "Unidad"]
+        col_widths = [35, 25, 15]
         for col_idx, (header, width) in enumerate(zip(headers, col_widths), 1):
             cell = ws.cell(row=3, column=col_idx, value=header)
             cell.font = FONT_HEADER
@@ -1343,7 +1343,7 @@ class ExcelManager:
         # ─── Datos ───
         row = 4
 
-        def escribir_indicador(ws, row, label, valor, unidad, ref_fnc=""):
+        def escribir_indicador(ws, row, label, valor, unidad):
             ws.cell(row=row, column=1, value=label).font = FONT_NORMAL
             ws.cell(row=row, column=1).alignment = LEFT
             ws.cell(row=row, column=1).border = THIN_BORDER
@@ -1358,12 +1358,8 @@ class ExcelManager:
             ws.cell(row=row, column=3).alignment = CENTER
             ws.cell(row=row, column=3).border = THIN_BORDER
 
-            ws.cell(row=row, column=4, value=ref_fnc).font = FONT_NORMAL
-            ws.cell(row=row, column=4).alignment = CENTER
-            ws.cell(row=row, column=4).border = THIN_BORDER
-
         def escribir_seccion(ws, row, titulo):
-            ws.merge_cells(f"A{row}:D{row}")
+            ws.merge_cells(f"A{row}:C{row}")
             cell = ws.cell(row=row, column=1, value=titulo)
             cell.font = FONT_SECTION
             cell.fill = FILL_SECTION
@@ -1380,66 +1376,66 @@ class ExcelManager:
 
         # Sección: Área
         row = escribir_seccion(ws, row, "🌱 Área")
-        escribir_indicador(ws, row, "Área Total", round(indicadores['area_total'], 2), "ha", "")
+        escribir_indicador(ws, row, "Área Total", round(indicadores['area_total'], 2), "ha")
         row += 1
-        escribir_indicador(ws, row, "Área Productiva", round(indicadores['area_productiva'], 2), "ha", "")
+        escribir_indicador(ws, row, "Área Productiva", round(indicadores['area_productiva'], 2), "ha")
         row += 2
 
         # Sección: Mano de Obra
         row = escribir_seccion(ws, row, "👷 Mano de Obra")
-        escribir_indicador(ws, row, "Total Jornales", round(indicadores['total_jornales'], 0), "jornales", "")
+        escribir_indicador(ws, row, "Total Jornales", round(indicadores['total_jornales'], 0), "jornales")
         row += 1
-        escribir_indicador(ws, row, "Jornales por Hectárea", round(indicadores['jornales_por_ha'], 2), "jornales/ha", "80-120")
+        escribir_indicador(ws, row, "Jornales por Hectárea", round(indicadores['jornales_por_ha'], 2), "jornales/ha")
         row += 1
-        escribir_indicador(ws, row, "Costo MO por Hectárea", formatear_moneda_indicador(indicadores['costo_mo_por_ha']), "$/ha", "")
+        escribir_indicador(ws, row, "Costo MO por Hectárea", formatear_moneda_indicador(indicadores['costo_mo_por_ha']), "$/ha")
         row += 1
-        escribir_indicador(ws, row, "Eficiencia de MO", round(indicadores['eficiencia_mo'], 2), "kg/jornal", "0.3-0.5")
+        escribir_indicador(ws, row, "Eficiencia de MO", round(indicadores['eficiencia_mo'], 2), "kg/jornal")
         row += 2
 
         # Sección: Insumos
         row = escribir_seccion(ws, row, "🧪 Insumos")
-        escribir_indicador(ws, row, "Costo Insumos por Hectárea", formatear_moneda_indicador(indicadores['costo_insumos_por_ha']), "$/ha", "")
+        escribir_indicador(ws, row, "Costo Insumos por Hectárea", formatear_moneda_indicador(indicadores['costo_insumos_por_ha']), "$/ha")
         row += 1
-        escribir_indicador(ws, row, "Kg Producidos (CPS)", round(indicadores['kg_producidos'], 2), "kg", "")
+        escribir_indicador(ws, row, "Kg Producidos (CPS)", round(indicadores['kg_producidos'], 2), "kg")
         row += 2
 
         # Sección: Financiero
         row = escribir_seccion(ws, row, "💰 Financiero")
-        escribir_indicador(ws, row, "Ingresos Totales", formatear_moneda_indicador(indicadores['ingresos_totales']), "$", "")
+        escribir_indicador(ws, row, "Ingresos Totales", formatear_moneda_indicador(indicadores['ingresos_totales']), "$")
         row += 1
-        escribir_indicador(ws, row, "Costos MO", formatear_moneda_indicador(indicadores['costos_mo']), "$", "")
+        escribir_indicador(ws, row, "Costos MO", formatear_moneda_indicador(indicadores['costos_mo']), "$")
         row += 1
-        escribir_indicador(ws, row, "Costos Insumos", formatear_moneda_indicador(indicadores['costos_insumos']), "$", "")
+        escribir_indicador(ws, row, "Costos Insumos", formatear_moneda_indicador(indicadores['costos_insumos']), "$")
         row += 1
-        escribir_indicador(ws, row, "Costos Totales", formatear_moneda_indicador(indicadores['costos_total']), "$", "")
+        escribir_indicador(ws, row, "Costos Totales", formatear_moneda_indicador(indicadores['costos_total']), "$")
         row += 1
-        escribir_indicador(ws, row, "Costo Total por Hectárea", formatear_moneda_indicador(indicadores['costo_total_por_ha']), "$/ha", "")
+        escribir_indicador(ws, row, "Costo Total por Hectárea", formatear_moneda_indicador(indicadores['costo_total_por_ha']), "$/ha")
         row += 1
-        escribir_indicador(ws, row, "Costo por Kg CPS", formatear_moneda_indicador(indicadores['costo_por_kilo']), "$/kg", "")
+        escribir_indicador(ws, row, "Costo por Kg CPS", formatear_moneda_indicador(indicadores['costo_por_kilo']), "$/kg")
         row += 1
-        escribir_indicador(ws, row, "Precio Venta Promedio", formatear_moneda_indicador(indicadores['precio_venta_promedio']), "$/kg", "")
+        escribir_indicador(ws, row, "Precio Venta Promedio", formatear_moneda_indicador(indicadores['precio_venta_promedio']), "$/kg")
         row += 1
 
         margen = indicadores['margen_por_ha']
-        escribir_indicador(ws, row, "Margen por Hectárea", formatear_moneda_indicador(margen), "$/ha", "")
+        escribir_indicador(ws, row, "Margen por Hectárea", formatear_moneda_indicador(margen), "$/ha")
         row += 2
 
         # Sección: Productividad
         row = escribir_seccion(ws, row, "📈 Productividad")
-        escribir_indicador(ws, row, "Productividad (kg/ha total)", round(indicadores['productividad'], 2), "kg/ha", "60-80")
+        escribir_indicador(ws, row, "Productividad (kg/ha total)", round(indicadores['productividad'], 2), "kg/ha")
         row += 1
-        escribir_indicador(ws, row, "Rendimiento (kg/ha productivo)", round(indicadores['rendimiento'], 2), "kg/ha", "70-100")
+        escribir_indicador(ws, row, "Rendimiento (kg/ha productivo)", round(indicadores['rendimiento'], 2), "kg/ha")
         row += 2
 
         # Sección: Nuevos indicadores con unidades
         row = escribir_seccion(ws, row, "📐 Indicadores por Unidad")
-        escribir_indicador(ws, row, "Costo Insumos por kg CPS", formatear_moneda_indicador(indicadores['costo_insumos_por_kg_cps']), "$/kg", "")
+        escribir_indicador(ws, row, "Costo Insumos por kg CPS", formatear_moneda_indicador(indicadores['costo_insumos_por_kg_cps']), "$/kg")
         row += 1
-        escribir_indicador(ws, row, "Costo MO por kg CPS", formatear_moneda_indicador(indicadores['costo_mo_por_kg_cps']), "$/kg", "")
+        escribir_indicador(ws, row, "Costo MO por kg CPS", formatear_moneda_indicador(indicadores['costo_mo_por_kg_cps']), "$/kg")
         row += 1
-        escribir_indicador(ws, row, "Insumos por Hectárea", round(indicadores['insumos_por_ha'], 2), "kg eq./ha", "")
+        escribir_indicador(ws, row, "Insumos por Hectárea", round(indicadores['insumos_por_ha'], 2), "kg eq./ha")
         row += 1
-        escribir_indicador(ws, row, "Eficiencia de Insumos", round(indicadores['eficiencia_insumos'], 2), "kg CPS/kg ins.", "")
+        escribir_indicador(ws, row, "Eficiencia de Insumos", round(indicadores['eficiencia_insumos'], 2), "kg CPS/kg ins.")
         row += 2
 
         # ─── Tabla de conversión de unidades ───

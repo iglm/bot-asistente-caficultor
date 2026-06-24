@@ -354,7 +354,7 @@ def get_presupuesto_router(db: Database) -> Router:
         texto = (
             f"📋 <b>Presupuesto {anio} — {data['finca_nombre']}</b>\n"
             f"📐 Área: {area:.2f} ha\n\n"
-            f"<b>Estructura de costos del sector:</b>\n"
+            f"<b>Estructura de costos sugerida:</b>\n"
         )
 
         total = 0
@@ -364,7 +364,7 @@ def get_presupuesto_router(db: Database) -> Router:
             texto += f"• {nombre}: <b>{_formato_pesos(monto)}</b> ({pct}%)\n"
 
         # Ingresos sugeridos (producción)
-        produccion_sugerida = area * 1670  # ~1670 kg/ha promedio
+        produccion_sugerida = area * 1670  # ~1670 kg/ha estimado
         ingreso_sugerido = produccion_sugerida * COSTO_TOTAL_POR_KG
         texto += (
             f"\n💰 <b>Ingresos estimados:</b> {_formato_pesos(ingreso_sugerido)} "

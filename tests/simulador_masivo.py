@@ -1293,7 +1293,7 @@ class SimuladorMasivo:
         lines.append(f"- **Costos:** Basados en estructura de referencia del sector cafetero colombiano 2024")
         lines.append(f"- **Rendimientos:** Curva técnica Cenicafé por edad del cafetal")
         lines.append(f"- **Precios:** Precios reales del mercado colombiano 2023-2025")
-        lines.append(f"- **Costo objetivo:** ~$16M/ha en 3 años (promedio nacional del sector)")
+        lines.append(f"- **Costo objetivo:** ~$16M/ha en 3 años (estimado de referencia)")
         lines.append(f"- **Distribución:** Recolección ~54%, Fertilización ~19%, Admin ~7%, etc.")
         lines.append(f"")
         lines.append(f"---")
