@@ -319,7 +319,7 @@ python tests/simulador_caficultor.py
 
 - 1 finca, 20 lotes, 3 años de datos
 - 894+ transacciones en todas las categorías
-- Precios reales FNC/FEPCafé/USDA
+- Precios reales del mercado/sector/USDA
 
 ### Auditoría de callbacks
 

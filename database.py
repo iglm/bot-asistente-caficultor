@@ -763,7 +763,7 @@ class Database:
     def get_indicadores_tecnicos(self, finca_id: int) -> dict:
         """Calcula todos los indicadores técnicos de la finca.
         
-        Basado en metodología FNC/CENICafé.
+        Basado en metodología estándar del sector.
         """
         # Obtener área total y productiva
         conn = self.get_conn()
@@ -818,13 +818,13 @@ class Database:
     def get_ejecucion_presupuesto(self, finca_id: int, anio: int) -> dict:
         """Compara presupuesto planificado vs ejecutado real.
         
-        Para cada categoría de la estructura FEPCafé, calcula:
+        Para cada categoría de la estructura de costos del sector, calcula:
         - monto_planificado (de la tabla presupuestos)
         - monto_ejecutado (suma de transacciones del año)
         - diferencia
         - % de ejecución
         
-        Mapping de categorías FEPCafé a categorías DB:
+        Mapping de categorías del sector a categorías DB:
         - Recolección -> recoleccion
         - Fertilización -> fertilizacion_mo + fertilizacion_insumos
         - Gastos Admin -> administrativo
@@ -845,7 +845,7 @@ class Database:
         try:
             fecha_like = f"{anio}-%"
             
-            # Mapeo de categorías FEPCafé a categorías DB
+            # Mapeo de categorías del sector a categorías DB
             CATEGORIAS_FEPCAFE = [
                 ("recoleccion", ["recoleccion"]),
                 ("fertilizacion", ["fertilizacion_mo", "fertilizacion_insumos"]),

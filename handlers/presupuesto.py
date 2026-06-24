@@ -23,7 +23,7 @@ class PresupuestoStates(StatesGroup):
     esperando_area = State()
     editando_categoria = State()
 
-# ─── Estructura FEPCafé 2024 ───
+# ─── Estructura de costos sugerida ───
 
 FEPCAFE_CATEGORIAS = [
     ("recoleccion", "☕ Recolección", 54, 5320),
@@ -65,13 +65,11 @@ def _obtener_presupuesto_como_dict(db: Database, finca_id: int, anio: int) -> di
 
 
 def _calcular_montos_sugeridos(area: float) -> dict:
-    """Calcula montos sugeridos basados en área para estructura FEPCafé.
-    
-    Fórmula: (porcentaje * area * costo_total_por_ha) / 100
-    donde costo_total_por_ha = costo_total_por_kg * 1.67 (rendimiento promedio kg/ha)
+    """Calcula montos sugeridos basados en el área de la finca.
+
+    Fórmula: (porcentaje * area * costo_estimado_por_ha) / 100
     """
-    # Rendimiento promedio: ~16.34M / 9790 = ~1670 kg/ha
-    # Usamos directamente: $16,340,000 / ha distribuido por %
+    # Costo estimado de referencia: ~$16.34M/ha distribuido por %
     COSTO_TOTAL_POR_HA = 16_340_000  # $16.34M/ha
     sugeridos = {}
     for cat_id, nombre, pct, costo_kg in FEPCAFE_CATEGORIAS:
@@ -341,7 +339,7 @@ def get_presupuesto_router(db: Database) -> Router:
         await _mostrar_edicion_presupuesto(message.answer, state, db)
 
     async def _mostrar_edicion_presupuesto(send_func, state: FSMContext, db: Database):
-        """Muestra la estructura de costos FEPCafé con montos sugeridos y permite editar."""
+        """Muestra la estructura de costos del sector con montos sugeridos y permite editar."""
         data = await state.get_data()
         area = data["area"]
         anio = data["anio"]
@@ -356,7 +354,7 @@ def get_presupuesto_router(db: Database) -> Router:
         texto = (
             f"📋 <b>Presupuesto {anio} — {data['finca_nombre']}</b>\n"
             f"📐 Área: {area:.2f} ha\n\n"
-            f"<b>Estructura de costos FEPCafé:</b>\n"
+            f"<b>Estructura de costos del sector:</b>\n"
         )
 
         total = 0

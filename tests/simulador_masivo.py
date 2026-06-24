@@ -3,7 +3,7 @@
 SIMULADOR MASIVO DE CAFICULTOR ☕ — 300+ Transacciones
 =======================================================
 Genera datos realistas de una finca cafetera con 20 lotes y MÍNIMO 300 transacciones
-en 3 años (2023-2025) con estructura de costos FEPCafé 2024.
+en 3 años (2023-2025) con estructura de costos del sector cafetero colombiano 2024.
 
 DIFERENCIA con simulador_caficultor.py:
 - Costos generados POR LOTE en lugar de agregados por finca
@@ -917,7 +917,7 @@ class SimuladorMasivo:
             costos_creados += costos_globales_creados
 
         self.estadisticas["costos_creados"] = costos_creados
-        log_ok(f"{costos_creados} costos creados con estructura FEPCafé 2024")
+        log_ok(f"{costos_creados} costos creados con estructura del sector 2024")
 
     # ── Fase 6: Verificar ──────────────────────────────────────────────
     def verificar(self):
@@ -1179,7 +1179,7 @@ class SimuladorMasivo:
         lines.append(f"")
         lines.append(f"---")
         lines.append(f"")
-        lines.append(f"## 3. Distribución de Costos vs Target FEPCafé 2024")
+        lines.append(f"## 3. Distribución de Costos vs Referencia del Sector 2024")
         lines.append(f"")
         lines.append(f"| Categoría | Monto | % Real | % Target | Diferencia | Estado |")
         lines.append(f"|-----------|-------|--------|----------|------------|--------|")
@@ -1290,10 +1290,10 @@ class SimuladorMasivo:
         lines.append(f"")
         lines.append(f"- **Base de datos:** SQLite (finca.db)")
         lines.append(f"- **Simulador:** Python 3.11, acceso directo a DB")
-        lines.append(f"- **Costos:** Basados en estructura FEPCafé 2024 y datos del sector cafetero colombiano")
+        lines.append(f"- **Costos:** Basados en estructura de referencia del sector cafetero colombiano 2024")
         lines.append(f"- **Rendimientos:** Curva técnica Cenicafé por edad del cafetal")
         lines.append(f"- **Precios:** Precios reales del mercado colombiano 2023-2025")
-        lines.append(f"- **Costo objetivo:** ~$16M/ha en 3 años (promedio nacional FEPCafé)")
+        lines.append(f"- **Costo objetivo:** ~$16M/ha en 3 años (promedio nacional del sector)")
         lines.append(f"- **Distribución:** Recolección ~54%, Fertilización ~19%, Admin ~7%, etc.")
         lines.append(f"")
         lines.append(f"---")

@@ -293,7 +293,7 @@ INSUMOS_POR_HA = {
 COSTO_ADMINISTRATIVO_MENSUAL = 350_000
 
 # ── Estructura objetivo de costos (sector cafetero colombiano) ──────────
-# Basado en datos FNC Colombia, Cenicafé, SICA
+# Basado en datos del sector cafetero colombiano
 # Costo total objetivo por hectárea: ~$16M en 3 años → ~$5.33M/ha/año
 # Para una finca de 21.4 ha → ~$114M/año total
 # Distribución porcentual real del sector:
@@ -873,7 +873,7 @@ class SimuladorCaficultor:
     def generar_costos(self):
         """Genera costos realistas usando la estructura del sector cafetero colombiano.
         
-        Distribución objetivo (basada en datos FNC/Cenicafé/SICA):
+        Distribución objetivo (basada en datos del sector cafetero colombiano):
           Recolección 54% | Fertilización 19% | Admin 7% | Arvenses 6%
           Beneficio 6%    | Renovación 5%    | Fitosanitarios 2% | Otras 1%
         Costo total objetivo: ~$5.33M/ha/año → ~$16M/ha en 3 años acumulado.

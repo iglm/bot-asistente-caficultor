@@ -81,7 +81,7 @@ La simulación se ejecutó mediante un script Python especializado (`simulador_c
 
 El simulador incorporó inteligencia agronómica en la generación de datos:
 
-- **Precios mensuales reales** del café CPS para cada año (fuente: precios históricos FNC)
+- **Precios mensuales reales** del café CPS para cada año (fuente: precios históricos del sector)
 - **Rendimientos variables por edad del lote** (0-500-1000-1500-1668-1300-1000 kg/ha según etapa productiva)
 - **Distribución de cosechas:** 70% cosecha principal (Oct-Dic), 20% mitaca (Abr-May), 10% subproductos
 - **Calendario de labores** típico de la zona cafetera de Caldas con 12 meses de actividades
@@ -114,7 +114,7 @@ El simulador incorporó inteligencia agronómica en la generación de datos:
 | 🌲 Maduros | 7-15 años | 4 | 4.6 ha | 21.5% |
 | 🌴 Viejos | 15+ años | 2 | 1.7 ha | 7.9% |
 
-**📌 Análisis agronómico:** La distribución etaria de los lotes es típica de una finca que realiza renovación escalonada por zocas. El 35% del área está en plena producción (3-7 años), lo cual es positivo. Sin embargo, el 15.9% en etapa nueva (0-1 años) representa una inversión que aún no genera retorno, explicando parcialmente la presión sobre el margen neto. La renovación constante es una práctica recomendada por la FNC (5-10% del área renovada anualmente) para mantener la productividad sostenible.
+**📌 Análisis agronómico:** La distribución etaria de los lotes es típica de una finca que realiza renovación escalonada por zocas. El 35% del área está en plena producción (3-7 años), lo cual es positivo. Sin embargo, el 15.9% en etapa nueva (0-1 años) representa una inversión que aún no genera retorno, explicando parcialmente la presión sobre el margen neto. La renovación constante es una práctica recomendada del sector (5-10% del área renovada anualmente) para mantener la productividad sostenible.
 
 ### 3.3 Variedades Cultivadas
 
@@ -126,7 +126,7 @@ El simulador incorporó inteligencia agronómica en la generación de datos:
 | **Bourbon** 🟤 | Lote El Altozano, El Oasis, La Meseta, La Montaña (4 lotes) | ~3.8 ha | Alta calidad en taza, menor productividad |
 | **Tabi** 🟣 | Lote El Bosque, El Respaldo, La Planada, La Quebrada (4 lotes) | ~3.7 ha | Híbrido de alta calidad y resistencia |
 
-**⚠️ Observación:** El predominio de variedades Castillo y Colombia es consistente con las recomendaciones de la FNC para zonas de media montaña. Sin embargo, la presencia de Caturra en lotes maduros (7-15 años) implica mayor susceptibilidad a enfermedades como la roya y la broca, lo cual se refleja en los costos fitosanitarios observados en la simulación.
+**⚠️ Observación:** El predominio de variedades Castillo y Colombia es consistente con las recomendaciones técnicas del sector para zonas de media montaña. Sin embargo, la presencia de Caturra en lotes maduros (7-15 años) implica mayor susceptibilidad a enfermedades como la roya y la broca, lo cual se refleja en los costos fitosanitarios observados en la simulación.
 
 ### 3.4 Rendimiento Estimado por Lote
 
@@ -174,7 +174,7 @@ Basado en la edad de cada lote al iniciar 2025 y utilizando la tabla de rendimie
 
 *\*Estimado con rendimiento promedio nacional (1,668 kg/ha) y precio promedio 2024 ($19,000/kg)*
 
-**🔴 Hallazgo crítico:** El costo por hectárea simulado ($58.6M) es **3.6 veces superior** al costo promedio reportado por la FEPCafé para 2024 ($16.34M/ha). Aunque parte de esta diferencia se explica por la inclusión de costos administrativos, mano de obra detallada y subproductos en la simulación, el valor es anormalmente alto y sugiere que:
+**🔴 Hallazgo crítico:** El costo por hectárea simulado ($58.6M) es **3.6 veces superior** al costo promedio reportado como referencia del sector para 2024 ($16.34M/ha). Aunque parte de esta diferencia se explica por la inclusión de costos administrativos, mano de obra detallada y subproductos en la simulación, el valor es anormalmente alto y sugiere que:
 
 1. El simulador está generando costos MO excesivos por hectárea
 2. La granularidad de costos por lote puede estar multiplicando registros
@@ -253,7 +253,7 @@ $100M ┤                           🟢 +$99.4M
 
 ### 6.1 Distribución por Categoría vs Referente Nacional
 
-| **Categoría** | **Valor simulado (3 años)** | **% Simulado** | **% Real FEPCafé 2024** | **Brecha** |
+| **Categoría** | **Valor simulado (3 años)** | **% Simulado** | **% Referencia del sector 2024** | **Brecha** |
 |---|---|---|---|---|
 | 🧑‍🌾 **Recolección** | $71,031,816 | 5.7% | **54%** | 🔴 **-48.3 pp** |
 | 🌱 **Fertilización** (MO+insumos) | $30,688,543 | 2.4% | **19%** | 🔴 **-16.6 pp** |
@@ -292,7 +292,7 @@ $100M ┤                           🟢 +$99.4M
 ### 6.3 🔴 Anomalías Graves en la Estructura de Costos
 
 **Problema #1 — Recolección severamente subestimada:**
-En la realidad colombiana, la recolección representa **54% del costo total** (FEPCafé 2024). En la simulación, representa solo **5.7%**. Esto implica que el simulador está generando costos de recolección muy por debajo de la realidad. Una finca de 21.4 ha con producción de ~24,600 kg CPS/año requeriría aproximadamente **307 jornales de recolección al año** (a 80 kg recolectados/jornal), a $55,000/jornal = **$16.9M solo en recolección anual**. En 3 años serían ~$50.7M — la simulación muestra $71M en 3 años, que está en el rango correcto para el volumen, pero si el total de egresos es $1,254M, la recolección debería ser ~$677M (54%), no $71M.
+En la realidad colombiana, la recolección representa **54% del costo total** (referencia del sector 2024). En la simulación, representa solo **5.7%**. Esto implica que el simulador está generando costos de recolección muy por debajo de la realidad. Una finca de 21.4 ha con producción de ~24,600 kg CPS/año requeriría aproximadamente **307 jornales de recolección al año** (a 80 kg recolectados/jornal), a $55,000/jornal = **$16.9M solo en recolección anual**. En 3 años serían ~$50.7M — la simulación muestra $71M en 3 años, que está en el rango correcto para el volumen, pero si el total de egresos es $1,254M, la recolección debería ser ~$677M (54%), no $71M.
 
 **Problema #2 — Fertilización también subestimada:**
 La fertilización en la zona cafetera representa el 19% del costo. En la simulación es apenas 2.4%. Una finca de este tamaño debería estar aplicando ~6,420 kg de fertilizante NPK al año (300 kg/ha), a $3,200/kg = $20.5M anuales solo en insumos de fertilización, sin contar MO.
@@ -347,11 +347,11 @@ El precio promedio ponderado de $19,380/kg está alineado con los precios reales
 | 2024 | $19,000/kg | 230 ¢/lb | $4,300 |
 | 2025 | $26,500/kg | 290 ¢/lb | $4,100 |
 
-*Fuente: Federación Nacional de Cafeteros, Informes de Mercado 2023-2025*
+*Fuente: Informes de Mercado del Sector Cafetero Colombiano 2023-2025*
 
 ### 8.2 Comparación de Costos Simulados vs Reales
 
-| **Rubro** | **Real Colombia 2024 (FEPCafé)** | **Simulado** | **Diferencia** |
+| **Rubro** | **Referencia del sector 2024** | **Simulado** | **Diferencia** |
 |---|---|---|---|
 | Costo/ha/año total | $16,340,000 | **$58,616,520** | +258% |
 | Recolección/ha/año | $8,823,600 (54%) | **$3,319,000** (5.7%) | -62% (absoluto) |
@@ -364,7 +364,7 @@ El precio promedio ponderado de $19,380/kg está alineado con los precios reales
 
 ### 8.3 🔴 Análisis de Discrepancias Estructurales
 
-La comparación con datos reales de la FEPCafé revela **tres problemas estructurales** en la simulación:
+La comparación con datos de referencia del sector revela **tres problemas estructurales** en la simulación:
 
 1. **Inflación artificial del costo total:** El costo simulado es 3.6 veces el real, principalmente porque:
    - El simulador genera costos **por lote** para múltiples categorías, multiplicando registros
@@ -381,7 +381,7 @@ La comparación con datos reales de la FEPCafé revela **tres problemas estructu
 
 ### 8.4 Simulación Corregida (Ajuste por Pesos Reales)
 
-Si ajustamos los costos simulados a la estructura real FEPCafé:
+Si ajustamos los costos simulados a la estructura de referencia del sector:
 
 | **Rubro** | **% Real** | **Valor ajustado (3 años)** |
 |---|---|---|
@@ -514,7 +514,7 @@ Los siguientes flujos requieren interacciones con **botones inline (callback_que
 |---|---|---|
 | El simulador no usa conversaciones FSM reales (usa SQL directo) | Limitación | Implementar emulación de callback_query para pruebas end-to-end |
 | Los costos MO se disparan vs benchmarks reales | Anomalía de datos | Revisar algoritmo de asignación de jornales por hectárea |
-| La estructura de costos no refleja los porcentajes FEPCafé | Anomalía de datos | Ajustar ponderadores de generación de costos en simulador |
+| La estructura de costos no refleja los porcentajes de referencia del sector | Anomalía de datos | Ajustar ponderadores de generación de costos en simulador |
 | Solo se probaron comandos GET del bot (no callbacks) | Limitación | Implementar pruebas con aiogram TestClient o un bot de prueba |
 | El bot usa ~112 MB en reposo | Observación | Monitorear fugas de memoria con cargas concurrentes |
 
@@ -578,7 +578,7 @@ Los siguientes flujos requieren interacciones con **botones inline (callback_que
 5. **Gestión financiera:**
    - El margen de 5.68% es frágil — la finca necesita un fondo de estabilización
    - Para 2023 se requirió capital de trabajo de ~$212M — evaluar acceso a líneas de crédito FINAGRO
-   - Considerar esquemas de cobertura de precio (FNC ofrece instrumentos de protección)
+   - Considerar esquemas de cobertura de precio (el sector ofrece instrumentos de protección)
 
 ### 11.2 Mejoras Técnicas Propuestas para el Bot
 
@@ -636,7 +636,7 @@ La finca "Finca La Esperanza" presenta un perfil típico de una explotación caf
 
 **🔵 Calificación global: 3.29/5 ⭐⭐⭐**
 
-El Bot Asistente de Costos para Caficultores es una herramienta **funcional y técnicamente sólida** en su implementación, con buena arquitectura de código, manejo de estados FSM, y capacidades de exportación. Sin embargo, la simulación revela que **la generación de datos de costos no captura fielmente la realidad del caficultor colombiano**, particularmente en la distribución de costos por categoría. Una vez corregidos los bugs y ajustados los ponderadores de costos con base en los datos reales de la FEPCafé, la herramienta tendrá un valor inmenso para el caficultor como sistema de gestión financiera.
+El Bot Asistente de Costos para Caficultores es una herramienta **funcional y técnicamente sólida** en su implementación, con buena arquitectura de código, manejo de estados FSM, y capacidades de exportación. Sin embargo, la simulación revela que **la generación de datos de costos no captura fielmente la realidad del caficultor colombiano**, particularmente en la distribución de costos por categoría. Una vez corregidos los bugs y ajustados los ponderadores de costos con base en datos de referencia del sector, la herramienta tendrá un valor inmenso para el caficultor como sistema de gestión financiera.
 
 ---
 

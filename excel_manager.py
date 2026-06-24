@@ -1076,7 +1076,7 @@ class ExcelManager:
         """Llena la hoja 'Presupuesto' con planificación vs ejecución.
         
         Estructura:
-        A: Categoría | B: % FEPCafé | C: Monto Planificado | D: Monto Ejecutado 
+        A: Categoría | B: % Referencia del sector | C: Monto Planificado | D: Monto Ejecutado 
         | E: Diferencia | F: % Ejecución
         
         Usa colores: Verde si ejecutado <= planificado, Rojo si sobregiro.
@@ -1102,7 +1102,7 @@ class ExcelManager:
         RIGHT = Alignment(horizontal="right", vertical="center")
         LEFT = Alignment(horizontal="left", vertical="center")
 
-        # Estructura FEPCafé
+        # Estructura de costos del sector
         FEPCAFE = [
             ("recoleccion", "☕ Recolección", 54),
             ("fertilizacion", "🧪 Fertilización", 19),
@@ -1137,7 +1137,7 @@ class ExcelManager:
         ws.cell(row=1, column=1).alignment = Alignment(horizontal="center", vertical="center")
 
         # ─── Encabezados (fila 3) ───
-        headers = ["Categoría", "% FEPCafé", "Monto Planificado", "Monto Ejecutado", "Diferencia", "% Ejecución"]
+        headers = ["Categoría", "% Referencia", "Monto Planificado", "Monto Ejecutado", "Diferencia", "% Ejecución"]
         col_widths = [30, 12, 20, 20, 20, 15]
         for col_idx, (header, width) in enumerate(zip(headers, col_widths), 1):
             cell = ws.cell(row=3, column=col_idx, value=header)
@@ -1329,7 +1329,7 @@ class ExcelManager:
         cell.alignment = Alignment(horizontal="center", vertical="center")
 
         # ─── Encabezados (fila 3) ───
-        headers = ["Indicador", "Valor", "Unidad", "Referencia FNC"]
+        headers = ["Indicador", "Valor", "Unidad", "Referencia del sector"]
         col_widths = [35, 25, 15, 20]
         for col_idx, (header, width) in enumerate(zip(headers, col_widths), 1):
             cell = ws.cell(row=3, column=col_idx, value=header)

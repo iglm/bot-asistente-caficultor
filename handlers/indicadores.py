@@ -1,7 +1,7 @@
 """
 Handler de /indicadores — Indicadores Técnicos de Rendimiento.
 Calcula productividad, jornales/ha, costo/kg, margen/ha, etc.
-Basado en metodología FNC/CENICafé.
+Todos los indicadores se calculan exclusivamente con datos de la finca.
 """
 import logging
 from aiogram import Router, types, F
