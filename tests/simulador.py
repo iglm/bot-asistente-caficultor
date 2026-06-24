@@ -125,19 +125,19 @@ def db_query(sql: str, params: tuple = ()) -> list:
     return rows
 
 
-def db_count(table: str, condition: str = "") -> int:
+def db_count(table: str, condition: str = "", params: tuple = ()) -> int:
     """Cuenta registros en una tabla.
-    condition: e.g., "WHERE categoria LIKE 'ingreso_%'"
+    condition: e.g., "WHERE categoria LIKE ?"
     """
     sql = f"SELECT COUNT(*) as cnt FROM {table} {condition}"
-    rows = db_query(sql)
+    rows = db_query(sql, params)
     return rows[0]["cnt"] if rows else 0
 
 
-def db_sum(table: str, column: str, condition: str = "") -> float:
+def db_sum(table: str, column: str, condition: str = "", params: tuple = ()) -> float:
     """Suma valores de una columna."""
     sql = f"SELECT COALESCE(SUM({column}), 0) as total FROM {table} {condition}"
-    rows = db_query(sql)
+    rows = db_query(sql, params)
     return rows[0]["total"] if rows else 0
 
 
@@ -356,8 +356,8 @@ class Simulador:
 
         # Mostrar resumen por año
         for año in [2023, 2024, 2025]:
-            cnt = db_count("transacciones", f"WHERE categoria LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
-            total = db_sum("transacciones", "valor_total", f"WHERE categoria LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
+            cnt = db_count("transacciones", "WHERE categoria LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
+            total = db_sum("transacciones", "valor_total", "WHERE categoria LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
             self.log(f"      📊 {año}: {cnt} ingresos, {format_pesos(total)}")
 
     # ── Fase 5: Crear 250 costos ──────────────────────────────────
@@ -447,11 +447,11 @@ class Simulador:
         self.log("   📊 Desglose por categoría:")
         for cat in categorias:
             cat_mo, cat_ins = CAT_MAIN[cat]
-            cnt_mo = db_count("transacciones", f"WHERE categoria='{cat_mo}'")
-            total_mo = db_sum("transacciones", "valor_total", f"WHERE categoria='{cat_mo}'")
+            cnt_mo = db_count("transacciones", "WHERE categoria = ?", (cat_mo,))
+            total_mo = db_sum("transacciones", "valor_total", "WHERE categoria = ?", (cat_mo,))
             if cat_ins:
-                cnt_ins = db_count("transacciones", f"WHERE categoria='{cat_ins}'")
-                total_ins = db_sum("transacciones", "valor_total", f"WHERE categoria='{cat_ins}'")
+                cnt_ins = db_count("transacciones", "WHERE categoria = ?", (cat_ins,))
+                total_ins = db_sum("transacciones", "valor_total", "WHERE categoria = ?", (cat_ins,))
                 cnt_total = cnt_mo + cnt_ins
                 total_cat = total_mo + total_ins
                 self.log(f"      {cat}: {cnt_total} registros ({cnt_mo} MO + {cnt_ins} ins), {format_pesos(total_cat)}")
@@ -548,10 +548,10 @@ class Simulador:
                 self.errores.append(f"DB check: {label} → {count} < {expected}")
 
         # Totales financieros
-        total_ingresos = db_sum("transacciones", "valor_total", "WHERE categoria LIKE 'ingreso_%'")
-        total_costos = db_sum("transacciones", "valor_total", "WHERE categoria NOT LIKE 'ingreso_%'")
+        total_ingresos = db_sum("transacciones", "valor_total", "WHERE categoria LIKE ?", ("ingreso_%",))
+        total_costos = db_sum("transacciones", "valor_total", "WHERE categoria NOT LIKE ?", ("ingreso_%",))
         margen = total_ingresos - total_costos
-        area_total = db_sum("lotes", "area_hectareas", f"WHERE finca_id={self.finca_id}") if self.finca_id else 0
+        area_total = db_sum("lotes", "area_hectareas", "WHERE finca_id = ?", (self.finca_id,)) if self.finca_id else 0
 
         self.log(f"   💰 Total ingresos: {format_pesos(total_ingresos)}")
         self.log(f"   💸 Total costos: {format_pesos(total_costos)}")
@@ -622,8 +622,8 @@ class Simulador:
             stats = {}
 
         total_tx = db_count("transacciones")
-        ingresos_count = db_count("transacciones", "WHERE categoria LIKE 'ingreso_%'")
-        costos_count = db_count("transacciones", "WHERE categoria NOT LIKE 'ingreso_%'")
+        ingresos_count = db_count("transacciones", "WHERE categoria LIKE ?", ("ingreso_%",))
+        costos_count = db_count("transacciones", "WHERE categoria NOT LIKE ?", ("ingreso_%",))
         lotes_count = db_count("lotes")
 
         total_ingresos = stats.get("total_ingresos", 0)
@@ -643,16 +643,16 @@ class Simulador:
         # Desglose por año de ingresos
         ingresos_por_año = {}
         for año in [2023, 2024, 2025]:
-            cnt = db_count("transacciones", f"WHERE categoria LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
-            total = db_sum("transacciones", "valor_total", f"WHERE categoria LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
+            cnt = db_count("transacciones", "WHERE categoria LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
+            total = db_sum("transacciones", "valor_total", "WHERE categoria LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
             if cnt > 0:
                 ingresos_por_año[año] = {"cnt": cnt, "total": total}
 
         # Desglose por año de costos
         costos_por_año = {}
         for año in [2023, 2024, 2025]:
-            cnt = db_count("transacciones", f"WHERE categoria NOT LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
-            total = db_sum("transacciones", "valor_total", f"WHERE categoria NOT LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
+            cnt = db_count("transacciones", "WHERE categoria NOT LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
+            total = db_sum("transacciones", "valor_total", "WHERE categoria NOT LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
             if cnt > 0:
                 costos_por_año[año] = {"cnt": cnt, "total": total}
 

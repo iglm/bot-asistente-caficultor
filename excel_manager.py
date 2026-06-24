@@ -12,7 +12,6 @@ import shutil
 import logging
 from copy import copy
 from datetime import datetime
-from typing import Optional
 
 import openpyxl
 from openpyxl.chart import BarChart, PieChart, LineChart, Reference

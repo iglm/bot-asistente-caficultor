@@ -359,26 +359,26 @@ def db_query(sql: str, params: tuple = ()) -> list:
         conn.close()
 
 
-def db_count(table: str = "transacciones", condition: str = "") -> int:
+def db_count(table: str = "transacciones", condition: str = "", params: tuple = ()) -> int:
     """Contar registros en una tabla."""
     if condition and not condition.startswith("WHERE") and not condition.startswith("FROM"):
         condition = f"WHERE {condition}"
     sql = f"SELECT COUNT(*) as cnt FROM {table} {condition}"
-    rows = db_query(sql)
+    rows = db_query(sql, params)
     return rows[0]["cnt"] if rows else 0
 
 
-def db_count_where(condition: str = "") -> int:
+def db_count_where(condition: str = "", params: tuple = ()) -> int:
     """Contar transacciones con condición WHERE."""
     if condition and not condition.startswith("WHERE"):
         condition = f"WHERE {condition}"
-    return db_count("transacciones", condition)
+    return db_count("transacciones", condition, params)
 
 
-def db_sum(column: str = "valor_total", condition: str = "") -> float:
+def db_sum(column: str = "valor_total", condition: str = "", params: tuple = ()) -> float:
     """Sumar valores."""
     sql = f"SELECT COALESCE(SUM({column}), 0) as total FROM transacciones {condition}"
-    rows = db_query(sql)
+    rows = db_query(sql, params)
     return rows[0]["total"] if rows else 0
 
 
@@ -711,10 +711,10 @@ class SimuladorCaficultor:
 
         # Resumen por año
         for año in [2023, 2024, 2025]:
-            cnt = db_count_where(f"categoria LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
-            total = db_sum("valor_total", f"WHERE categoria LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
-            cps = db_sum("valor_total", f"WHERE categoria='ingreso_cps' AND fecha LIKE '{año}-%'")
-            pas = db_sum("valor_total", f"WHERE categoria='ingreso_pasilla' AND fecha LIKE '{año}-%'")
+            cnt = db_count_where("categoria LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
+            total = db_sum("valor_total", "WHERE categoria LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
+            cps = db_sum("valor_total", "WHERE categoria=? AND fecha LIKE ?", ("ingreso_cps", f"{año}-%"))
+            pas = db_sum("valor_total", "WHERE categoria=? AND fecha LIKE ?", ("ingreso_pasilla", f"{año}-%"))
             log_money(f"   {año}: {cnt} ventas, total {format_pesos(total)} "
                       f"(CPS: {format_pesos(cps)}, Pasilla: {format_pesos(pas)})")
 
@@ -1034,8 +1034,8 @@ class SimuladorCaficultor:
         ]
 
         total_tx = db_count()
-        total_ing = db_sum("valor_total", "WHERE categoria LIKE 'ingreso_%'")
-        total_egr = db_sum("valor_total", "WHERE categoria NOT LIKE 'ingreso_%'")
+        total_ing = db_sum("valor_total", "WHERE categoria LIKE ?", ("ingreso_%",))
+        total_egr = db_sum("valor_total", "WHERE categoria NOT LIKE ?", ("ingreso_%",))
         margen = total_ing - total_egr
 
         area_total = sum(l[1] for l in LOTES_DATA)
@@ -1051,8 +1051,8 @@ class SimuladorCaficultor:
 
         log_info(f"   Categorías de transacciones:")
         for cat in categorias_check:
-            cnt = db_count_where(f"categoria='{cat}'")
-            total = db_sum("valor_total", f"WHERE categoria='{cat}'")
+            cnt = db_count_where("categoria=?", (cat,))
+            total = db_sum("valor_total", "WHERE categoria=?", (cat,))
             if cnt > 0:
                 log_info(f"      ✅ {cat}: {cnt} registros, {format_pesos(total)}")
             else:
@@ -1075,11 +1075,11 @@ class SimuladorCaficultor:
         log_separator()
         for año in [2023, 2024, 2025]:
             ing_anual = db_sum("valor_total",
-                               f"WHERE categoria LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
+                               "WHERE categoria LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
             egr_anual = db_sum("valor_total",
-                               f"WHERE categoria NOT LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
-            cnt_ing = db_count_where(f"categoria LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
-            cnt_egr = db_count_where(f"categoria NOT LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
+                               "WHERE categoria NOT LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
+            cnt_ing = db_count_where("categoria LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
+            cnt_egr = db_count_where("categoria NOT LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
             margen_anual = ing_anual - egr_anual
             log_money(f"   {año}:")
             log_money(f"      Ingresos: {format_pesos(ing_anual)} ({cnt_ing} transacciones)")
@@ -1104,8 +1104,8 @@ class SimuladorCaficultor:
             "total_egresos": total_egr,
             "margen": margen,
             "area_total": area_total,
-            "ingresos_count": db_count_where("categoria LIKE 'ingreso_%'"),
-            "costos_count": db_count_where("categoria NOT LIKE 'ingreso_%'"),
+            "ingresos_count": db_count_where("categoria LIKE ?", ("ingreso_%",)),
+            "costos_count": db_count_where("categoria NOT LIKE ?", ("ingreso_%",)),
         }
 
     def generar_informe_resumen(self, stats=None):

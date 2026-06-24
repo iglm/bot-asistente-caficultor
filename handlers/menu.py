@@ -9,7 +9,7 @@ from aiogram.fsm.context import FSMContext
 
 from database import Database
 from config import ADMIN_IDS
-from utils import boton_menu, agregar_boton_menu
+from utils import boton_menu, agregar_boton_menu, construir_menu_principal
 
 logger = logging.getLogger(__name__)
 
@@ -45,42 +45,7 @@ def get_menu_router(db: Database) -> Router:
             return
 
         # Menú principal para usuarios aprobados
-        keyboard = types.InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    types.InlineKeyboardButton(text="🏠 Fincas", callback_data="menu_fincas"),
-                    types.InlineKeyboardButton(text="🌱 Lotes", callback_data="menu_lotes"),
-                ],
-                [
-                    types.InlineKeyboardButton(text="💰 Ingresos", callback_data="menu_ingresos"),
-                    types.InlineKeyboardButton(text="📉 Costos", callback_data="menu_costos"),
-                ],
-                [
-                    types.InlineKeyboardButton(text="📊 Resumen", callback_data="menu_resumen"),
-                    types.InlineKeyboardButton(text="📈 Indicadores", callback_data="menu_indicadores"),
-                ],
-                [
-                    types.InlineKeyboardButton(text="📋 Exportar Excel", callback_data="menu_excel"),
-                    types.InlineKeyboardButton(text="📄 Exportar PDF", callback_data="menu_pdf"),
-                ],
-                [
-                    types.InlineKeyboardButton(text="📊 Dashboard", callback_data="menu_dashboard"),
-                    types.InlineKeyboardButton(text="📊 Filtrar", callback_data="menu_filtrar"),
-                ],
-                [
-                    types.InlineKeyboardButton(text="📥 Importar Excel", callback_data="menu_importar"),
-                    types.InlineKeyboardButton(text="🗑️ Borrar datos", callback_data="ir_borrar"),
-                ],
-                [
-                    types.InlineKeyboardButton(text="❓ Ayuda", callback_data="menu_ayuda"),
-                ],
-            ]
-        )
-
-        if is_admin:
-            keyboard.inline_keyboard.append([
-                types.InlineKeyboardButton(text="🔧 Admin", callback_data="ir_admin"),
-            ])
+        keyboard = construir_menu_principal(is_admin=is_admin)
 
         await event.answer(
             "☕ <b>Asistente de Costos</b>\n\n"
@@ -244,42 +209,7 @@ def get_menu_router(db: Database) -> Router:
             )
             return
 
-        keyboard = types.InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    types.InlineKeyboardButton(text="🏠 Fincas", callback_data="menu_fincas"),
-                    types.InlineKeyboardButton(text="🌱 Lotes", callback_data="menu_lotes"),
-                ],
-                [
-                    types.InlineKeyboardButton(text="💰 Ingresos", callback_data="menu_ingresos"),
-                    types.InlineKeyboardButton(text="📉 Costos", callback_data="menu_costos"),
-                ],
-                [
-                    types.InlineKeyboardButton(text="📊 Resumen", callback_data="menu_resumen"),
-                    types.InlineKeyboardButton(text="📈 Indicadores", callback_data="menu_indicadores"),
-                ],
-                [
-                    types.InlineKeyboardButton(text="📋 Exportar Excel", callback_data="menu_excel"),
-                    types.InlineKeyboardButton(text="📄 Exportar PDF", callback_data="menu_pdf"),
-                ],
-                [
-                    types.InlineKeyboardButton(text="📊 Dashboard", callback_data="menu_dashboard"),
-                    types.InlineKeyboardButton(text="📊 Filtrar", callback_data="menu_filtrar"),
-                ],
-                [
-                    types.InlineKeyboardButton(text="📥 Importar Excel", callback_data="menu_importar"),
-                    types.InlineKeyboardButton(text="🗑️ Borrar datos", callback_data="ir_borrar"),
-                ],
-                [
-                    types.InlineKeyboardButton(text="❓ Ayuda", callback_data="menu_ayuda"),
-                ],
-            ]
-        )
-
-        if is_admin:
-            keyboard.inline_keyboard.append([
-                types.InlineKeyboardButton(text="🔧 Admin", callback_data="ir_admin"),
-            ])
+        keyboard = construir_menu_principal(is_admin=is_admin)
 
         await callback.message.answer(
             "☕ <b>Asistente de Costos</b>\n\n"

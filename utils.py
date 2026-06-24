@@ -8,6 +8,7 @@ El usuario NUNCA debe quedarse sin opción de escape visible.
 from datetime import datetime, timedelta
 
 from aiogram import types
+from database import Database
 
 
 def fecha_hoy() -> str:
@@ -79,3 +80,53 @@ def agregar_menu_cancelar(keyboard):
         types.InlineKeyboardButton(text="🏠 Menú Principal", callback_data="volver_menu"),
     ])
     return keyboard
+
+
+def construir_menu_principal(db=None, user_id=None, is_admin=False):
+    """Retorna teclado del menú principal.
+
+    Args:
+        db: Instancia de Database (opcional, para verificar estado del usuario)
+        user_id: ID del usuario (obligatorio si se pasa db)
+        is_admin: Si el usuario es administrador (opcional, tiene prioridad)
+    """
+    if db is not None and user_id is not None:
+        is_admin = is_admin or (user_id in __import__("config").ADMIN_IDS)
+
+    kb = types.InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                types.InlineKeyboardButton(text="🗺️ Fincas", callback_data="menu_fincas"),
+                types.InlineKeyboardButton(text="🌱 Lotes", callback_data="menu_lotes"),
+            ],
+            [
+                types.InlineKeyboardButton(text="💰 Ingresos", callback_data="menu_ingresos"),
+                types.InlineKeyboardButton(text="📉 Costos", callback_data="menu_costos"),
+            ],
+            [
+                types.InlineKeyboardButton(text="📊 Resumen", callback_data="menu_resumen"),
+                types.InlineKeyboardButton(text="📈 Indicadores", callback_data="menu_indicadores"),
+            ],
+            [
+                types.InlineKeyboardButton(text="📋 Exportar Excel", callback_data="menu_excel"),
+                types.InlineKeyboardButton(text="📄 Exportar PDF", callback_data="menu_pdf"),
+            ],
+            [
+                types.InlineKeyboardButton(text="📊 Dashboard", callback_data="menu_dashboard"),
+            ],
+            [
+                types.InlineKeyboardButton(text="📥 Importar Excel", callback_data="menu_importar"),
+                types.InlineKeyboardButton(text="🗑️ Borrar datos", callback_data="ir_borrar"),
+            ],
+            [
+                types.InlineKeyboardButton(text="❓ Ayuda", callback_data="menu_ayuda"),
+            ],
+        ]
+    )
+
+    if is_admin:
+        kb.inline_keyboard.append([
+            types.InlineKeyboardButton(text="🔧 Admin", callback_data="ir_admin"),
+        ])
+
+    return kb

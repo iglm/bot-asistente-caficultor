@@ -7,32 +7,16 @@ from aiogram.filters import CommandStart
 
 from database import Database
 from config import ADMIN_IDS, BOT_NAME, NOTIFICATION_GROUP_ID
-from utils import boton_menu
+from utils import boton_menu, construir_menu_principal
 
 logger = logging.getLogger(__name__)
 
 
 async def mostrar_menu_principal(message: types.Message):
     """Muestra el menú principal del bot."""
-    keyboard = types.InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                types.InlineKeyboardButton(text="🗺️ Fincas", callback_data="menu_fincas"),
-                types.InlineKeyboardButton(text="🌱 Lotes", callback_data="menu_lotes"),
-            ],
-            [
-                types.InlineKeyboardButton(text="💰 Ingresos", callback_data="menu_ingresos"),
-                types.InlineKeyboardButton(text="📉 Costos", callback_data="menu_costos"),
-            ],
-            [
-                types.InlineKeyboardButton(text="📊 Resumen", callback_data="menu_resumen"),
-                types.InlineKeyboardButton(text="📋 Exportar Excel", callback_data="menu_excel"),
-            ],
-            [
-                types.InlineKeyboardButton(text="❓ Ayuda", callback_data="menu_ayuda"),
-            ],
-        ]
-    )
+    user_id = message.from_user.id
+    is_admin = user_id in ADMIN_IDS
+    keyboard = construir_menu_principal(is_admin=is_admin)
 
     await message.answer(
         "☕ <b>¡Bienvenido al Asistente Caficultor!</b> 🌱\n\n"

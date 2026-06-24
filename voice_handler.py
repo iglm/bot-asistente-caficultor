@@ -9,12 +9,9 @@ Flujo:
     Parser extrae datos → Muestra resumen → Usuario confirma → Guarda en DB
 """
 
-import json
 import logging
 import os
 import re
-import tempfile
-from pathlib import Path
 from typing import Optional
 
 from aiogram import types

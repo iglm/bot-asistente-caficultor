@@ -291,8 +291,4 @@ def get_voice_router(db: Database) -> Router:
         )
         await state.clear()
 
-    # ────────────────────────────────────────────────────────────
-    # CANCELAR desde selector de finca (NO HAY BOTÓN — reservado)
-    # ────────────────────────────────────────────────────────────
-
     return router

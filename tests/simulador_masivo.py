@@ -240,21 +240,21 @@ def db_query(sql: str, params: tuple = ()) -> list:
     finally:
         conn.close()
 
-def db_count(table: str = "transacciones", condition: str = "") -> int:
+def db_count(table: str = "transacciones", condition: str = "", params: tuple = ()) -> int:
     if condition and not condition.startswith("WHERE") and not condition.startswith("FROM"):
         condition = f"WHERE {condition}"
     sql = f"SELECT COUNT(*) as cnt FROM {table} {condition}"
-    rows = db_query(sql)
+    rows = db_query(sql, params)
     return rows[0]["cnt"] if rows else 0
 
-def db_count_where(condition: str = "") -> int:
+def db_count_where(condition: str = "", params: tuple = ()) -> int:
     if condition and not condition.startswith("WHERE"):
         condition = f"WHERE {condition}"
-    return db_count("transacciones", condition)
+    return db_count("transacciones", condition, params)
 
-def db_sum(column: str = "valor_total", condition: str = "") -> float:
+def db_sum(column: str = "valor_total", condition: str = "", params: tuple = ()) -> float:
     sql = f"SELECT COALESCE(SUM({column}), 0) as total FROM transacciones {condition}"
-    rows = db_query(sql)
+    rows = db_query(sql, params)
     return rows[0]["total"] if rows else 0
 
 def format_pesos(valor: float) -> str:
@@ -547,8 +547,8 @@ class SimuladorMasivo:
         log_ok(f"{ingresos_creados} ingresos creados")
 
         for año in [2023, 2024, 2025]:
-            cnt = db_count_where(f"categoria LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
-            total = db_sum("valor_total", f"WHERE categoria LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
+            cnt = db_count_where("categoria LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
+            total = db_sum("valor_total", "WHERE categoria LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
             log_money(f"   {año}: {cnt} ventas, total {format_pesos(total)}")
 
     # ── Fase 5: Costos masivos (270+) ──────────────────────────────────
@@ -924,8 +924,8 @@ class SimuladorMasivo:
         log_step("Verificando integridad de datos generados...")
 
         total_tx = db_count()
-        total_ing = db_sum("valor_total", "WHERE categoria LIKE 'ingreso_%'")
-        total_egr = db_sum("valor_total", "WHERE categoria NOT LIKE 'ingreso_%'")
+        total_ing = db_sum("valor_total", "WHERE categoria LIKE ?", ("ingreso_%",))
+        total_egr = db_sum("valor_total", "WHERE categoria NOT LIKE ?", ("ingreso_%",))
         margen = total_ing - total_egr
         area_total = sum(l[1] for l in LOTES_DATA)
 
@@ -949,8 +949,8 @@ class SimuladorMasivo:
             ("Fincas", db_count("fincas")),
             ("Lotes", db_count("lotes")),
             ("Transacciones totales", total_tx),
-            ("Ingresos", db_count_where("categoria LIKE 'ingreso_%'")),
-            ("Costos", db_count_where("categoria NOT LIKE 'ingreso_%'")),
+            ("Ingresos", db_count_where("categoria LIKE ?", ("ingreso_%",))),
+            ("Costos", db_count_where("categoria NOT LIKE ?", ("ingreso_%",))),
         ]
         for label, count in checks:
             status = "✅" if count > 0 else "❌"
@@ -958,8 +958,8 @@ class SimuladorMasivo:
 
         log_info(f"   Categorías de transacciones:")
         for cat in categorias_check:
-            cnt = db_count_where(f"categoria='{cat}'")
-            total = db_sum("valor_total", f"WHERE categoria='{cat}'")
+            cnt = db_count_where("categoria=?", (cat,))
+            total = db_sum("valor_total", "WHERE categoria=?", (cat,))
             if cnt > 0:
                 pct = (total / total_egr * 100) if total_egr > 0 else 0
                 log_info(f"      ✅ {cat}: {cnt} registros, {format_pesos(total)} ({pct:.1f}%)")
@@ -997,12 +997,12 @@ class SimuladorMasivo:
         for cat, target_pct in targets.items():
             # Sumar MO + Insumos para categorías compuestas
             if cat in ("recoleccion", "administrativo"):
-                total_cat = db_sum("valor_total", f"WHERE categoria='{cat}'")
+                total_cat = db_sum("valor_total", "WHERE categoria=?", (cat,))
             elif cat == "beneficio":
-                total_cat = db_sum("valor_total", f"WHERE categoria='{cat}'")
+                total_cat = db_sum("valor_total", "WHERE categoria=?", (cat,))
             else:
-                total_cat = db_sum("valor_total", f"WHERE categoria='{cat}_mo'")
-                total_cat += db_sum("valor_total", f"WHERE categoria='{cat}_insumos'")
+                total_cat = db_sum("valor_total", "WHERE categoria=?", (f"{cat}_mo",))
+                total_cat += db_sum("valor_total", "WHERE categoria=?", (f"{cat}_insumos",))
             pct_real = (total_cat / total_egr * 100) if total_egr > 0 else 0
             diff = pct_real - (target_pct * 100)
             icon = "✅" if abs(diff) < 3 else ("⚠️" if abs(diff) < 6 else "❌")
@@ -1014,11 +1014,11 @@ class SimuladorMasivo:
         log_separator()
         for año in [2023, 2024, 2025]:
             ing_anual = db_sum("valor_total",
-                               f"WHERE categoria LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
+                               "WHERE categoria LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
             egr_anual = db_sum("valor_total",
-                               f"WHERE categoria NOT LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
-            cnt_ing = db_count_where(f"categoria LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
-            cnt_egr = db_count_where(f"categoria NOT LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
+                               "WHERE categoria NOT LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
+            cnt_ing = db_count_where("categoria LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
+            cnt_egr = db_count_where("categoria NOT LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
             margen_anual = ing_anual - egr_anual
             log_money(f"   {año}:")
             log_money(f"      Ingresos: {format_pesos(ing_anual)} ({cnt_ing} transacciones)")
@@ -1196,12 +1196,12 @@ class SimuladorMasivo:
         }
         for cat_key, (cat_name, target_pct) in targets.items():
             if cat_key in ("recoleccion", "administrativo"):
-                total_cat = db_sum("valor_total", f"WHERE categoria='{cat_key}'")
+                total_cat = db_sum("valor_total", "WHERE categoria=?", (cat_key,))
             elif cat_key == "beneficio":
-                total_cat = db_sum("valor_total", f"WHERE categoria='{cat_key}'")
+                total_cat = db_sum("valor_total", "WHERE categoria=?", (cat_key,))
             else:
-                total_cat = db_sum("valor_total", f"WHERE categoria='{cat_key}_mo'")
-                total_cat += db_sum("valor_total", f"WHERE categoria='{cat_key}_insumos'")
+                total_cat = db_sum("valor_total", "WHERE categoria=?", (f"{cat_key}_mo",))
+                total_cat += db_sum("valor_total", "WHERE categoria=?", (f"{cat_key}_insumos",))
             pct_real = (total_cat / total_egr * 100) if total_egr > 0 else 0
             diff = pct_real - (target_pct * 100)
             estado = "✅" if abs(diff) < 3 else ("⚠️" if abs(diff) < 6 else "❌")
@@ -1214,10 +1214,10 @@ class SimuladorMasivo:
         lines.append(f"| Año | Ingresos | Egresos | Margen | Tx Ingreso | Tx Costo |")
         lines.append(f"|-----|----------|---------|--------|------------|----------|")
         for año in [2023, 2024, 2025]:
-            ing_a = db_sum("valor_total", f"WHERE categoria LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
-            egr_a = db_sum("valor_total", f"WHERE categoria NOT LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
-            cnt_i = db_count_where(f"categoria LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
-            cnt_e = db_count_where(f"categoria NOT LIKE 'ingreso_%' AND fecha LIKE '{año}-%'")
+            ing_a = db_sum("valor_total", "WHERE categoria LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
+            egr_a = db_sum("valor_total", "WHERE categoria NOT LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
+            cnt_i = db_count_where("categoria LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
+            cnt_e = db_count_where("categoria NOT LIKE ? AND fecha LIKE ?", ("ingreso_%", f"{año}-%"))
             marg_a = ing_a - egr_a
             lines.append(f"| {año} | ${ing_a:,.0f} | ${egr_a:,.0f} | ${marg_a:,.0f} | {cnt_i} | {cnt_e} |")
         lines.append(f"")
@@ -1247,8 +1247,8 @@ class SimuladorMasivo:
             ("administrativo", "Administrativo", False),
         ]
         for cat_key, cat_label, is_income in categorias:
-            cnt = db_count_where(f"categoria='{cat_key}'")
-            val = db_sum("valor_total", f"WHERE categoria='{cat_key}'")
+            cnt = db_count_where("categoria=?", (cat_key,))
+            val = db_sum("valor_total", "WHERE categoria=?", (cat_key,))
             icon = "💰" if is_income else "📉"
             lines.append(f"| {icon} {cat_label} | {cnt} | ${val:,.0f} |")
         lines.append(f"")

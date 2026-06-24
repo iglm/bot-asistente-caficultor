@@ -563,7 +563,7 @@ def get_presupuesto_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data.startswith("presup_consultar_anio:"))
-    async def presup_consultar_mostrar(callback: types.CallbackQuery, state: FSMContext):
+    async def presup_consultar_anio(callback: types.CallbackQuery, state: FSMContext):
         """Muestra el presupuesto planificado."""
         await callback.answer()
         anio = int(callback.data.split(":")[1])
@@ -687,7 +687,7 @@ def get_presupuesto_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data.startswith("presup_ejecutar_anio:"))
-    async def presup_ejecutar_mostrar(callback: types.CallbackQuery, state: FSMContext):
+    async def presup_ejecutar_anio(callback: types.CallbackQuery, state: FSMContext):
         """Muestra la comparación de ejecución presupuestal."""
         await callback.answer()
         anio = int(callback.data.split(":")[1])

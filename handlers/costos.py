@@ -14,8 +14,9 @@ from utils import boton_menu, botones_menu_cancelar, agregar_boton_menu, agregar
 
 logger = logging.getLogger(__name__)
 
-# Botón de cancelar reutilizable
-CANCEL_KB = botones_menu_cancelar()
+# Botón de cancelar reutilizable como función (evita constante mutable)
+def cancel_keyboard():
+    return botones_menu_cancelar()
 
 
 class CostoForm(StatesGroup):
