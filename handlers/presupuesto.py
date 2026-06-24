@@ -22,9 +22,6 @@ class PresupuestoStates(StatesGroup):
     esperando_anio = State()
     esperando_area = State()
     editando_categoria = State()
-    confirmar_guardado = State()
-    consultar_anio = State()
-    ejecucion_anio = State()
 
 # ─── Estructura FEPCafé 2024 ───
 
@@ -837,7 +834,7 @@ def get_presupuesto_router(db: Database) -> Router:
         """Genera y envía el Excel con la hoja Presupuesto."""
         await callback.answer()
         anio = int(callback.data.split(":")[1])
-        data = await state.get_data() if False else {}
+        data = await state.get_data()
         
         # Extraer finca_id del callback context
         # Re-obtener finca_id desde el mensaje original

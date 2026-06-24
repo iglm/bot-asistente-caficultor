@@ -1129,7 +1129,8 @@ class ExcelManager:
 
         # ─── Título ───
         ws.merge_cells("A1:F1")
-        ws.cell(row=1, column=1, value=f"Presupuesto {anio}", font=FONT_TITLE)
+        cell = ws.cell(row=1, column=1, value=f"Presupuesto {anio}")
+        cell.font = FONT_TITLE
         ws.cell(row=1, column=1).alignment = Alignment(horizontal="center", vertical="center")
 
         # ─── Encabezados (fila 3) ───

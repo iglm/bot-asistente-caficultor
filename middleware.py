@@ -18,7 +18,7 @@ class CancelMiddleware(BaseMiddleware):
     garantizando que el menú tenga prioridad absoluta sobre cualquier FSM.
     """
     
-    COMMANDS = {"/menu", "/cancelar", "/start", "/ayuda", "/", "/excel", "/fincas", "/lotes", "/ingreso", "/costo", "/resumen", "/usuarios"}
+    COMMANDS = {"/menu", "/cancelar", "/start", "/ayuda", "/", "/excel", "/fincas", "/lotes", "/ingreso", "/costo", "/resumen", "/usuarios", "/presupuesto"}
     
     async def __call__(
         self,

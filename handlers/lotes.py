@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 
 class LoteForm(StatesGroup):
-    esperando_finca = State()
     esperando_nombre = State()
     esperando_area = State()
     esperando_arboles = State()

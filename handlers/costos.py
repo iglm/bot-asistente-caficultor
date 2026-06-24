@@ -27,14 +27,12 @@ class CostoForm(StatesGroup):
     esperando_cantidad = State()
     esperando_valor_unitario = State()
     esperando_valor_total = State()
-    esperando_agregar_insumos = State()
     esperando_producto = State()
     esperando_cantidad_insumo = State()
     esperando_valor_unitario_insumo = State()
     esperando_valor_total_insumo = State()
     esperando_confirmar_mo = State()
     esperando_confirmar_insumo = State()
-    esperando_mas_insumos = State()
 
 
 async def mostrar_categorias_costos(message: types.Message, state: FSMContext, edit: bool = False):
