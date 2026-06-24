@@ -22,6 +22,7 @@ class CostoForm(StatesGroup):
     esperando_finca = State()
     esperando_lote = State()
     esperando_categoria = State()
+    esperando_tipo = State()  # MO / Insumos / Ambos — visible desde el principio
     esperando_fecha = State()
     esperando_labor = State()
     esperando_cantidad = State()
@@ -81,6 +82,58 @@ async def mostrar_categorias_costos(message: types.Message, state: FSMContext, e
         await message.answer(texto, parse_mode="HTML", reply_markup=keyboard)
 
     await state.set_state(CostoForm.esperando_categoria)
+
+
+def _tiene_insumos(cat_key: str) -> bool:
+    """Retorna True si la categoría soporta tanto MO como Insumos."""
+    return cat_key in CATEGORIAS_PADRE and "insumos" in CATEGORIAS_PADRE[cat_key]
+
+
+async def mostrar_seleccion_tipo_costo(message: types.Message, state: FSMContext, edit: bool = False):
+    """
+    Muestra las opciones principales: MO, Insumos o Ambos.
+    Esto reemplaza el viejo submenú oculto de '¿MO o Insumos?'.
+    """
+    data = await state.get_data()
+    cat_key = data.get("cat_key", "")
+    cat_info = CATEGORIAS_PADRE.get(cat_key, {})
+    cat_nombre = cat_info.get("nombre", cat_key)
+
+    keyboard = types.InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                types.InlineKeyboardButton(text="👷 Mano de Obra", callback_data="registrar_mo"),
+                types.InlineKeyboardButton(text="🧪 Insumos", callback_data="registrar_insumos"),
+            ],
+            [
+                types.InlineKeyboardButton(text="👷🧪 Ambos (MO + Insumos)", callback_data="registrar_ambos"),
+            ],
+            [
+                types.InlineKeyboardButton(text="❌ Cancelar", callback_data="cancelar_operacion"),
+            ],
+            [
+                types.InlineKeyboardButton(text="🏠 Menú Principal", callback_data="volver_menu"),
+            ],
+        ]
+    )
+
+    texto = (
+        f"📉 <b>Registrar Costo — {cat_nombre}</b>\n\n"
+        f"¿Qué querés registrar?\n\n"
+        f"👷 <b>Mano de Obra</b> — Jornales, horas, valor día\n"
+        f"🧪 <b>Insumos</b> — Productos, cantidades, valores\n"
+        f"👷🧪 <b>Ambos</b> — Registrar MO e Insumos juntos"
+    )
+
+    if edit:
+        try:
+            await message.edit_text(texto, parse_mode="HTML", reply_markup=keyboard)
+        except Exception:
+            await message.answer(texto, parse_mode="HTML", reply_markup=keyboard)
+    else:
+        await message.answer(texto, parse_mode="HTML", reply_markup=keyboard)
+
+    await state.set_state(CostoForm.esperando_tipo)
 
 
 async def mostrar_lotes_costos(db: Database, message: types.Message, state: FSMContext, edit: bool = False):
@@ -485,6 +538,15 @@ def get_costos_router(db: Database) -> Router:
         data = await state.get_data()
         cat_key = data.get("cat_key", "")
 
+        # Si la categoría tiene MO e Insumos, mostrar selección de tipo
+        if _tiene_insumos(cat_key):
+            await message.answer(
+                f"✅ <b>Fecha:</b> {fecha_str}",
+                parse_mode="HTML",
+            )
+            await mostrar_seleccion_tipo_costo(message, state)
+            return
+
         if cat_key == "administrativo":
             await message.answer(
                 f"✅ <b>Fecha:</b> {fecha_str}\n\n"
@@ -522,6 +584,15 @@ def get_costos_router(db: Database) -> Router:
 
         data = await state.get_data()
         cat_key = data.get("cat_key", "")
+
+        # Si la categoría tiene MO e Insumos, mostrar selección de tipo
+        if _tiene_insumos(cat_key):
+            await callback.message.answer(
+                f"✅ <b>Fecha:</b> {fecha_str}",
+                parse_mode="HTML",
+            )
+            await mostrar_seleccion_tipo_costo(callback.message, state)
+            return
 
         if cat_key == "administrativo":
             await callback.message.answer(
@@ -592,6 +663,66 @@ def get_costos_router(db: Database) -> Router:
                 reply_markup=botones_menu_cancelar(),
             )
             await state.set_state(CostoForm.esperando_cantidad)
+
+    # ── SELECCIÓN DE TIPO: MO / Insumos / Ambos ────────────────────────
+
+    @router.callback_query(CostoForm.esperando_tipo, F.data == "registrar_mo")
+    async def registrar_mano_de_obra(callback: types.CallbackQuery, state: FSMContext):
+        """Flujo directo para mano de obra — sin submenús ocultos."""
+        await callback.answer()
+        data = await state.get_data()
+        cat_key = data.get("cat_key", "")
+        cat_info = CATEGORIAS_PADRE.get(cat_key, {})
+        cat_nombre = cat_info.get("nombre", cat_key)
+
+        await state.update_data(tipo_costo="mo")
+        await state.set_state(CostoForm.esperando_labor)
+        await callback.message.edit_text(
+            f"👷 <b>Mano de Obra — {cat_nombre}</b>\n\n"
+            "¿Qué labor realizaste?\n\n"
+            "<i>(Ej: Control de arvenses con machete, Aplicación de fertilizante)</i>",
+            parse_mode="HTML",
+            reply_markup=botones_menu_cancelar(),
+        )
+
+    @router.callback_query(CostoForm.esperando_tipo, F.data == "registrar_insumos")
+    async def registrar_insumos_handler(callback: types.CallbackQuery, state: FSMContext):
+        """Flujo directo para insumos — sin submenús ocultos."""
+        await callback.answer()
+        data = await state.get_data()
+        cat_key = data.get("cat_key", "")
+        cat_info = CATEGORIAS_PADRE.get(cat_key, {})
+        cat_nombre = cat_info.get("nombre", cat_key)
+
+        await state.update_data(tipo_costo="insumos")
+        await state.set_state(CostoForm.esperando_producto)
+        await callback.message.edit_text(
+            f"🧪 <b>Insumos — {cat_nombre}</b>\n\n"
+            "¿Qué producto usaste?\n\n"
+            "<i>(Ej: Glifosato, NPK 15-15-15, Fungicida cúprico)</i>",
+            parse_mode="HTML",
+            reply_markup=botones_menu_cancelar(),
+        )
+
+    @router.callback_query(CostoForm.esperando_tipo, F.data == "registrar_ambos")
+    async def registrar_ambos_handler(callback: types.CallbackQuery, state: FSMContext):
+        """Flujo combinado: primero MO, luego Insumos automáticamente."""
+        await callback.answer()
+        data = await state.get_data()
+        cat_key = data.get("cat_key", "")
+        cat_info = CATEGORIAS_PADRE.get(cat_key, {})
+        cat_nombre = cat_info.get("nombre", cat_key)
+
+        await state.update_data(tipo_costo="ambos", registrar_ambos=True)
+        await state.set_state(CostoForm.esperando_labor)
+        await callback.message.edit_text(
+            f"👷🧪 <b>Ambos — {cat_nombre}</b>\n\n"
+            "Primero registremos la <b>Mano de Obra</b>:\n\n"
+            "¿Qué labor realizaste?\n\n"
+            "<i>(Ej: Control de arvenses con machete)</i>",
+            parse_mode="HTML",
+            reply_markup=botones_menu_cancelar(),
+        )
 
     @router.message(CostoForm.esperando_cantidad, F.text)
     async def recibir_cantidad_costo(message: types.Message, state: FSMContext):
@@ -710,17 +841,21 @@ def get_costos_router(db: Database) -> Router:
                 f"💰 <b>Valor Total:</b> ${valor_total:,.0f}\n\n"
             )
 
-        # Preguntar si quiere agregar insumos (solo para categorías que los tienen)
-        if cat_key in CATEGORIAS_PADRE:
-            texto_resumen += "¿<b>Confirmas</b> esta Mano de Obra?\n\n¿Quieres agregar <b>insumos</b> también?"
+        # Preguntar confirmación según tipo de costo seleccionado
+        tipo_costo = data.get("tipo_costo", "")
+
+        if cat_key in CATEGORIAS_PADRE and _tiene_insumos(cat_key):
+            # Categoría con MO e Insumos — mostrar acción según tipo
+            texto_resumen += "¿<b>Confirmas</b> esta Mano de Obra?"
+
+            if tipo_costo == "ambos":
+                texto_resumen += "\n\n<i>Luego podrás registrar los insumos.</i>"
+
             keyboard = types.InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
-                        types.InlineKeyboardButton(text="✅ Confirmar MO", callback_data="conf_costo_mo:si"),
+                        types.InlineKeyboardButton(text="✅ Confirmar", callback_data="conf_costo_mo:si"),
                         types.InlineKeyboardButton(text="❌ Cancelar", callback_data="conf_costo_mo:no"),
-                    ],
-                    [
-                        types.InlineKeyboardButton(text="➕ Agregar insumos", callback_data="conf_costo_mo:insumos"),
                     ],
                 ]
             )
@@ -757,13 +892,15 @@ def get_costos_router(db: Database) -> Router:
         data = await state.get_data()
         cat_key = data.get("cat_key", "")
 
-        if decision == "insumos":
-            # Guardar MO y luego preguntar por insumos
-            await guardar_mo(db, callback.message, data, state)
+        # Guardar MO
+        await guardar_mo(db, callback.message, data, state)
 
+        # Si el usuario eligió "Ambos", redirigir automáticamente al flujo de insumos
+        if data.get("registrar_ambos", False):
             await callback.message.edit_text(
                 "✅ <b>Mano de Obra guardada.</b>\n\n"
-                "Ahora, ¿cuál es el <b>producto/insumo</b> usado?\n\n"
+                "Ahora registremos los <b>insumos</b>:\n\n"
+                "¿Cuál es el <b>producto/insumo</b> usado?\n\n"
                 "<i>(Escribe el nombre del producto)</i>",
                 parse_mode="HTML",
                 reply_markup=botones_menu_cancelar(),
@@ -771,8 +908,7 @@ def get_costos_router(db: Database) -> Router:
             await state.set_state(CostoForm.esperando_producto)
             return
 
-        # Solo guardar MO
-        await guardar_mo(db, callback.message, data, state)
+        # MO only — terminar
         await callback.message.edit_text(
             "✅ <b>¡Costo registrado exitosamente!</b> 🎉📉\n\n"
             "Usa /costo para registrar otro o /resumen para ver tus datos.",
