@@ -11,6 +11,42 @@ from config import ADMIN_IDS, BOT_NAME, NOTIFICATION_GROUP_ID
 logger = logging.getLogger(__name__)
 
 
+async def mostrar_menu_principal(message: types.Message):
+    """Muestra el menú principal del bot."""
+    keyboard = types.InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                types.InlineKeyboardButton(text="🗺️ Fincas", callback_data="menu_fincas"),
+                types.InlineKeyboardButton(text="🌱 Lotes", callback_data="menu_lotes"),
+            ],
+            [
+                types.InlineKeyboardButton(text="💰 Ingresos", callback_data="menu_ingresos"),
+                types.InlineKeyboardButton(text="📉 Costos", callback_data="menu_costos"),
+            ],
+            [
+                types.InlineKeyboardButton(text="📊 Resumen", callback_data="menu_resumen"),
+                types.InlineKeyboardButton(text="📊 Excel", callback_data="menu_excel"),
+            ],
+            [
+                types.InlineKeyboardButton(text="❓ Ayuda", callback_data="menu_ayuda"),
+            ],
+        ]
+    )
+
+    await message.answer(
+        "☕ <b>¡Bienvenido al Asistente Caficultor!</b> 🌱\n\n"
+        "Selecciona una opción del menú para comenzar:\n\n"
+        "🗺️ <b>Fincas</b> — Gestionar tus fincas\n"
+        "🌱 <b>Lotes</b> — Administrar lotes\n"
+        "💰 <b>Ingresos</b> — Registrar ventas de café\n"
+        "📉 <b>Costos</b> — Registrar costos de producción\n"
+        "📊 <b>Resumen</b> — Ver datos y exportar Excel\n"
+        "❓ <b>Ayuda</b> — Guía de uso",
+        parse_mode="HTML",
+        reply_markup=keyboard,
+    )
+
+
 def get_start_router(db: Database) -> Router:
     router = Router()
 
@@ -144,39 +180,3 @@ def get_start_router(db: Database) -> Router:
         await mostrar_menu_principal(callback.message)
 
     return router
-
-
-async def mostrar_menu_principal(message: types.Message):
-    """Muestra el menú principal del bot."""
-    keyboard = types.InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                types.InlineKeyboardButton(text="🗺️ Fincas", callback_data="menu_fincas"),
-                types.InlineKeyboardButton(text="🌱 Lotes", callback_data="menu_lotes"),
-            ],
-            [
-                types.InlineKeyboardButton(text="💰 Ingresos", callback_data="menu_ingresos"),
-                types.InlineKeyboardButton(text="📉 Costos", callback_data="menu_costos"),
-            ],
-            [
-                types.InlineKeyboardButton(text="📊 Resumen", callback_data="menu_resumen"),
-                types.InlineKeyboardButton(text="📊 Excel", callback_data="menu_excel"),
-            ],
-            [
-                types.InlineKeyboardButton(text="❓ Ayuda", callback_data="menu_ayuda"),
-            ],
-        ]
-    )
-
-    await message.answer(
-        "☕ <b>¡Bienvenido al Asistente Caficultor!</b> 🌱\n\n"
-        "Selecciona una opción del menú para comenzar:\n\n"
-        "🗺️ <b>Fincas</b> — Gestionar tus fincas\n"
-        "🌱 <b>Lotes</b> — Administrar lotes\n"
-        "💰 <b>Ingresos</b> — Registrar ventas de café\n"
-        "📉 <b>Costos</b> — Registrar costos de producción\n"
-        "📊 <b>Resumen</b> — Ver datos y exportar Excel\n"
-        "❓ <b>Ayuda</b> — Guía de uso",
-        parse_mode="HTML",
-        reply_markup=keyboard,
-    )

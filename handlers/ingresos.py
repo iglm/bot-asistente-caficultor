@@ -23,6 +23,17 @@ class IngresoForm(StatesGroup):
     esperando_confirmar = State()
 
 
+async def preguntar_fecha(message: types.Message, state: FSMContext):
+    """Pregunta la fecha de la venta."""
+    await message.answer(
+        "💰 <b>Registrar Ingreso</b>\n\n"
+        "¿Cuál es la <b>fecha</b> de la venta?\n\n"
+        "<i>(Formato: DD/MM/AAAA)</i>",
+        parse_mode="HTML",
+    )
+    await state.set_state(IngresoForm.esperando_fecha)
+
+
 def get_ingresos_router(db: Database) -> Router:
     router = Router()
 
@@ -41,16 +52,16 @@ def get_ingresos_router(db: Database) -> Router:
             send = message.answer
 
         if not db.is_approved(user_id):
-            await send("⏳ *No tienes acceso.* Usa /start para solicitar aprobación.", parse_mode="Markdown")
+            await send("⏳ <b>No tienes acceso.</b> Usa /start para solicitar aprobación.", parse_mode="HTML")
             return
 
         try:
             fincas = db.get_fincas(user_id)
             if not fincas:
                 await send(
-                    "❌ *No tienes fincas registradas.*\n\n"
+                    "❌ <b>No tienes fincas registradas.</b>\n\n"
                     "Primero crea una finca con /fincas 🗺️",
-                    parse_mode="Markdown",
+                    parse_mode="HTML",
                 )
                 return
 
@@ -74,15 +85,15 @@ def get_ingresos_router(db: Database) -> Router:
             )
 
             await send(
-                "💰 *Registrar Ingreso*\n\nSelecciona la finca:",
-                parse_mode="Markdown",
+                "💰 <b>Registrar Ingreso</b>\n\nSelecciona la finca:",
+                parse_mode="HTML",
                 reply_markup=keyboard,
             )
             await state.set_state(IngresoForm.esperando_finca)
 
         except Exception as e:
             logger.error(f"Error en /ingreso: {e}", exc_info=True)
-            await send("❌ *Error al iniciar registro.*", parse_mode="Markdown")
+            await send("❌ <b>Error al iniciar registro.</b>", parse_mode="HTML")
 
     @router.callback_query(IngresoForm.esperando_finca, F.data.startswith("ingreso_finca:"))
     async def seleccionar_finca_ingreso(callback: types.CallbackQuery, state: FSMContext):
@@ -90,21 +101,12 @@ def get_ingresos_router(db: Database) -> Router:
         finca_id = int(callback.data.split(":")[1])
         finca = db.get_finca_by_id(finca_id)
         if not finca:
-            await callback.message.edit_text("❌ *Finca no encontrada.*", parse_mode="Markdown")
+            await callback.message.edit_text("❌ <b>Finca no encontrada.</b>", parse_mode="HTML")
             await state.clear()
             return
 
         await state.update_data(finca_id=finca_id, finca_nombre=finca["nombre"])
         await preguntar_fecha(callback.message, state)
-
-    async def preguntar_fecha(message: types.Message, state: FSMContext):
-        await message.edit_text(
-            "💰 *Registrar Ingreso*\n\n"
-            "¿Cuál es la *fecha* de la venta?\n\n"
-            "*(Formato: DD/MM/AAAA)*",
-            parse_mode="Markdown",
-        )
-        await state.set_state(IngresoForm.esperando_fecha)
 
     @router.message(IngresoForm.esperando_fecha, F.text)
     async def recibir_fecha(message: types.Message, state: FSMContext):
@@ -136,9 +138,9 @@ def get_ingresos_router(db: Database) -> Router:
         )
 
         await message.answer(
-            f"✅ *Fecha:* {fecha_str}\n\n"
-            "¿Qué *tipo de café* vendiste?",
-            parse_mode="Markdown",
+            f"✅ <b>Fecha:</b> {fecha_str}\n\n"
+            "¿Qué <b>tipo de café</b> vendiste?",
+            parse_mode="HTML",
             reply_markup=keyboard,
         )
         await state.set_state(IngresoForm.esperando_tipo)
@@ -156,10 +158,10 @@ def get_ingresos_router(db: Database) -> Router:
         await state.update_data(tipo=tipo)
 
         await callback.message.edit_text(
-            f"✅ *Tipo:* {tipo}\n\n"
-            "¿Cuántos *kilos* vendiste?\n\n"
-            "*(Escribe el número)*",
-            parse_mode="Markdown",
+            f"✅ <b>Tipo:</b> {tipo}\n\n"
+            "¿Cuántos <b>kilos</b> vendiste?\n\n"
+            "<i>(Escribe el número)</i>",
+            parse_mode="HTML",
         )
         await state.set_state(IngresoForm.esperando_cantidad)
 
@@ -175,10 +177,10 @@ def get_ingresos_router(db: Database) -> Router:
 
         await state.update_data(cantidad=cantidad)
         await message.answer(
-            f"✅ *Cantidad:* {cantidad} kg\n\n"
-            "¿Cuál fue el *valor total* de la venta?\n\n"
-            "*(Escribe el valor en pesos, ej: 1500000)*",
-            parse_mode="Markdown",
+            f"✅ <b>Cantidad:</b> {cantidad} kg\n\n"
+            "¿Cuál fue el <b>valor total</b> de la venta?\n\n"
+            "<i>(Escribe el valor en pesos, ej: 1500000)</i>",
+            parse_mode="HTML",
         )
         await state.set_state(IngresoForm.esperando_valor_total)
 
@@ -201,14 +203,14 @@ def get_ingresos_router(db: Database) -> Router:
 
         # Resumen para confirmar
         texto = (
-            f"📋 *Resumen del Ingreso*\n\n"
-            f"🏠 *Finca:* {data.get('finca_nombre', '')}\n"
-            f"📅 *Fecha:* {data.get('fecha', '')}\n"
-            f"☕ *Tipo:* {tipo}\n"
-            f"⚖️ *Cantidad:* {cantidad} kg\n"
-            f"💰 *Valor Total:* ${valor:,.0f}\n"
-            f"💵 *Valor Unitario:* ${valor_unitario:,.0f}/kg\n\n"
-            "¿*Confirmas* que deseas guardar este ingreso?"
+            f"📋 <b>Resumen del Ingreso</b>\n\n"
+            f"🏠 <b>Finca:</b> {data.get('finca_nombre', '')}\n"
+            f"📅 <b>Fecha:</b> {data.get('fecha', '')}\n"
+            f"☕ <b>Tipo:</b> {tipo}\n"
+            f"⚖️ <b>Cantidad:</b> {cantidad} kg\n"
+            f"💰 <b>Valor Total:</b> ${valor:,.0f}\n"
+            f"💵 <b>Valor Unitario:</b> ${valor_unitario:,.0f}/kg\n\n"
+            "¿<b>Confirmas</b> que deseas guardar este ingreso?"
         )
 
         keyboard = types.InlineKeyboardMarkup(
@@ -220,7 +222,7 @@ def get_ingresos_router(db: Database) -> Router:
             ]
         )
 
-        await message.answer(texto, parse_mode="Markdown", reply_markup=keyboard)
+        await message.answer(texto, parse_mode="HTML", reply_markup=keyboard)
         await state.set_state(IngresoForm.esperando_confirmar)
 
     @router.callback_query(IngresoForm.esperando_confirmar, F.data.startswith("conf_ingreso:"))
@@ -230,9 +232,9 @@ def get_ingresos_router(db: Database) -> Router:
 
         if decision == "no":
             await callback.message.edit_text(
-                "❌ *Registro cancelado.*\n\n"
+                "❌ <b>Registro cancelado.</b>\n\n"
                 "Usa /ingreso cuando quieras intentarlo de nuevo.",
-                parse_mode="Markdown",
+                parse_mode="HTML",
             )
             await state.clear()
             return
@@ -260,19 +262,19 @@ def get_ingresos_router(db: Database) -> Router:
             )
 
             await callback.message.edit_text(
-                f"✅ *¡Ingreso registrado exitosamente!* 🎉☕\n\n"
-                f"☕ *Tipo:* {data['tipo']}\n"
-                f"⚖️ *Cantidad:* {data['cantidad']} kg\n"
-                f"💰 *Valor:* ${data['valor_total']:,.0f}\n\n"
+                f"✅ <b>¡Ingreso registrado exitosamente!</b> 🎉☕\n\n"
+                f"☕ <b>Tipo:</b> {data['tipo']}\n"
+                f"⚖️ <b>Cantidad:</b> {data['cantidad']} kg\n"
+                f"💰 <b>Valor:</b> ${data['valor_total']:,.0f}\n\n"
                 "Usa /resumen para ver tus datos o /ingreso para agregar otro.",
-                parse_mode="Markdown",
+                parse_mode="HTML",
             )
 
         except Exception as e:
             logger.error(f"Error al guardar ingreso: {e}", exc_info=True)
             await callback.message.edit_text(
-                "❌ *Error al guardar el ingreso.* Intenta de nuevo.",
-                parse_mode="Markdown",
+                "❌ <b>Error al guardar el ingreso.</b> Intenta de nuevo.",
+                parse_mode="HTML",
             )
 
         await state.clear()

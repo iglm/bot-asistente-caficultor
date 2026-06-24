@@ -24,6 +24,49 @@ class LoteForm(StatesGroup):
 def get_lotes_router(db: Database) -> Router:
     router = Router()
 
+    async def mostrar_lotes(db: Database, message: types.Message, finca_id: int, finca_nombre: str, edit: bool = False):
+        """Muestra los lotes de una finca."""
+        try:
+            lotes = db.get_lotes(finca_id)
+
+            texto = f"🌱 <b>Lotes de {finca_nombre}</b>\n\n"
+
+            if lotes:
+                for l in lotes:
+                    area = l["area_hectareas"] or 0
+                    arboles = l["num_arboles"] or 0
+                    variedad = l["variedad"] or "N/E"
+                    texto += (
+                        f"  📍 <b>{l['nombre']}</b>\n"
+                        f"     Área: {area} ha | Árboles: {arboles}\n"
+                        f"     Variedad: {variedad}\n\n"
+                    )
+            else:
+                texto += "Aún no hay lotes registrados.\n\n"
+
+            keyboard = types.InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [types.InlineKeyboardButton(
+                        text="➕ Nuevo Lote",
+                        callback_data=f"nuevo_lote:{finca_id}",
+                    )],
+                    [types.InlineKeyboardButton(text="🔙 Volver", callback_data="volver_menu")],
+                ]
+            )
+
+            if edit:
+                await message.edit_text(texto, parse_mode="HTML", reply_markup=keyboard)
+            else:
+                await message.answer(texto, parse_mode="HTML", reply_markup=keyboard)
+
+        except Exception as e:
+            logger.error(f"Error al mostrar lotes: {e}", exc_info=True)
+            error_text = "❌ Error al obtener lotes."
+            if edit:
+                await message.edit_text(error_text, parse_mode="HTML")
+            else:
+                await message.answer(error_text, parse_mode="HTML")
+
     @router.message(Command("lotes"))
     @router.callback_query(F.data == "menu_lotes")
     async def cmd_lotes(event: types.Message | types.CallbackQuery, state: FSMContext):
@@ -34,27 +77,29 @@ def get_lotes_router(db: Database) -> Router:
             await event.answer()
             message = event.message
             send = message.answer
+            is_callback = True
         else:
             message = event
             send = message.answer
+            is_callback = False
 
         if not db.is_approved(user_id):
-            await send("⏳ *No tienes acceso.* Usa /start para solicitar aprobación.", parse_mode="Markdown")
+            await send("⏳ <b>No tienes acceso.</b> Usa /start para solicitar aprobación.", parse_mode="HTML")
             return
 
         try:
             fincas = db.get_fincas(user_id)
             if not fincas:
                 await send(
-                    "❌ *No tienes fincas registradas.*\n\n"
+                    "❌ <b>No tienes fincas registradas.</b>\n\n"
                     "Primero crea una finca con /fincas 🗺️",
-                    parse_mode="Markdown",
+                    parse_mode="HTML",
                 )
                 return
 
             if len(fincas) == 1:
                 # Si solo tiene una finca, ir directo
-                await mostrar_lotes(message, fincas[0]["id"], fincas[0]["nombre"])
+                await mostrar_lotes(db, message, fincas[0]["id"], fincas[0]["nombre"], edit=is_callback)
                 return
 
             # Varias fincas - seleccionar
@@ -72,14 +117,14 @@ def get_lotes_router(db: Database) -> Router:
             )
 
             await send(
-                "🌱 *Gestión de Lotes*\n\nSelecciona una finca:",
-                parse_mode="Markdown",
+                "🌱 <b>Gestión de Lotes</b>\n\nSelecciona una finca:",
+                parse_mode="HTML",
                 reply_markup=keyboard,
             )
 
         except Exception as e:
             logger.error(f"Error en /lotes: {e}", exc_info=True)
-            await send("❌ *Error al obtener lotes.*", parse_mode="Markdown")
+            await send("❌ <b>Error al obtener lotes.</b>", parse_mode="HTML")
 
     @router.callback_query(F.data.startswith("lotes_finca:"))
     async def seleccionar_finca_lotes(callback: types.CallbackQuery):
@@ -88,41 +133,10 @@ def get_lotes_router(db: Database) -> Router:
         finca_id = int(callback.data.split(":")[1])
         finca = db.get_finca_by_id(finca_id)
         if not finca:
-            await callback.message.edit_text("❌ *Finca no encontrada.*", parse_mode="Markdown")
+            await callback.message.edit_text("❌ <b>Finca no encontrada.</b>", parse_mode="HTML")
             return
 
-        await mostrar_lotes(callback.message, finca_id, finca["nombre"])
-
-    async def mostrar_lotes(message: types.Message, finca_id: int, finca_nombre: str):
-        """Muestra los lotes de una finca."""
-        lotes = db.get_lotes(finca_id)
-
-        texto = f"🌱 *Lotes de {finca_nombre}*\n\n"
-
-        if lotes:
-            for l in lotes:
-                area = l["area_hectareas"] or 0
-                arboles = l["num_arboles"] or 0
-                variedad = l["variedad"] or "N/E"
-                texto += (
-                    f"  📍 *{l['nombre']}*\n"
-                    f"     Área: {area} ha | Árboles: {arboles}\n"
-                    f"     Variedad: {variedad}\n\n"
-                )
-        else:
-            texto += "Aún no hay lotes registrados.\n\n"
-
-        keyboard = types.InlineKeyboardMarkup(
-            inline_keyboard=[
-                [types.InlineKeyboardButton(
-                    text="➕ Nuevo Lote",
-                    callback_data=f"nuevo_lote:{finca_id}",
-                )],
-                [types.InlineKeyboardButton(text="🔙 Volver", callback_data="volver_menu")],
-            ]
-        )
-
-        await message.edit_text(texto, parse_mode="Markdown", reply_markup=keyboard)
+        await mostrar_lotes(db, callback.message, finca_id, finca["nombre"], edit=True)
 
     @router.callback_query(F.data.startswith("nuevo_lote:"))
     async def nuevo_lote(callback: types.CallbackQuery, state: FSMContext):

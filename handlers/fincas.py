@@ -38,17 +38,17 @@ def get_fincas_router(db: Database) -> Router:
 
         # Verificar acceso
         if not db.is_approved(user_id):
-            await send("⏳ *No tienes acceso.* Usa /start para solicitar aprobación.", parse_mode="Markdown")
+            await send("⏳ <b>No tienes acceso.</b> Usa /start para solicitar aprobación.", parse_mode="HTML")
             return
 
         try:
             fincas = db.get_fincas(user_id)
-            texto = "🗺️ *Gestión de Fincas*\n\n"
+            texto = "🗺️ <b>Gestión de Fincas</b>\n\n"
 
             if fincas:
-                texto += "*Tus fincas registradas:*\n"
+                texto += "<b>Tus fincas registradas:</b>\n"
                 for f in fincas:
-                    texto += f"  🏠 *{f['nombre']}* — {f['region'] or 'Sin región'} / {f['departamento'] or 'Sin depto.'}\n"
+                    texto += f"  🏠 <b>{f['nombre']}</b> — {f['region'] or 'Sin región'} / {f['departamento'] or 'Sin depto.'}\n"
                 texto += "\n"
             else:
                 texto += "Aún no tienes fincas registradas. ¡Crea tu primera finca! 🌱\n\n"
@@ -60,21 +60,21 @@ def get_fincas_router(db: Database) -> Router:
                 ]
             )
 
-            await send(texto, parse_mode="Markdown", reply_markup=keyboard)
+            await send(texto, parse_mode="HTML", reply_markup=keyboard)
 
         except Exception as e:
             logger.error(f"Error en /fincas: {e}", exc_info=True)
-            await send("❌ *Error al obtener las fincas.*", parse_mode="Markdown")
+            await send("❌ <b>Error al obtener las fincas.</b>", parse_mode="HTML")
 
     @router.callback_query(F.data == "nueva_finca")
     async def nueva_finca(callback: types.CallbackQuery, state: FSMContext):
         """Inicia el proceso de crear una nueva finca."""
         await callback.answer()
         await callback.message.edit_text(
-            "🏠 *Crear Nueva Finca*\n\n"
-            "Paso 1/3: ¿Cuál es el *nombre* de tu finca?\n\n"
-            "*(Escribe el nombre o /cancelar para cancelar)*",
-            parse_mode="Markdown",
+            "🏠 <b>Crear Nueva Finca</b>\n\n"
+            "Paso 1/3: ¿Cuál es el <b>nombre</b> de tu finca?\n\n"
+            "<i>(Escribe el nombre o /cancelar para cancelar)</i>",
+            parse_mode="HTML",
         )
         await state.set_state(FincaForm.esperando_nombre)
 
@@ -92,10 +92,10 @@ def get_fincas_router(db: Database) -> Router:
 
         await state.update_data(nombre=nombre)
         await message.answer(
-            f"✅ *Nombre:* {nombre}\n\n"
-            "Paso 2/3: ¿Cuál es la *región* de tu finca?\n\n"
-            "*(Escribe la región o '/' para omitir)*",
-            parse_mode="Markdown",
+            f"✅ <b>Nombre:</b> {nombre}\n\n"
+            "Paso 2/3: ¿Cuál es la <b>región</b> de tu finca?\n\n"
+            "<i>(Escribe la región o '/' para omitir)</i>",
+            parse_mode="HTML",
         )
         await state.set_state(FincaForm.esperando_region)
 
@@ -108,10 +108,10 @@ def get_fincas_router(db: Database) -> Router:
 
         await state.update_data(region=region)
         await message.answer(
-            f"✅ *Región:* {region or '(omitido)'}\n\n"
-            "Paso 3/3: ¿Cuál es el *departamento* de tu finca?\n\n"
-            "*(Escribe el departamento o '/' para omitir)*",
-            parse_mode="Markdown",
+            f"✅ <b>Región:</b> {region or '(omitido)'}\n\n"
+            "Paso 3/3: ¿Cuál es el <b>departamento</b> de tu finca?\n\n"
+            "<i>(Escribe el departamento o '/' para omitir)</i>",
+            parse_mode="HTML",
         )
         await state.set_state(FincaForm.esperando_departamento)
 
@@ -135,20 +135,20 @@ def get_fincas_router(db: Database) -> Router:
             )
 
             await message.answer(
-                f"✅ *¡Finca creada exitosamente!* 🎉\n\n"
-                f"🏠 *Nombre:* {nombre}\n"
-                f"📍 *Región:* {region or 'No especificada'}\n"
-                f"📍 *Departamento:* {departamento or 'No especificado'}\n"
-                f"🆔 *ID:* `{finca_id}`\n\n"
+                f"✅ <b>¡Finca creada exitosamente!</b> 🎉\n\n"
+                f"🏠 <b>Nombre:</b> {nombre}\n"
+                f"📍 <b>Región:</b> {region or 'No especificada'}\n"
+                f"📍 <b>Departamento:</b> {departamento or 'No especificado'}\n"
+                f"🆔 <b>ID:</b> <code>{finca_id}</code>\n\n"
                 "Ahora puedes registrar lotes con /lotes 🌱",
-                parse_mode="Markdown",
+                parse_mode="HTML",
             )
 
         except Exception as e:
             logger.error(f"Error al crear finca: {e}", exc_info=True)
             await message.answer(
-                "❌ *Error al crear la finca.* Intenta de nuevo más tarde.",
-                parse_mode="Markdown",
+                "❌ <b>Error al crear la finca.</b> Intenta de nuevo más tarde.",
+                parse_mode="HTML",
             )
 
         await state.clear()
@@ -160,7 +160,7 @@ def get_fincas_router(db: Database) -> Router:
         """Maneja entradas no textuales durante el formulario."""
         await message.answer(
             "❌ Por favor, escribe un texto válido o usa /cancelar para cancelar.",
-            parse_mode="Markdown",
+            parse_mode="HTML",
         )
 
     @router.message(Command("cancelar"))
@@ -168,13 +168,13 @@ def get_fincas_router(db: Database) -> Router:
         """Cancela el formulario actual."""
         current_state = await state.get_state()
         if current_state is None:
-            await message.answer("No hay ninguna operación en curso.", parse_mode="Markdown")
+            await message.answer("No hay ninguna operación en curso.", parse_mode="HTML")
             return
 
         await state.clear()
         await message.answer(
-            "✅ *Operación cancelada.*\n\nUsa /fincas para volver al menú.",
-            parse_mode="Markdown",
+            "✅ <b>Operación cancelada.</b>\n\nUsa /fincas para volver al menú.",
+            parse_mode="HTML",
         )
 
     return router

@@ -39,6 +39,92 @@ class CostoForm(StatesGroup):
     esperando_mas_insumos = State()
 
 
+async def mostrar_categorias_costos(message: types.Message, edit: bool = False):
+    """Muestra las categorías de costos disponibles."""
+    keyboard = types.InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                types.InlineKeyboardButton(text="🌱 Instalación", callback_data="cat_costo:instalacion"),
+                types.InlineKeyboardButton(text="🌿 Arvenses", callback_data="cat_costo:arvenses"),
+            ],
+            [
+                types.InlineKeyboardButton(text="🧪 Fertilización", callback_data="cat_costo:fertilizacion"),
+                types.InlineKeyboardButton(text="🛡️ Fitosanitario", callback_data="cat_costo:fitosanitario"),
+            ],
+            [
+                types.InlineKeyboardButton(text="🌳 Sombrío", callback_data="cat_costo:sombrio"),
+                types.InlineKeyboardButton(text="🔧 Otras Labores", callback_data="cat_costo:otras_labores"),
+            ],
+            [
+                types.InlineKeyboardButton(text="☕ Recolección", callback_data="cat_costo:recoleccion"),
+                types.InlineKeyboardButton(text="🏭 Beneficio", callback_data="cat_costo:beneficio"),
+            ],
+            [
+                types.InlineKeyboardButton(text="📋 Gtos Admin", callback_data="cat_costo:administrativo"),
+            ],
+            [
+                types.InlineKeyboardButton(text="🔙 Volver", callback_data="volver_menu"),
+            ],
+        ]
+    )
+
+    texto = (
+        "📉 <b>Registrar Costo de Producción</b>\n\n"
+        "Selecciona la <b>categoría</b> del costo:"
+    )
+
+    if edit:
+        try:
+            await message.edit_text(texto, parse_mode="HTML", reply_markup=keyboard)
+        except Exception:
+            await message.answer(texto, parse_mode="HTML", reply_markup=keyboard)
+    else:
+        await message.answer(texto, parse_mode="HTML", reply_markup=keyboard)
+
+    await CostoForm.esperando_categoria.set()
+
+
+async def guardar_mo(db: Database, message: types.Message, data: dict, state: FSMContext):
+    """Guarda un registro de Mano de Obra."""
+    cat_key = data.get("cat_key", "")
+
+    # Determinar categoría DB
+    if cat_key in CATEGORIAS_PADRE:
+        categoria_db = CATEGORIAS_PADRE[cat_key]["mo"]
+    elif cat_key == "recoleccion":
+        categoria_db = "recoleccion"
+    elif cat_key == "beneficio":
+        categoria_db = "beneficio"
+    elif cat_key == "administrativo":
+        categoria_db = "administrativo"
+    else:
+        logger.warning(f"Categoría desconocida: {cat_key}")
+        return
+
+    cantidad = data.get("cantidad", 0)
+    vu = data.get("valor_unitario", 0)
+    valor_total = data.get("valor_total", 0)
+
+    # Para admin, no hay cantidad ni vu
+    if cat_key == "administrativo":
+        cantidad = 1
+        vu = valor_total
+
+    db.insert_transaccion(
+        finca_id=data["finca_id"],
+        lote_id=0,
+        categoria=categoria_db,
+        fecha=data["fecha"],
+        labor=data.get("labor", ""),
+        producto="",
+        cantidad=cantidad,
+        unidad="jornal",
+        valor_unitario=vu,
+        valor_total=valor_total,
+    )
+    logger.info(f"MO guardada: {categoria_db} en finca {data['finca_id']}")
+
+
 def get_costos_router(db: Database) -> Router:
     router = Router()
 
@@ -52,27 +138,29 @@ def get_costos_router(db: Database) -> Router:
             await event.answer()
             message = event.message
             send = message.answer
+            is_callback = True
         else:
             message = event
             send = message.answer
+            is_callback = False
 
         if not db.is_approved(user_id):
-            await send("⏳ *No tienes acceso.* Usa /start para solicitar aprobación.", parse_mode="Markdown")
+            await send("⏳ <b>No tienes acceso.</b> Usa /start para solicitar aprobación.", parse_mode="HTML")
             return
 
         try:
             fincas = db.get_fincas(user_id)
             if not fincas:
                 await send(
-                    "❌ *No tienes fincas registradas.*\n\n"
+                    "❌ <b>No tienes fincas registradas.</b>\n\n"
                     "Primero crea una finca con /fincas 🗺️",
-                    parse_mode="Markdown",
+                    parse_mode="HTML",
                 )
                 return
 
             if len(fincas) == 1:
                 await state.update_data(finca_id=fincas[0]["id"], finca_nombre=fincas[0]["nombre"])
-                await mostrar_categorias_costos(message)
+                await mostrar_categorias_costos(message, edit=is_callback)
                 return
 
             # Varias fincas
@@ -90,15 +178,15 @@ def get_costos_router(db: Database) -> Router:
             )
 
             await send(
-                "📉 *Registrar Costo*\n\nSelecciona la finca:",
-                parse_mode="Markdown",
+                "📉 <b>Registrar Costo</b>\n\nSelecciona la finca:",
+                parse_mode="HTML",
                 reply_markup=keyboard,
             )
             await state.set_state(CostoForm.esperando_finca)
 
         except Exception as e:
             logger.error(f"Error en /costo: {e}", exc_info=True)
-            await send("❌ *Error al iniciar registro.*", parse_mode="Markdown")
+            await send("❌ <b>Error al iniciar registro.</b>", parse_mode="HTML")
 
     @router.callback_query(CostoForm.esperando_finca, F.data.startswith("costo_finca:"))
     async def seleccionar_finca_costo(callback: types.CallbackQuery, state: FSMContext):
@@ -106,59 +194,12 @@ def get_costos_router(db: Database) -> Router:
         finca_id = int(callback.data.split(":")[1])
         finca = db.get_finca_by_id(finca_id)
         if not finca:
-            await callback.message.edit_text("❌ *Finca no encontrada.*", parse_mode="Markdown")
+            await callback.message.edit_text("❌ <b>Finca no encontrada.</b>", parse_mode="HTML")
             await state.clear()
             return
 
         await state.update_data(finca_id=finca_id, finca_nombre=finca["nombre"])
-        await mostrar_categorias_costos(callback.message)
-
-    async def mostrar_categorias_costos(message: types.Message):
-        """Muestra las categorías de costos disponibles."""
-        keyboard = types.InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    types.InlineKeyboardButton(text="🌱 Instalación", callback_data="cat_costo:instalacion"),
-                    types.InlineKeyboardButton(text="🌿 Arvenses", callback_data="cat_costo:arvenses"),
-                ],
-                [
-                    types.InlineKeyboardButton(text="🧪 Fertilización", callback_data="cat_costo:fertilizacion"),
-                    types.InlineKeyboardButton(text="🛡️ Fitosanitario", callback_data="cat_costo:fitosanitario"),
-                ],
-                [
-                    types.InlineKeyboardButton(text="🌳 Sombrío", callback_data="cat_costo:sombrio"),
-                    types.InlineKeyboardButton(text="🔧 Otras Labores", callback_data="cat_costo:otras_labores"),
-                ],
-                [
-                    types.InlineKeyboardButton(text="☕ Recolección", callback_data="cat_costo:recoleccion"),
-                    types.InlineKeyboardButton(text="🏭 Beneficio", callback_data="cat_costo:beneficio"),
-                ],
-                [
-                    types.InlineKeyboardButton(text="📋 Gtos Admin", callback_data="cat_costo:administrativo"),
-                ],
-                [
-                    types.InlineKeyboardButton(text="🔙 Volver", callback_data="volver_menu"),
-                ],
-            ]
-        )
-
-        # Intentar editar o responder
-        try:
-            await message.edit_text(
-                "📉 *Registrar Costo de Producción*\n\n"
-                "Selecciona la *categoría* del costo:",
-                parse_mode="Markdown",
-                reply_markup=keyboard,
-            )
-        except Exception:
-            await message.answer(
-                "📉 *Registrar Costo de Producción*\n\n"
-                "Selecciona la *categoría* del costo:",
-                parse_mode="Markdown",
-                reply_markup=keyboard,
-            )
-
-        await CostoForm.esperando_categoria.set()
+        await mostrar_categorias_costos(callback.message, edit=True)
 
     @router.callback_query(CostoForm.esperando_categoria, F.data.startswith("cat_costo:"))
     async def seleccionar_categoria(callback: types.CallbackQuery, state: FSMContext):
@@ -172,25 +213,25 @@ def get_costos_router(db: Database) -> Router:
         if cat_key in CATEGORIAS_PADRE:
             cat_info = CATEGORIAS_PADRE[cat_key]
             texto = (
-                f"📉 *{cat_info['nombre']}*\n\n"
-                f"🏠 *Finca:* {data.get('finca_nombre', '')}\n\n"
-                "Paso 1: ¿Cuál es la *fecha* de la labor?\n\n"
-                "*(Formato: DD/MM/AAAA)*"
+                f"📉 <b>{cat_info['nombre']}</b>\n\n"
+                f"🏠 <b>Finca:</b> {data.get('finca_nombre', '')}\n\n"
+                "Paso 1: ¿Cuál es la <b>fecha</b> de la labor?\n\n"
+                "<i>(Formato: DD/MM/AAAA)</i>"
             )
         elif cat_key in CATEGORIAS_SIMPLE:
             cat_info = CATEGORIAS_SIMPLE[cat_key]
             texto = (
-                f"📉 *{cat_info['nombre']}*\n\n"
-                f"🏠 *Finca:* {data.get('finca_nombre', '')}\n\n"
-                "¿Cuál es la *fecha*?\n\n"
-                "*(Formato: DD/MM/AAAA)*"
+                f"📉 <b>{cat_info['nombre']}</b>\n\n"
+                f"🏠 <b>Finca:</b> {data.get('finca_nombre', '')}\n\n"
+                "¿Cuál es la <b>fecha</b>?\n\n"
+                "<i>(Formato: DD/MM/AAAA)</i>"
             )
         else:
-            await callback.message.edit_text("❌ *Categoría no válida.*", parse_mode="Markdown")
+            await callback.message.edit_text("❌ <b>Categoría no válida.</b>", parse_mode="HTML")
             await state.clear()
             return
 
-        await callback.message.edit_text(texto, parse_mode="Markdown", reply_markup=CANCEL_KB)
+        await callback.message.edit_text(texto, parse_mode="HTML", reply_markup=CANCEL_KB)
         await state.set_state(CostoForm.esperando_fecha)
 
     @router.message(CostoForm.esperando_fecha, F.text)
@@ -216,18 +257,18 @@ def get_costos_router(db: Database) -> Router:
 
         if cat_key == "administrativo":
             await message.answer(
-                f"✅ *Fecha:* {fecha_str}\n\n"
-                "¿Cuál es el *gasto administrativo*?\n\n"
-                "*(Describe el gasto, ej: Servicios públicos, Transporte)*",
-                parse_mode="Markdown",
+                f"✅ <b>Fecha:</b> {fecha_str}\n\n"
+                "¿Cuál es el <b>gasto administrativo</b>?\n\n"
+                "<i>(Describe el gasto, ej: Servicios públicos, Transporte)</i>",
+                parse_mode="HTML",
             )
             await state.set_state(CostoForm.esperando_labor)
         else:
             await message.answer(
-                f"✅ *Fecha:* {fecha_str}\n\n"
-                "¿Cuál es la *labor realizada*?\n\n"
-                "*(Describe la labor o actividad)*",
-                parse_mode="Markdown",
+                f"✅ <b>Fecha:</b> {fecha_str}\n\n"
+                "¿Cuál es la <b>labor realizada</b>?\n\n"
+                "<i>(Describe la labor o actividad)</i>",
+                parse_mode="HTML",
             )
             await state.set_state(CostoForm.esperando_labor)
 
@@ -246,35 +287,35 @@ def get_costos_router(db: Database) -> Router:
         if cat_key == "administrativo":
             # Gastos admin: solo fecha, labor, valor total
             await message.answer(
-                f"✅ *Gasto:* {labor}\n\n"
-                "¿Cuál fue el *valor total* del gasto?\n\n"
-                "*(Escribe el valor en pesos)*",
-                parse_mode="Markdown",
+                f"✅ <b>Gasto:</b> {labor}\n\n"
+                "¿Cuál fue el <b>valor total</b> del gasto?\n\n"
+                "<i>(Escribe el valor en pesos)</i>",
+                parse_mode="HTML",
             )
             await state.set_state(CostoForm.esperando_valor_total)
         elif cat_key == "recoleccion":
             await message.answer(
-                f"✅ *Labor:* {labor}\n\n"
-                "¿Cuántos *kilos* se recolectaron?\n\n"
-                "*(Escribe la cantidad)*",
-                parse_mode="Markdown",
+                f"✅ <b>Labor:</b> {labor}\n\n"
+                "¿Cuántos <b>kilos</b> se recolectaron?\n\n"
+                "<i>(Escribe la cantidad)</i>",
+                parse_mode="HTML",
             )
             await state.set_state(CostoForm.esperando_cantidad)
         elif cat_key == "beneficio":
             await message.answer(
-                f"✅ *Labor:* {labor}\n\n"
-                "¿Cuántos *jornales* se usaron?\n\n"
-                "*(Escribe el número)*",
-                parse_mode="Markdown",
+                f"✅ <b>Labor:</b> {labor}\n\n"
+                "¿Cuántos <b>jornales</b> se usaron?\n\n"
+                "<i>(Escribe el número)</i>",
+                parse_mode="HTML",
             )
             await state.set_state(CostoForm.esperando_cantidad)
         else:
             # MO para categorías con insumos
             await message.answer(
-                f"✅ *Labor:* {labor}\n\n"
-                "¿Cuántos *jornales* se usaron?\n\n"
-                "*(Escribe el número)*",
-                parse_mode="Markdown",
+                f"✅ <b>Labor:</b> {labor}\n\n"
+                "¿Cuántos <b>jornales</b> se usaron?\n\n"
+                "<i>(Escribe el número)</i>",
+                parse_mode="HTML",
             )
             await state.set_state(CostoForm.esperando_cantidad)
 
@@ -294,20 +335,20 @@ def get_costos_router(db: Database) -> Router:
         cat_key = data.get("cat_key", "")
 
         if cat_key == "recoleccion":
-            # Recolección: solo valor total (V.Unitario = fórmula = E/C)
+            # Recolección: solo valor total
             await message.answer(
-                f"✅ *Cantidad:* {cantidad}\n\n"
-                "¿Cuál fue el *valor total* pagado?\n\n"
-                "*(Escribe el valor en pesos)*",
-                parse_mode="Markdown",
+                f"✅ <b>Cantidad:</b> {cantidad}\n\n"
+                "¿Cuál fue el <b>valor total</b> pagado?\n\n"
+                "<i>(Escribe el valor en pesos)</i>",
+                parse_mode="HTML",
             )
             await state.set_state(CostoForm.esperando_valor_total)
         else:
             await message.answer(
-                f"✅ *Cantidad:* {cantidad}\n\n"
-                "¿Cuál fue el *valor unitario* por jornal?\n\n"
-                "*(Escribe el valor en pesos)*",
-                parse_mode="Markdown",
+                f"✅ <b>Cantidad:</b> {cantidad}\n\n"
+                "¿Cuál fue el <b>valor unitario</b> por jornal?\n\n"
+                "<i>(Escribe el valor en pesos)</i>",
+                parse_mode="HTML",
             )
             await state.set_state(CostoForm.esperando_valor_unitario)
 
@@ -328,11 +369,11 @@ def get_costos_router(db: Database) -> Router:
         valor_total = vu * cantidad
 
         await message.answer(
-            f"✅ *Valor unitario:* ${vu:,.0f}\n"
-            f"💰 *Valor total calculado:* ${valor_total:,.0f} ({cantidad} × ${vu:,.0f})\n\n"
-            "¿*Confirmas* el valor total o quieres ingresar uno diferente?\n\n"
-            "*(Escribe el valor total o 'ok' para aceptar el calculado)*",
-            parse_mode="Markdown",
+            f"✅ <b>Valor unitario:</b> ${vu:,.0f}\n"
+            f"💰 <b>Valor total calculado:</b> ${valor_total:,.0f} ({cantidad} × ${vu:,.0f})\n\n"
+            "¿<b>Confirmas</b> el valor total o quieres ingresar uno diferente?\n\n"
+            "<i>(Escribe el valor total u 'ok' para aceptar el calculado)</i>",
+            parse_mode="HTML",
         )
         await state.update_data(valor_total_calculado=valor_total)
         await state.set_state(CostoForm.esperando_valor_total)
@@ -350,7 +391,7 @@ def get_costos_router(db: Database) -> Router:
                 if valor_total <= 0:
                     raise ValueError
             except ValueError:
-                await message.answer("❌ Ingresa un valor válido o 'ok':")
+                await message.answer("❌ Ingresa un valor válido u 'ok':")
                 return
 
         await state.update_data(valor_total=valor_total)
@@ -363,36 +404,36 @@ def get_costos_router(db: Database) -> Router:
 
         # Resumen MO
         texto_resumen = (
-            f"📋 *Resumen — Mano de Obra*\n\n"
-            f"🏠 *Finca:* {data.get('finca_nombre', '')}\n"
-            f"📂 *Categoría:* {CATEGORIAS_PADRE.get(cat_key, CATEGORIAS_SIMPLE.get(cat_key, {}).get('nombre', cat_key))}\n"
-            f"📅 *Fecha:* {fecha}\n"
-            f"🔧 *Labor:* {labor}\n"
+            f"📋 <b>Resumen — Mano de Obra</b>\n\n"
+            f"🏠 <b>Finca:</b> {data.get('finca_nombre', '')}\n"
+            f"📂 <b>Categoría:</b> {CATEGORIAS_PADRE.get(cat_key, CATEGORIAS_SIMPLE.get(cat_key, {}).get('nombre', cat_key))}\n"
+            f"📅 <b>Fecha:</b> {fecha}\n"
+            f"🔧 <b>Labor:</b> {labor}\n"
         )
 
         if cat_key == "administrativo":
-            texto_resumen += f"💰 *Valor Total:* ${valor_total:,.0f}\n\n"
+            texto_resumen += f"💰 <b>Valor Total:</b> ${valor_total:,.0f}\n\n"
         elif cat_key == "recoleccion":
             texto_resumen += (
-                f"⚖️ *Kilos:* {cantidad}\n"
-                f"💰 *Valor Total:* ${valor_total:,.0f}\n\n"
+                f"⚖️ <b>Kilos:</b> {cantidad}\n"
+                f"💰 <b>Valor Total:</b> ${valor_total:,.0f}\n\n"
             )
         elif cat_key == "beneficio":
             texto_resumen += (
-                f"👷 *Jornales:* {cantidad}\n"
-                f"💵 *V.Unitario:* ${vu:,.0f}\n"
-                f"💰 *Valor Total:* ${valor_total:,.0f}\n\n"
+                f"👷 <b>Jornales:</b> {cantidad}\n"
+                f"💵 <b>V.Unitario:</b> ${vu:,.0f}\n"
+                f"💰 <b>Valor Total:</b> ${valor_total:,.0f}\n\n"
             )
         else:
             texto_resumen += (
-                f"👷 *Jornales:* {cantidad}\n"
-                f"💵 *V.Unitario:* ${vu:,.0f}\n"
-                f"💰 *Valor Total:* ${valor_total:,.0f}\n\n"
+                f"👷 <b>Jornales:</b> {cantidad}\n"
+                f"💵 <b>V.Unitario:</b> ${vu:,.0f}\n"
+                f"💰 <b>Valor Total:</b> ${valor_total:,.0f}\n\n"
             )
 
         # Preguntar si quiere agregar insumos (solo para categorías que los tienen)
         if cat_key in CATEGORIAS_PADRE:
-            texto_resumen += "¿*Confirmas* esta Mano de Obra?\n\n¿Quieres agregar *insumos* también?"
+            texto_resumen += "¿<b>Confirmas</b> esta Mano de Obra?\n\n¿Quieres agregar <b>insumos</b> también?"
             keyboard = types.InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
@@ -405,7 +446,7 @@ def get_costos_router(db: Database) -> Router:
                 ]
             )
         else:
-            texto_resumen += "¿*Confirmas* y guardas?"
+            texto_resumen += "¿<b>Confirmas</b> y guardas?"
             keyboard = types.InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
@@ -415,7 +456,7 @@ def get_costos_router(db: Database) -> Router:
                 ]
             )
 
-        await message.answer(texto_resumen, parse_mode="Markdown", reply_markup=keyboard)
+        await message.answer(texto_resumen, parse_mode="HTML", reply_markup=keyboard)
         await state.set_state(CostoForm.esperando_confirmar_mo)
 
     @router.callback_query(CostoForm.esperando_confirmar_mo, F.data.startswith("conf_costo_mo:"))
@@ -425,8 +466,8 @@ def get_costos_router(db: Database) -> Router:
 
         if decision == "no":
             await callback.message.edit_text(
-                "❌ *Registro cancelado.*\n\nUsa /costo para intentar de nuevo.",
-                parse_mode="Markdown",
+                "❌ <b>Registro cancelado.</b>\n\nUsa /costo para intentar de nuevo.",
+                parse_mode="HTML",
             )
             await state.clear()
             return
@@ -439,10 +480,10 @@ def get_costos_router(db: Database) -> Router:
             await guardar_mo(db, callback.message, data, state)
 
             await callback.message.edit_text(
-                "✅ *Mano de Obra guardada.*\n\n"
-                "Ahora, ¿cuál es el *producto/insumo* usado?\n\n"
-                "*(Escribe el nombre del producto)*",
-                parse_mode="Markdown",
+                "✅ <b>Mano de Obra guardada.</b>\n\n"
+                "Ahora, ¿cuál es el <b>producto/insumo</b> usado?\n\n"
+                "<i>(Escribe el nombre del producto)</i>",
+                parse_mode="HTML",
             )
             await state.set_state(CostoForm.esperando_producto)
             return
@@ -450,51 +491,11 @@ def get_costos_router(db: Database) -> Router:
         # Solo guardar MO
         await guardar_mo(db, callback.message, data, state)
         await callback.message.edit_text(
-            "✅ *¡Costo registrado exitosamente!* 🎉📉\n\n"
+            "✅ <b>¡Costo registrado exitosamente!</b> 🎉📉\n\n"
             "Usa /costo para registrar otro o /resumen para ver tus datos.",
-            parse_mode="Markdown",
+            parse_mode="HTML",
         )
         await state.clear()
-
-    async def guardar_mo(db: Database, message: types.Message, data: dict, state: FSMContext):
-        """Guarda un registro de Mano de Obra."""
-        cat_key = data.get("cat_key", "")
-
-        # Determinar categoría DB
-        if cat_key in CATEGORIAS_PADRE:
-            categoria_db = CATEGORIAS_PADRE[cat_key]["mo"]
-        elif cat_key == "recoleccion":
-            categoria_db = "recoleccion"
-        elif cat_key == "beneficio":
-            categoria_db = "beneficio"
-        elif cat_key == "administrativo":
-            categoria_db = "administrativo"
-        else:
-            logger.warning(f"Categoría desconocida: {cat_key}")
-            return
-
-        cantidad = data.get("cantidad", 0)
-        vu = data.get("valor_unitario", 0)
-        valor_total = data.get("valor_total", 0)
-
-        # Para admin, no hay cantidad ni vu
-        if cat_key == "administrativo":
-            cantidad = 1
-            vu = valor_total
-
-        db.insert_transaccion(
-            finca_id=data["finca_id"],
-            lote_id=0,
-            categoria=categoria_db,
-            fecha=data["fecha"],
-            labor=data.get("labor", ""),
-            producto="",
-            cantidad=cantidad,
-            unidad="jornal",
-            valor_unitario=vu,
-            valor_total=valor_total,
-        )
-        logger.info(f"MO guardada: {categoria_db} en finca {data['finca_id']}")
 
     # --- FLUJO DE INSUMOS ---
 
@@ -507,10 +508,10 @@ def get_costos_router(db: Database) -> Router:
 
         await state.update_data(producto=producto)
         await message.answer(
-            f"✅ *Producto:* {producto}\n\n"
-            "¿Cuál es la *cantidad* del insumo?\n\n"
-            "*(Ej: 5 litros, 10 kg, 2 unidades)*",
-            parse_mode="Markdown",
+            f"✅ <b>Producto:</b> {producto}\n\n"
+            "¿Cuál es la <b>cantidad</b> del insumo?\n\n"
+            "<i>(Ej: 5 litros, 10 kg, 2 unidades)</i>",
+            parse_mode="HTML",
         )
         await state.set_state(CostoForm.esperando_cantidad_insumo)
 
@@ -526,10 +527,10 @@ def get_costos_router(db: Database) -> Router:
 
         await state.update_data(cantidad_insumo=cantidad)
         await message.answer(
-            f"✅ *Cantidad:* {cantidad}\n\n"
-            "¿Cuál es el *valor unitario* del insumo?\n\n"
-            "*(Escribe el valor en pesos)*",
-            parse_mode="Markdown",
+            f"✅ <b>Cantidad:</b> {cantidad}\n\n"
+            "¿Cuál es el <b>valor unitario</b> del insumo?\n\n"
+            "<i>(Escribe el valor en pesos)</i>",
+            parse_mode="HTML",
         )
         await state.set_state(CostoForm.esperando_valor_unitario_insumo)
 
@@ -550,11 +551,11 @@ def get_costos_router(db: Database) -> Router:
         valor_total = vu * cantidad
 
         await message.answer(
-            f"✅ *Valor unitario:* ${vu:,.0f}\n"
-            f"💰 *Valor total calculado:* ${valor_total:,.0f}\n\n"
-            "¿*Confirmas* el valor total?\n\n"
-            "*(Escribe el valor o 'ok' para aceptar)*",
-            parse_mode="Markdown",
+            f"✅ <b>Valor unitario:</b> ${vu:,.0f}\n"
+            f"💰 <b>Valor total calculado:</b> ${valor_total:,.0f}\n\n"
+            "¿<b>Confirmas</b> el valor total?\n\n"
+            "<i>(Escribe el valor u 'ok' para aceptar)</i>",
+            parse_mode="HTML",
         )
         await state.update_data(valor_total_insumo_calc=valor_total)
         await state.set_state(CostoForm.esperando_valor_total_insumo)
@@ -572,19 +573,19 @@ def get_costos_router(db: Database) -> Router:
                 if valor_total <= 0:
                     raise ValueError
             except ValueError:
-                await message.answer("❌ Ingresa un valor válido o 'ok':")
+                await message.answer("❌ Ingresa un valor válido u 'ok':")
                 return
 
         await state.update_data(valor_total_insumo=valor_total)
 
         data = await state.get_data()
         texto_resumen = (
-            f"📋 *Resumen — Insumo*\n\n"
-            f"📦 *Producto:* {data.get('producto', '')}\n"
-            f"⚖️ *Cantidad:* {data.get('cantidad_insumo', 0)}\n"
-            f"💵 *V.Unitario:* ${data.get('vu_insumo', 0):,.0f}\n"
-            f"💰 *Valor Total:* ${valor_total:,.0f}\n\n"
-            "¿*Confirmas* este insumo?"
+            f"📋 <b>Resumen — Insumo</b>\n\n"
+            f"📦 <b>Producto:</b> {data.get('producto', '')}\n"
+            f"⚖️ <b>Cantidad:</b> {data.get('cantidad_insumo', 0)}\n"
+            f"💵 <b>V.Unitario:</b> ${data.get('vu_insumo', 0):,.0f}\n"
+            f"💰 <b>Valor Total:</b> ${valor_total:,.0f}\n\n"
+            "¿<b>Confirmas</b> este insumo?"
         )
 
         keyboard = types.InlineKeyboardMarkup(
@@ -597,7 +598,7 @@ def get_costos_router(db: Database) -> Router:
             ]
         )
 
-        await message.answer(texto_resumen, parse_mode="Markdown", reply_markup=keyboard)
+        await message.answer(texto_resumen, parse_mode="HTML", reply_markup=keyboard)
         await state.set_state(CostoForm.esperando_confirmar_insumo)
 
     @router.callback_query(CostoForm.esperando_confirmar_insumo, F.data.startswith("conf_insumo:"))
@@ -607,8 +608,8 @@ def get_costos_router(db: Database) -> Router:
 
         if decision == "no":
             await callback.message.edit_text(
-                "❌ *Insumo cancelado.* Los datos de MO ya fueron guardados.",
-                parse_mode="Markdown",
+                "❌ <b>Insumo cancelado.</b> Los datos de MO ya fueron guardados.",
+                parse_mode="HTML",
             )
             await state.clear()
             return
@@ -621,7 +622,7 @@ def get_costos_router(db: Database) -> Router:
             categoria_db = CATEGORIAS_PADRE[cat_key]["insumos"]
         else:
             logger.warning(f"No hay categoría de insumos para {cat_key}")
-            await callback.message.edit_text("❌ *Error al guardar insumo.*", parse_mode="Markdown")
+            await callback.message.edit_text("❌ <b>Error al guardar insumo.</b>", parse_mode="HTML")
             await state.clear()
             return
 
@@ -641,23 +642,23 @@ def get_costos_router(db: Database) -> Router:
             logger.info(f"Insumo guardado: {categoria_db} en finca {data['finca_id']}")
         except Exception as e:
             logger.error(f"Error al guardar insumo: {e}", exc_info=True)
-            await callback.message.edit_text("❌ *Error al guardar insumo.*", parse_mode="Markdown")
+            await callback.message.edit_text("❌ <b>Error al guardar insumo.</b>", parse_mode="HTML")
             await state.clear()
             return
 
         if decision == "otro":
             await callback.message.edit_text(
-                "✅ *Insumo guardado.*\n\n"
-                "¿Cuál es el siguiente *producto/insumo*?\n\n"
-                "*(Escribe el nombre o /cancelar para terminar)*",
-                parse_mode="Markdown",
+                "✅ <b>Insumo guardado.</b>\n\n"
+                "¿Cuál es el siguiente <b>producto/insumo</b>?\n\n"
+                "<i>(Escribe el nombre o /cancelar para terminar)</i>",
+                parse_mode="HTML",
             )
             await state.set_state(CostoForm.esperando_producto)
         else:
             await callback.message.edit_text(
-                "✅ *¡Todos los datos registrados exitosamente!* 🎉📉\n\n"
+                "✅ <b>¡Todos los datos registrados exitosamente!</b> 🎉📉\n\n"
                 "Usa /costo para registrar otro o /resumen para ver tus datos.",
-                parse_mode="Markdown",
+                parse_mode="HTML",
             )
             await state.clear()
 
@@ -667,8 +668,8 @@ def get_costos_router(db: Database) -> Router:
         await callback.answer()
         await state.clear()
         await callback.message.edit_text(
-            "❌ *Operación cancelada.*\n\nUsa /costo para intentar de nuevo.",
-            parse_mode="Markdown",
+            "❌ <b>Operación cancelada.</b>\n\nUsa /costo para intentar de nuevo.",
+            parse_mode="HTML",
         )
 
     return router
