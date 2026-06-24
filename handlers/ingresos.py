@@ -22,6 +22,11 @@ class IngresoForm(StatesGroup):
     esperando_cantidad = State()
     esperando_valor_total = State()
     esperando_confirmar = State()
+    # Estados de edición
+    esperando_edicion = State()
+    esperando_edicion_fecha = State()
+    esperando_edicion_cantidad = State()
+    esperando_edicion_valor_total = State()
 
 
 async def preguntar_fecha(message: types.Message, state: FSMContext):
@@ -255,7 +260,7 @@ def get_ingresos_router(db: Database) -> Router:
         cantidad = data["cantidad"]
         valor_unitario = valor / cantidad if cantidad > 0 else 0
 
-        # Resumen para confirmar
+        # Resumen para confirmar con botones
         texto = (
             f"📋 <b>Resumen del Ingreso</b>\n\n"
             f"🏠 <b>Finca:</b> {data.get('finca_nombre', '')}\n"
@@ -264,20 +269,179 @@ def get_ingresos_router(db: Database) -> Router:
             f"⚖️ <b>Cantidad:</b> {cantidad} kg\n"
             f"💰 <b>Valor Total:</b> ${valor:,.0f}\n"
             f"💵 <b>Valor Unitario:</b> ${valor_unitario:,.0f}/kg\n\n"
-            "¿<b>Confirmas</b> que deseas guardar este ingreso?"
         )
 
         keyboard = types.InlineKeyboardMarkup(
             inline_keyboard=[
                 [
-                    types.InlineKeyboardButton(text="✅ Sí, guardar", callback_data="conf_ingreso:si"),
+                    types.InlineKeyboardButton(text="✅ Confirmar", callback_data="conf_ingreso:si"),
+                    types.InlineKeyboardButton(text="✏️ Editar", callback_data="editar_ingreso"),
                     types.InlineKeyboardButton(text="❌ Cancelar", callback_data="conf_ingreso:no"),
-                ]
+                ],
             ]
         )
         keyboard = agregar_boton_menu(keyboard)
 
         await message.answer(texto, parse_mode="HTML", reply_markup=keyboard)
+        await state.set_state(IngresoForm.esperando_confirmar)
+
+    # ── EDICIÓN DE INGRESO ──────────────────────────────────────
+
+    @router.callback_query(IngresoForm.esperando_confirmar, F.data == "editar_ingreso")
+    async def editar_ingreso(callback: types.CallbackQuery, state: FSMContext):
+        """Muestra opciones de edición para Ingreso."""
+        await callback.answer()
+
+        keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+            [types.InlineKeyboardButton(text="📅 Fecha", callback_data="edit_ingreso_fecha")],
+            [types.InlineKeyboardButton(text="⚖️ Cantidad", callback_data="edit_ingreso_cantidad")],
+            [types.InlineKeyboardButton(text="💰 Valor Total", callback_data="edit_ingreso_valor_total")],
+            [types.InlineKeyboardButton(text="← Volver al resumen", callback_data="volver_resumen_ingreso")],
+        ])
+
+        await callback.message.edit_text(
+            "✏️ <b>¿Qué querés editar del ingreso?</b>",
+            parse_mode="HTML",
+            reply_markup=keyboard,
+        )
+        await state.set_state(IngresoForm.esperando_edicion)
+
+    @router.callback_query(IngresoForm.esperando_edicion, F.data.startswith("edit_ingreso_"))
+    async def editar_ingreso_campo(callback: types.CallbackQuery, state: FSMContext):
+        """Redirige al campo a editar en Ingreso."""
+        await callback.answer()
+        campo = callback.data.split("_", 2)[2]  # edit_ingreso_{campo}
+
+        if campo == "fecha":
+            await callback.message.edit_text(
+                "✏️ <b>¿Cuál es la nueva fecha?</b>",
+                parse_mode="HTML",
+                reply_markup=botones_fecha(),
+            )
+            await state.set_state(IngresoForm.esperando_edicion_fecha)
+
+        elif campo == "cantidad":
+            await callback.message.edit_text(
+                "✏️ <b>¿Cuántos kilos?</b>",
+                parse_mode="HTML",
+                reply_markup=botones_menu_cancelar(),
+            )
+            await state.set_state(IngresoForm.esperando_edicion_cantidad)
+
+        elif campo == "valor_total":
+            await callback.message.edit_text(
+                "✏️ <b>¿Cuál es el nuevo valor total?</b>",
+                parse_mode="HTML",
+                reply_markup=botones_menu_cancelar(),
+            )
+            await state.set_state(IngresoForm.esperando_edicion_valor_total)
+
+    @router.message(IngresoForm.esperando_edicion_fecha, F.text)
+    async def recibir_edicion_fecha_ingreso(message: types.Message, state: FSMContext):
+        fecha_str = message.text.strip()
+        if fecha_str.lower() in ["hoy", "today"]:
+            fecha_str = fecha_hoy()
+        elif fecha_str.lower() in ["ayer", "yesterday"]:
+            fecha_str = fecha_ayer()
+
+        fecha_valida = None
+        for fmt in ["%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"]:
+            try:
+                fecha_valida = datetime.strptime(fecha_str, fmt)
+                break
+            except ValueError:
+                continue
+
+        if not fecha_valida:
+            await message.answer("❌ Fecha inválida. Usá formato DD/MM/AAAA:", reply_markup=botones_fecha())
+            return
+
+        fecha_iso = fecha_valida.strftime("%Y-%m-%d")
+        await state.update_data(fecha=fecha_iso)
+        await mostrar_resumen_ingreso(message, state)
+
+    @router.callback_query(IngresoForm.esperando_edicion_fecha, F.data.startswith("fecha:"))
+    async def procesar_edicion_fecha_ingreso(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        opcion = callback.data.split(":", 1)[1]
+        if opcion == "hoy":
+            fecha_str = fecha_hoy()
+        elif opcion == "ayer":
+            fecha_str = fecha_ayer()
+        else:
+            await callback.message.answer("✏️ Escribí la fecha en formato DD/MM/AAAA:", reply_markup=botones_fecha())
+            return
+        fecha_iso = datetime.strptime(fecha_str, "%d/%m/%Y").strftime("%Y-%m-%d")
+        await state.update_data(fecha=fecha_iso)
+        await mostrar_resumen_ingreso(callback.message, state, edit=True)
+
+    @router.message(IngresoForm.esperando_edicion_cantidad, F.text)
+    async def recibir_edicion_cantidad_ingreso(message: types.Message, state: FSMContext):
+        try:
+            cantidad = float(message.text.strip().replace(",", "."))
+            if cantidad <= 0:
+                raise ValueError
+        except ValueError:
+            await message.answer("❌ Ingresa una cantidad válida (mayor a 0):", reply_markup=botones_menu_cancelar())
+            return
+        await state.update_data(cantidad=cantidad)
+        await mostrar_resumen_ingreso(message, state)
+
+    @router.message(IngresoForm.esperando_edicion_valor_total, F.text)
+    async def recibir_edicion_valor_total_ingreso(message: types.Message, state: FSMContext):
+        try:
+            valor = float(message.text.strip().replace(".", "").replace(",", "."))
+            if valor <= 0:
+                raise ValueError
+        except ValueError:
+            await message.answer("❌ Ingresa un valor válido (mayor a 0):", reply_markup=botones_menu_cancelar())
+            return
+        await state.update_data(valor_total=valor)
+        await mostrar_resumen_ingreso(message, state)
+
+    @router.callback_query(F.data == "volver_resumen_ingreso")
+    async def volver_resumen_ingreso(callback: types.CallbackQuery, state: FSMContext):
+        """Vuelve a mostrar el resumen de ingreso desde la edición."""
+        await callback.answer()
+        await mostrar_resumen_ingreso(callback.message, state, edit=True)
+
+    async def mostrar_resumen_ingreso(message: types.Message, state: FSMContext, edit: bool = False):
+        """Muestra el resumen de ingreso con botones Confirmar/Editar/Cancelar."""
+        data = await state.get_data()
+        tipo = data.get("tipo", "")
+        cantidad = data.get("cantidad", 0)
+        valor = data.get("valor_total", 0)
+        valor_unitario = valor / cantidad if cantidad > 0 else 0
+
+        texto = (
+            f"📋 <b>Resumen del Ingreso</b>\n\n"
+            f"🏠 <b>Finca:</b> {data.get('finca_nombre', '')}\n"
+            f"📅 <b>Fecha:</b> {data.get('fecha', '')}\n"
+            f"☕ <b>Tipo:</b> {tipo}\n"
+            f"⚖️ <b>Cantidad:</b> {cantidad} kg\n"
+            f"💰 <b>Valor Total:</b> ${valor:,.0f}\n"
+            f"💵 <b>Valor Unitario:</b> ${valor_unitario:,.0f}/kg\n\n"
+        )
+
+        keyboard = types.InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    types.InlineKeyboardButton(text="✅ Confirmar", callback_data="conf_ingreso:si"),
+                    types.InlineKeyboardButton(text="✏️ Editar", callback_data="editar_ingreso"),
+                    types.InlineKeyboardButton(text="❌ Cancelar", callback_data="conf_ingreso:no"),
+                ],
+            ]
+        )
+        keyboard = agregar_boton_menu(keyboard)
+
+        if edit:
+            try:
+                await message.edit_text(texto, parse_mode="HTML", reply_markup=keyboard)
+            except Exception:
+                await message.answer(texto, parse_mode="HTML", reply_markup=keyboard)
+        else:
+            await message.answer(texto, parse_mode="HTML", reply_markup=keyboard)
+
         await state.set_state(IngresoForm.esperando_confirmar)
 
     @router.callback_query(IngresoForm.esperando_confirmar, F.data.startswith("conf_ingreso:"))

@@ -35,6 +35,16 @@ class CostoForm(StatesGroup):
     esperando_valor_total_insumo = State()
     esperando_confirmar_mo = State()
     esperando_confirmar_insumo = State()
+    # Estados de edición
+    esperando_edicion = State()
+    esperando_edicion_labor = State()
+    esperando_edicion_fecha = State()
+    esperando_edicion_cantidad = State()
+    esperando_edicion_valor_unitario = State()
+    esperando_edicion_valor_total = State()
+    esperando_edicion_producto = State()
+    esperando_edicion_cantidad_insumo = State()
+    esperando_edicion_vu_insumo = State()
 
 
 async def mostrar_categorias_costos(message: types.Message, state: FSMContext, edit: bool = False):
@@ -842,36 +852,17 @@ def get_costos_router(db: Database) -> Router:
                 f"💰 <b>Valor Total:</b> ${valor_total:,.0f}\n\n"
             )
 
-        # Preguntar confirmación según tipo de costo seleccionado
-        tipo_costo = data.get("tipo_costo", "")
-
-        if cat_key in CATEGORIAS_PADRE and _tiene_insumos(cat_key):
-            # Categoría con MO e Insumos — mostrar acción según tipo
-            texto_resumen += "¿<b>Confirmas</b> esta Mano de Obra?"
-
-            if tipo_costo == "ambos":
-                texto_resumen += "\n\n<i>Luego podrás registrar los insumos.</i>"
-
-            keyboard = types.InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [
-                        types.InlineKeyboardButton(text="✅ Confirmar", callback_data="conf_costo_mo:si"),
-                        types.InlineKeyboardButton(text="❌ Cancelar", callback_data="conf_costo_mo:no"),
-                    ],
-                ]
-            )
-            keyboard = agregar_boton_menu(keyboard)
-        else:
-            texto_resumen += "¿<b>Confirmas</b> y guardas?"
-            keyboard = types.InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [
-                        types.InlineKeyboardButton(text="✅ Sí, guardar", callback_data="conf_costo_mo:si"),
-                        types.InlineKeyboardButton(text="❌ Cancelar", callback_data="conf_costo_mo:no"),
-                    ],
-                ]
-            )
-            keyboard = agregar_boton_menu(keyboard)
+        # Botones: Confirmar | Editar | Cancelar
+        keyboard = types.InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    types.InlineKeyboardButton(text="✅ Confirmar", callback_data="conf_costo_mo:si"),
+                    types.InlineKeyboardButton(text="✏️ Editar", callback_data="editar_costo_mo"),
+                    types.InlineKeyboardButton(text="❌ Cancelar", callback_data="conf_costo_mo:no"),
+                ],
+            ]
+        )
+        keyboard = agregar_boton_menu(keyboard)
 
         await message.answer(texto_resumen, parse_mode="HTML", reply_markup=keyboard)
         await state.set_state(CostoForm.esperando_confirmar_mo)
@@ -917,6 +908,253 @@ def get_costos_router(db: Database) -> Router:
             reply_markup=boton_menu(),
         )
         await state.clear()
+
+    # ── EDICIÓN DE MANO DE OBRA ────────────────────────────────────
+
+    @router.callback_query(CostoForm.esperando_confirmar_mo, F.data == "editar_costo_mo")
+    async def editar_costo_mo(callback: types.CallbackQuery, state: FSMContext):
+        """Muestra opciones de edición para MO."""
+        await callback.answer()
+        data = await state.get_data()
+        cat_key = data.get("cat_key", "")
+
+        # Diferentes opciones según categoría
+        if cat_key == "administrativo":
+            keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+                [types.InlineKeyboardButton(text="📅 Fecha", callback_data="edit_mo_fecha")],
+                [types.InlineKeyboardButton(text="🔧 Labor", callback_data="edit_mo_labor")],
+                [types.InlineKeyboardButton(text="💰 Valor Total", callback_data="edit_mo_valor_total")],
+                [types.InlineKeyboardButton(text="← Volver al resumen", callback_data="volver_resumen_mo")],
+            ])
+        elif cat_key == "recoleccion":
+            keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+                [types.InlineKeyboardButton(text="📅 Fecha", callback_data="edit_mo_fecha")],
+                [types.InlineKeyboardButton(text="🔧 Labor", callback_data="edit_mo_labor")],
+                [types.InlineKeyboardButton(text="⚖️ Kilos", callback_data="edit_mo_cantidad")],
+                [types.InlineKeyboardButton(text="💰 Valor Total", callback_data="edit_mo_valor_total")],
+                [types.InlineKeyboardButton(text="← Volver al resumen", callback_data="volver_resumen_mo")],
+            ])
+        else:
+            keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+                [types.InlineKeyboardButton(text="📅 Fecha", callback_data="edit_mo_fecha")],
+                [types.InlineKeyboardButton(text="🔧 Labor", callback_data="edit_mo_labor")],
+                [types.InlineKeyboardButton(text="🔢 Jornales", callback_data="edit_mo_cantidad")],
+                [types.InlineKeyboardButton(text="💰 Valor Unitario", callback_data="edit_mo_valor_unitario")],
+                [types.InlineKeyboardButton(text="← Volver al resumen", callback_data="volver_resumen_mo")],
+            ])
+
+        await callback.message.edit_text(
+            "✏️ <b>¿Qué querés editar?</b>",
+            parse_mode="HTML",
+            reply_markup=keyboard,
+        )
+        await state.set_state(CostoForm.esperando_edicion)
+
+    @router.callback_query(CostoForm.esperando_edicion, F.data.startswith("edit_mo_"))
+    async def editar_mo_campo(callback: types.CallbackQuery, state: FSMContext):
+        """Redirige al campo a editar en MO."""
+        await callback.answer()
+        campo = callback.data.split("_", 2)[2]  # edit_mo_{campo}
+
+        if campo == "labor":
+            await callback.message.edit_text(
+                "✏️ <b>¿Cuál es la nueva labor?</b>",
+                parse_mode="HTML",
+                reply_markup=botones_menu_cancelar(),
+            )
+            await state.set_state(CostoForm.esperando_edicion_labor)
+
+        elif campo == "fecha":
+            await callback.message.edit_text(
+                "✏️ <b>¿Cuál es la nueva fecha?</b>",
+                parse_mode="HTML",
+                reply_markup=botones_fecha(),
+            )
+            await state.set_state(CostoForm.esperando_edicion_fecha)
+
+        elif campo == "cantidad":
+            await callback.message.edit_text(
+                "✏️ <b>¿Cuántos jornales/kilos?</b>",
+                parse_mode="HTML",
+                reply_markup=botones_menu_cancelar(),
+            )
+            await state.set_state(CostoForm.esperando_edicion_cantidad)
+
+        elif campo == "valor_unitario":
+            await callback.message.edit_text(
+                "✏️ <b>¿Cuál es el nuevo valor unitario?</b>",
+                parse_mode="HTML",
+                reply_markup=botones_menu_cancelar(),
+            )
+            await state.set_state(CostoForm.esperando_edicion_valor_unitario)
+
+        elif campo == "valor_total":
+            await callback.message.edit_text(
+                "✏️ <b>¿Cuál es el nuevo valor total?</b>",
+                parse_mode="HTML",
+                reply_markup=botones_menu_cancelar(),
+            )
+            await state.set_state(CostoForm.esperando_edicion_valor_total)
+
+    @router.message(CostoForm.esperando_edicion_labor, F.text)
+    async def recibir_edicion_labor(message: types.Message, state: FSMContext):
+        labor = message.text.strip()
+        if not labor:
+            await message.answer("❌ La labor no puede estar vacía:", reply_markup=botones_menu_cancelar())
+            return
+        await state.update_data(labor=labor)
+        await mostrar_resumen_mo(message, state)
+
+    @router.message(CostoForm.esperando_edicion_fecha, F.text)
+    async def recibir_edicion_fecha(message: types.Message, state: FSMContext):
+        fecha_str = message.text.strip()
+        if fecha_str.lower() in ["hoy", "today"]:
+            fecha_str = fecha_hoy()
+        elif fecha_str.lower() in ["ayer", "yesterday"]:
+            fecha_str = fecha_ayer()
+
+        fecha_valida = None
+        for fmt in ["%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"]:
+            try:
+                fecha_valida = datetime.strptime(fecha_str, fmt)
+                break
+            except ValueError:
+                continue
+
+        if not fecha_valida:
+            await message.answer("❌ Fecha inválida. Usá formato DD/MM/AAAA:", reply_markup=botones_fecha())
+            return
+
+        fecha_iso = fecha_valida.strftime("%Y-%m-%d")
+        await state.update_data(fecha=fecha_iso)
+        await mostrar_resumen_mo(message, state)
+
+    @router.callback_query(CostoForm.esperando_edicion_fecha, F.data.startswith("fecha:"))
+    async def procesar_edicion_fecha_callback(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        opcion = callback.data.split(":", 1)[1]
+        if opcion == "hoy":
+            fecha_str = fecha_hoy()
+        elif opcion == "ayer":
+            fecha_str = fecha_ayer()
+        else:
+            await callback.message.answer("✏️ Escribí la fecha en formato DD/MM/AAAA:", reply_markup=botones_fecha())
+            return
+        fecha_iso = datetime.strptime(fecha_str, "%d/%m/%Y").strftime("%Y-%m-%d")
+        await state.update_data(fecha=fecha_iso)
+        await mostrar_resumen_mo(callback.message, state, edit=True)
+
+    @router.message(CostoForm.esperando_edicion_cantidad, F.text)
+    async def recibir_edicion_cantidad(message: types.Message, state: FSMContext):
+        try:
+            cantidad = float(message.text.strip().replace(",", "."))
+            if cantidad <= 0:
+                raise ValueError
+        except ValueError:
+            await message.answer("❌ Ingresa un número válido (mayor a 0):", reply_markup=botones_menu_cancelar())
+            return
+        await state.update_data(cantidad=cantidad)
+        # Recalcular valor total si hay valor unitario
+        data = await state.get_data()
+        vu = data.get("valor_unitario", 0)
+        if vu > 0:
+            await state.update_data(valor_total=vu * cantidad, valor_total_calculado=vu * cantidad)
+        await mostrar_resumen_mo(message, state)
+
+    @router.message(CostoForm.esperando_edicion_valor_unitario, F.text)
+    async def recibir_edicion_vu(message: types.Message, state: FSMContext):
+        try:
+            vu = float(message.text.strip().replace(".", "").replace(",", "."))
+            if vu <= 0:
+                raise ValueError
+        except ValueError:
+            await message.answer("❌ Ingresa un valor válido (mayor a 0):", reply_markup=botones_menu_cancelar())
+            return
+        await state.update_data(valor_unitario=vu)
+        # Recalcular valor total
+        data = await state.get_data()
+        cantidad = data.get("cantidad", 0)
+        await state.update_data(valor_total=vu * cantidad, valor_total_calculado=vu * cantidad)
+        await mostrar_resumen_mo(message, state)
+
+    @router.message(CostoForm.esperando_edicion_valor_total, F.text)
+    async def recibir_edicion_valor_total(message: types.Message, state: FSMContext):
+        try:
+            valor_total = float(message.text.strip().replace(".", "").replace(",", "."))
+            if valor_total <= 0:
+                raise ValueError
+        except ValueError:
+            await message.answer("❌ Ingresa un valor válido (mayor a 0):", reply_markup=botones_menu_cancelar())
+            return
+        await state.update_data(valor_total=valor_total)
+        await mostrar_resumen_mo(message, state)
+
+    @router.callback_query(F.data == "volver_resumen_mo")
+    async def volver_resumen_mo(callback: types.CallbackQuery, state: FSMContext):
+        """Vuelve a mostrar el resumen MO desde la edición."""
+        await callback.answer()
+        await mostrar_resumen_mo(callback.message, state, edit=True)
+
+    async def mostrar_resumen_mo(message: types.Message, state: FSMContext, edit: bool = False):
+        """Muestra el resumen de MO con botones Confirmar/Editar/Cancelar."""
+        data = await state.get_data()
+        cat_key = data.get("cat_key", "")
+        labor = data.get("labor", "")
+        fecha = data.get("fecha", "")
+        cantidad = data.get("cantidad", 0)
+        vu = data.get("valor_unitario", 0)
+        valor_total = data.get("valor_total", 0)
+        lote_nombre = data.get("lote_nombre", "")
+
+        texto_resumen = (
+            f"📋 <b>Resumen — Mano de Obra</b>\n\n"
+            f"🏠 <b>Finca:</b> {data.get('finca_nombre', '')}\n"
+            f"📂 <b>Categoría:</b> {CATEGORIAS_PADRE.get(cat_key, CATEGORIAS_SIMPLE.get(cat_key, {}).get('nombre', cat_key))}\n"
+            f"📅 <b>Fecha:</b> {fecha}\n"
+            f"🔧 <b>Labor:</b> {labor}\n"
+            f"🌱 <b>Aplica a:</b> {lote_nombre}\n"
+        )
+
+        if cat_key == "administrativo":
+            texto_resumen += f"💰 <b>Valor Total:</b> ${valor_total:,.0f}\n\n"
+        elif cat_key == "recoleccion":
+            texto_resumen += (
+                f"⚖️ <b>Kilos:</b> {cantidad}\n"
+                f"💰 <b>Valor Total:</b> ${valor_total:,.0f}\n\n"
+            )
+        elif cat_key == "beneficio":
+            texto_resumen += (
+                f"👷 <b>Jornales:</b> {cantidad}\n"
+                f"💵 <b>V.Unitario:</b> ${vu:,.0f}\n"
+                f"💰 <b>Valor Total:</b> ${valor_total:,.0f}\n\n"
+            )
+        else:
+            texto_resumen += (
+                f"👷 <b>Jornales:</b> {cantidad}\n"
+                f"💵 <b>V.Unitario:</b> ${vu:,.0f}\n"
+                f"💰 <b>Valor Total:</b> ${valor_total:,.0f}\n\n"
+            )
+
+        keyboard = types.InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    types.InlineKeyboardButton(text="✅ Confirmar", callback_data="conf_costo_mo:si"),
+                    types.InlineKeyboardButton(text="✏️ Editar", callback_data="editar_costo_mo"),
+                    types.InlineKeyboardButton(text="❌ Cancelar", callback_data="conf_costo_mo:no"),
+                ],
+            ]
+        )
+        keyboard = agregar_boton_menu(keyboard)
+
+        if edit:
+            try:
+                await message.edit_text(texto_resumen, parse_mode="HTML", reply_markup=keyboard)
+            except Exception:
+                await message.answer(texto_resumen, parse_mode="HTML", reply_markup=keyboard)
+        else:
+            await message.answer(texto_resumen, parse_mode="HTML", reply_markup=keyboard)
+
+        await state.set_state(CostoForm.esperando_confirmar_mo)
 
     # --- FLUJO DE INSUMOS ---
 
@@ -1042,14 +1280,13 @@ def get_costos_router(db: Database) -> Router:
             f"⚖️ <b>Cantidad:</b> {data.get('cantidad_insumo', 0)} {label_unidad}\n"
             f"💵 <b>V.Unitario:</b> ${data.get('vu_insumo', 0):,.0f}\n"
             f"💰 <b>Valor Total:</b> ${valor_total:,.0f}\n\n"
-            "¿<b>Confirmas</b> este insumo?"
         )
 
         keyboard = types.InlineKeyboardMarkup(
             inline_keyboard=[
                 [
-                    types.InlineKeyboardButton(text="✅ Sí, guardar", callback_data="conf_insumo:si"),
-                    types.InlineKeyboardButton(text="➕ Otro insumo", callback_data="conf_insumo:otro"),
+                    types.InlineKeyboardButton(text="✅ Confirmar", callback_data="conf_insumo:si"),
+                    types.InlineKeyboardButton(text="✏️ Editar", callback_data="editar_insumo"),
                     types.InlineKeyboardButton(text="❌ Cancelar", callback_data="conf_insumo:no"),
                 ],
             ]
@@ -1154,13 +1391,153 @@ def get_costos_router(db: Database) -> Router:
             )
             await state.set_state(CostoForm.esperando_producto)
         else:
+            keyboard_success = types.InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [types.InlineKeyboardButton(text="➕ Otro insumo", callback_data="conf_insumo:otro")],
+                ]
+            )
+            keyboard_success = agregar_boton_menu(keyboard_success)
             await callback.message.edit_text(
-                "✅ <b>¡Todos los datos registrados exitosamente!</b> 🎉📉\n\n"
+                "✅ <b>¡Insumo registrado exitosamente!</b> 🎉📉\n\n"
                 "Usa /costo para registrar otro o /resumen para ver tus datos.",
                 parse_mode="HTML",
-                reply_markup=boton_menu(),
+                reply_markup=keyboard_success,
             )
             await state.clear()
+
+    # ── EDICIÓN DE INSUMOS ──────────────────────────────────────
+
+    @router.callback_query(CostoForm.esperando_confirmar_insumo, F.data == "editar_insumo")
+    async def editar_insumo(callback: types.CallbackQuery, state: FSMContext):
+        """Muestra opciones de edición para Insumos."""
+        await callback.answer()
+
+        keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+            [types.InlineKeyboardButton(text="📦 Producto", callback_data="edit_insumo_producto")],
+            [types.InlineKeyboardButton(text="⚖️ Cantidad", callback_data="edit_insumo_cantidad")],
+            [types.InlineKeyboardButton(text="💰 Valor Unitario", callback_data="edit_insumo_vu")],
+            [types.InlineKeyboardButton(text="← Volver al resumen", callback_data="volver_resumen_insumo")],
+        ])
+
+        await callback.message.edit_text(
+            "✏️ <b>¿Qué querés editar del insumo?</b>",
+            parse_mode="HTML",
+            reply_markup=keyboard,
+        )
+        await state.set_state(CostoForm.esperando_edicion)
+
+    @router.callback_query(CostoForm.esperando_edicion, F.data.startswith("edit_insumo_"))
+    async def editar_insumo_campo(callback: types.CallbackQuery, state: FSMContext):
+        """Redirige al campo a editar en Insumos."""
+        await callback.answer()
+        campo = callback.data.split("_", 2)[2]  # edit_insumo_{campo}
+
+        if campo == "producto":
+            await callback.message.edit_text(
+                "✏️ <b>¿Cuál es el nuevo producto?</b>",
+                parse_mode="HTML",
+                reply_markup=botones_menu_cancelar(),
+            )
+            await state.set_state(CostoForm.esperando_edicion_producto)
+
+        elif campo == "cantidad":
+            await callback.message.edit_text(
+                "✏️ <b>¿Cuál es la nueva cantidad?</b>",
+                parse_mode="HTML",
+                reply_markup=botones_menu_cancelar(),
+            )
+            await state.set_state(CostoForm.esperando_edicion_cantidad_insumo)
+
+        elif campo == "vu":
+            await callback.message.edit_text(
+                "✏️ <b>¿Cuál es el nuevo valor unitario?</b>",
+                parse_mode="HTML",
+                reply_markup=botones_menu_cancelar(),
+            )
+            await state.set_state(CostoForm.esperando_edicion_vu_insumo)
+
+    @router.message(CostoForm.esperando_edicion_producto, F.text)
+    async def recibir_edicion_producto(message: types.Message, state: FSMContext):
+        producto = message.text.strip()
+        if not producto:
+            await message.answer("❌ El producto no puede estar vacío:", reply_markup=botones_menu_cancelar())
+            return
+        await state.update_data(producto=producto)
+        await mostrar_resumen_insumo(message, state)
+
+    @router.message(CostoForm.esperando_edicion_cantidad_insumo, F.text)
+    async def recibir_edicion_cantidad_insumo(message: types.Message, state: FSMContext):
+        try:
+            cantidad = float(message.text.strip().replace(",", "."))
+            if cantidad <= 0:
+                raise ValueError
+        except ValueError:
+            await message.answer("❌ Ingresa una cantidad válida (mayor a 0):", reply_markup=botones_menu_cancelar())
+            return
+        await state.update_data(cantidad_insumo=cantidad)
+        # Recalcular valor total
+        data = await state.get_data()
+        vu = data.get("vu_insumo", 0)
+        await state.update_data(valor_total_insumo=vu * cantidad, valor_total_insumo_calc=vu * cantidad)
+        await mostrar_resumen_insumo(message, state)
+
+    @router.message(CostoForm.esperando_edicion_vu_insumo, F.text)
+    async def recibir_edicion_vu_insumo(message: types.Message, state: FSMContext):
+        try:
+            vu = float(message.text.strip().replace(".", "").replace(",", "."))
+            if vu <= 0:
+                raise ValueError
+        except ValueError:
+            await message.answer("❌ Ingresa un valor válido (mayor a 0):", reply_markup=botones_menu_cancelar())
+            return
+        await state.update_data(vu_insumo=vu)
+        # Recalcular valor total
+        data = await state.get_data()
+        cantidad = data.get("cantidad_insumo", 0)
+        await state.update_data(valor_total_insumo=vu * cantidad, valor_total_insumo_calc=vu * cantidad)
+        await mostrar_resumen_insumo(message, state)
+
+    @router.callback_query(F.data == "volver_resumen_insumo")
+    async def volver_resumen_insumo(callback: types.CallbackQuery, state: FSMContext):
+        """Vuelve a mostrar el resumen de insumo desde la edición."""
+        await callback.answer()
+        await mostrar_resumen_insumo(callback.message, state, edit=True)
+
+    async def mostrar_resumen_insumo(message: types.Message, state: FSMContext, edit: bool = False):
+        """Muestra el resumen de insumo con botones Confirmar/Editar/Cancelar."""
+        data = await state.get_data()
+        unidad = data.get("unidad_insumo", "unidad")
+        label_unidad = UNIDADES_INSUMO_LABELS.get(unidad, unidad)
+        valor_total = data.get("valor_total_insumo", 0)
+
+        texto_resumen = (
+            f"📋 <b>Resumen — Insumo</b>\n\n"
+            f"📦 <b>Producto:</b> {data.get('producto', '')}\n"
+            f"⚖️ <b>Cantidad:</b> {data.get('cantidad_insumo', 0)} {label_unidad}\n"
+            f"💵 <b>V.Unitario:</b> ${data.get('vu_insumo', 0):,.0f}\n"
+            f"💰 <b>Valor Total:</b> ${valor_total:,.0f}\n\n"
+        )
+
+        keyboard = types.InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    types.InlineKeyboardButton(text="✅ Confirmar", callback_data="conf_insumo:si"),
+                    types.InlineKeyboardButton(text="✏️ Editar", callback_data="editar_insumo"),
+                    types.InlineKeyboardButton(text="❌ Cancelar", callback_data="conf_insumo:no"),
+                ],
+            ]
+        )
+        keyboard = agregar_boton_menu(keyboard)
+
+        if edit:
+            try:
+                await message.edit_text(texto_resumen, parse_mode="HTML", reply_markup=keyboard)
+            except Exception:
+                await message.answer(texto_resumen, parse_mode="HTML", reply_markup=keyboard)
+        else:
+            await message.answer(texto_resumen, parse_mode="HTML", reply_markup=keyboard)
+
+        await state.set_state(CostoForm.esperando_confirmar_insumo)
 
     @router.callback_query(F.data == "cancelar_operacion")
     async def cancelar_operacion(callback: types.CallbackQuery, state: FSMContext):
