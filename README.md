@@ -1,172 +1,252 @@
 # ☕🤖 Asistente Financiero para Caficultores
 
-> **Tu finca organizada desde el celular.** Registra tus gastos e ingresos de café y lleva el control de tu producción — todo desde un mensaje de Telegram.
+> **Tu finca organizada desde el celular.** Registra gastos e ingresos de café, lleva el control de tu producción y genera tu Excel oficial de costos — todo desde un mensaje de Telegram.
+
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
+[![aiogram](https://img.shields.io/badge/aiogram-3.x-green.svg)](https://docs.aiogram.dev)
+[![SQLite](https://img.shields.io/badge/SQLite-3.x-lightgrey.svg)](https://sqlite.org)
+[![openpyxl](https://img.shields.io/badge/openpyxl-3.1.x-orange.svg)](https://openpyxl.readthedocs.io)
+[![Tests](https://img.shields.io/badge/tests-9/9%20✅-success.svg)](tests/test_database.py)
+[![E2E](https://img.shields.io/badge/E2E-21/21%20✅-success.svg)](tests/e2e_test.py)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ---
 
 ## 📖 ¿Qué hace este bot?
 
-Este bot te ayuda a **llevar la cuenta de tu finca de café** de forma fácil:
+Este bot de Telegram ayuda a **caficultores colombianos** a llevar el control financiero de sus fincas de café de forma simple y desde el celular.
 
-| 📋 ¿Qué puedes hacer? | 📝 Ejemplo |
+| 📋 Funcionalidad | 📝 Descripción |
 |---|---|
-| 🏡 Registrar tus fincas | "Finca El Paraíso, Huila, Garzón" |
-| 🌱 Registrar tus lotes | "Lote 1, 2.5 hectáreas, Caturra" |
-| 💰 Registrar ventas de café | "Vendí 500 kilos de CPS a $2,800,000" |
-| 📉 Registrar gastos de producción | "5 jornales de guadaña a $40,000" |
-| 📊 Ver resumen financiero | Cuánto gastaste, cuánto ganaste, tu margen |
-| 📥 Descargar tu Excel | El formato oficial FNC de costos |
+| 🏡 **Gestionar fincas** | Registra una o varias fincas con ubicación |
+| 🌱 **Gestionar lotes** | Crea lotes con área, árboles, variedad y fecha de siembra |
+| 💰 **Registrar ventas** | Venta de CPS, Pasilla y Re-re con fecha, kilos y valor |
+| 📉 **Registrar costos** | 9 categorías de costos: instalación, fertilización, recolección, etc. |
+| 📊 **Ver resumen** | Ingresos, egresos, margen y costo por hectárea |
+| 📋 **Exportar Excel** | Excel profesional con 18 hojas, fórmulas y gráficos |
+| 📥 **Importar Excel** | Carga datos desde plantilla Excel |
+| 🎤 **Entrada por voz** | Envía mensaje de voz y el bot transcribe y parsea los datos |
+| 🗑️ **Borrar datos** | Confirmación triple para eliminación segura |
 
 ---
 
-## 🚀 Cómo empezar
+## 🚀 Stack Tecnológico
 
-### Paso 1: Solicitar accion
-1. Busca el bot en Telegram: **@TuBotCaficultor**
-2. Escribe `/start`
-3. El bot te registrará automáticamente y pedirá aprobación
-
-### Paso 2: Esperar aprobación
-- El administrador revisará tu solicitud
-- En menos de 24 horas tendrás acceso
-- Recibirás un mensaje cuando estés aprobado
-
-### Paso 3: ¡Empezar a usar!
-Una vez aprobado, el bot estará listo para usar:
-
-```
-/start → Ver menú principal
-```
+| Componente | Tecnología |
+|------------|-----------|
+| 🧠 Lenguaje | **Python 3.11** |
+| 🤖 Framework | **aiogram 3.x** (telegram bot API) |
+| 🗄️ Base de datos | **SQLite** (WAL mode, sin servidor) |
+| 📊 Excel | **openpyxl** (generación dinámica con fórmulas y gráficos) |
+| 🎤 Voz | **Whisper** (transcripción local, gratis) |
+| 🔄 CI | **GitHub Actions** |
+| ☁️ Backup | **GitHub Sync** (automático cada 24h) |
 
 ---
 
-## 📱 Comandos disponibles
-
-| Comando | Qué hace |
-|---------|----------|
-| `/start` | Inicio + menú principal |
-| `/ayuda` | Ver guía de uso |
-| `/fincas` | Gestionar tus fincas |
-| `/lotes` | Gestionar tus lotes |
-| `/ingreso` | Registrar una venta de café |
-| `/costo` | Registrar un gasto de producción |
-| `/resumen` | Ver el resumen de tu finca |
-| `/excel` | Descargar tu Excel de costos |
-
----
-
-## 💡 Cómo registrar un gasto (ejemplo)
+## 🏗️ Estructura del Proyecto
 
 ```
-1. Escribe /costo
-2. El bot pregunta: "¿Qué finca?" → Selecciona tu finca
-3. El bot pregunta: "¿Qué tipo de gasto?" → Elige una opción
-   [🌱 Instalación] [🌿 Arvenses] [🧪 Fertilización]
-   [🛡️ Fitosanitario] [🌳 Sombrío] [🔧 Otras Labores]
-   [☕ Recolección] [🏭 Beneficio] [📋 Administrativo]
-4. El bot pregunta datos específicos según el tipo
-5. Confirma y ¡listo! Los datos se guardan
-```
-
----
-
-## 💰 Cómo registrar una venta
-
-```
-1. Escribe /ingreso
-2. Selecciona tu finca
-3. El bot pregunta:
-   - ¿Cuándo vendiste? (fecha)
-   - ¿Qué tipo de café? (CPS, Pasilla, Re-re)
-   - ¿Cuántos kilos?
-   - ¿A cuánto te pagaron el kilo?
-4. Confirma y ¡listo!
+bot-asistente-caficultor/
+├── main.py                 # 🚀 Entry point
+├── config.py               # ⚙️ Configuración (token, rutas, categorías)
+├── database.py             # 🗄️ Capa SQLite (usuarios, fincas, lotes, transacciones)
+├── excel_manager.py        # 📊 Generación de Excel (18 hojas + gráficos)
+├── middleware.py            # 🔄 CancelMiddleware (limpieza FSM global)
+├── voice_handler.py        # 🎤 Transcripción Whisper + parser NL
+├── utils.py                # 🔧 Helpers: botones inline reutilizables
+├── sync_to_github.py       # ☁️ Sync diario a GitHub
+│
+├── handlers/               # 📁 Handlers de Telegram
+│   ├── menu.py             # /menu, /cancelar, borrar datos
+│   ├── start.py            # /start, registro de usuarios
+│   ├── admin.py            # /usuarios, aprobar, revocar
+│   ├── fincas.py           # /fincas, CRUD fincas
+│   ├── lotes.py            # /lotes, CRUD lotes
+│   ├── ingresos.py         # /ingreso, registrar ventas
+│   ├── costos.py           # /costo, registrar gastos (16 estados FSM)
+│   ├── reportes.py         # /resumen, /excel
+│   ├── importar.py         # Importar Excel desde archivo
+│   ├── ayuda.py            # /ayuda, guía completa
+│   └── voice.py            # Mensajes de voz
+│
+├── tests/                  # 🧪 Tests
+│   ├── test_database.py    # 9 tests unitarios
+│   ├── e2e_test.py         # 21 pasos E2E
+│   └── simulador_caficultor.py  # Simulación masiva (894+ transacciones)
+│
+├── docs/                   # 📚 Documentación
+│   ├── FLUJO.md            # Diagramas de flujo y FSM
+│   ├── REFERENCIA_API.md   # Referencia de API
+│   ├── EXCEL.md            # Estructura del Excel
+│   └── DESARROLLO.md       # Guía de desarrollo
+│
+├── data/                   # 📦 Datos
+│   ├── finca.db            # Base de datos SQLite
+│   └── plantilla/          # Template Excel
+│
+└── exports/                # 📤 Exportaciones temporales
 ```
 
 ---
 
-## 📊 Tu Excel de costos
+## 📱 Comandos Disponibles
 
-Cada vez que necesites ver el estado completo de tu producción:
+| Comando | Descripción |
+|---------|-------------|
+| `/start` | Inicio + solicitud de acceso |
+| `/menu` | Menú principal 🏠 |
+| `/ayuda` | Guía completa de uso ❓ |
+| `/fincas` | Gestionar tus fincas 🗺️ |
+| `/lotes` | Gestionar tus lotes 🌱 |
+| `/ingreso` | Registrar venta de café ☕💰 |
+| `/costo` | Registrar costo de producción 📉 |
+| `/resumen` | Ver resumen financiero 📊 |
+| `/excel` | Generar y descargar Excel 📋 |
+| `/cancelar` | Cancelar operación actual ❌ |
 
-```
-1. Escribe /excel
-2. El bot genera tu Excel oficial de costos de producción
-3. Lo recibes directo en Telegram como archivo
-4. Ábrelo en Excel o en Google Sheets
-```
-
-El Excel incluye:
-- ✅ Resumen de ingresos y egresos
-- ✅ Costo total de producción
-- ✅ Margen de ganancia
-- ✅ Gráficos de participación por rubro
-- ✅ Formato oficial para caficultores colombianos
-
----
-
-## 🔐 Tus datos están seguros
-
-- Tus datos se guardan en una base de datos privada
-- Solo tú y el administrador tienen acceso
-- Los datos se respaldan automáticamente cada 24 horas
-- Puedes pedir tu Excel en cualquier momento
+**Admin:**
+| `/usuarios` | Ver todos los usuarios |
+| `/revocar USER_ID` | Revocar acceso |
+| Aprobar/Rechazar desde botones inline | Gestionar solicitudes |
 
 ---
 
-## ❓ Preguntas frecuentes
+## 🧪 Testing
 
-**¿Puedo registrar más de una finca?**
-Sí, puedes registrar todas las fincas que tengas.
-
-**¿Puedo registrar varios lotes en una finca?**
-Sí, cada finca puede tener varios lotes con su propia información.
-
-**¿Qué pasa si me equivoco al registrar algo?**
-Puedes volver a registrar. El bot va acumulando todo.
-
-**¿Puedo usar el bot desde cualquier celular?**
-Sí, mientras tengas Telegram instalado.
-
-**¿Qué es CPS?**
-CPS = Café Pergamino Seco, el tipo de café más común que venden los caficultores.
-
----
-
-## 📞 Soporte
-
-Si tienes problemas con el bot, contacta al administrador:
-📱 @MateoWhatsApp
-
----
-
-## 👨‍💻 Para técnicos: Instalación
+### Tests unitarios (9/9 pasando ✅)
 
 ```bash
-# 1. Clonar
+cd /home/lucas-mateo/bot-asistente-caficultor
+source venv/bin/activate
+python -m pytest tests/test_database.py -v
+```
+
+### Test E2E (21/21 pasos exitosos ✅)
+
+```bash
+python tests/e2e_test.py
+```
+
+### Simulación de datos masivos
+
+```bash
+python tests/simulador_caficultor.py
+```
+
+Genera 1 finca, 20 lotes, 894+ transacciones en 3 años con precios reales.
+
+---
+
+## 💻 Instalación (para técnicos)
+
+### Requisitos
+
+- Python 3.11+
+- Git
+- Token de Bot de Telegram (de [@BotFather](https://t.me/BotFather))
+
+### Pasos
+
+```bash
+# 1. Clonar el repositorio
 git clone https://github.com/iglm/bot-asistente-caficultor.git
 cd bot-asistente-caficultor
 
 # 2. Crear entorno virtual
 python3 -m venv venv
 source venv/bin/activate
+
+# 3. Instalar dependencias
 pip install -r requirements.txt
 
-# 3. Configurar
+# 4. Configurar token
 echo "TU_TOKEN_AQUI" > scripts/.bot_token_caficultor.txt
-cp "Costos de produccion - 2026.xlsx" data/plantilla/
 
-# 4. Probar
+# 5. Verificar template Excel
+ls -la "data/plantilla/Costos de produccion - 2026.xlsx"
+
+# 6. Ejecutar
 python main.py
-
-# 5. Instalar como servicio
-sudo cp systemd/bot-asistente.service /etc/systemd/system/
-sudo systemctl enable bot-asistentor
-sudo systemctl start bot-asistente
 ```
+
+### Instalación como servicio
+
+```bash
+sudo cp systemd/bot-asistente.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable bot-asistente
+sudo systemctl start bot-asistente
+
+# Ver logs
+journalctl -u bot-asistente -f
+```
+
+---
+
+## 📊 El Excel de Costos
+
+Cada vez que uses `/excel`, el bot genera un archivo `.xlsx` con:
+
+| Componente | Descripción |
+|------------|-------------|
+| 📄 **18 hojas** | Datos de lotes, ingresos, costos (9 categorías), resultados |
+| 🧮 **Fórmulas automáticas** | Subtotales, totales, costo por hectárea |
+| 📈 **3 gráficos** | BarChart (costos), PieChart (distribución), LineChart (tendencia) |
+| 🔄 **Dinámico** | Sin límites de filas — se adapta a tus datos |
+| 📥 **Importable** | Puedes subir datos desde Excel al bot |
+
+---
+
+## 🔐 Seguridad y Privacidad
+
+- ✅ Datos almacenados en SQLite local (no en la nube)
+- ✅ Sistema de aprobación de usuarios (solo usuarios autorizados)
+- ✅ Confirmación triple para borrar datos
+- ✅ Sync cifrado vía SSH a GitHub privado
+- ✅ Logs detallados para auditoría
+
+---
+
+## 📚 Documentación
+
+| Documento | Descripción |
+|-----------|-------------|
+| [📖 FLUJO.md](docs/FLUJO.md) | Diagramas de flujo de cada comando y FSM states |
+| [📚 REFERENCIA_API.md](docs/REFERENCIA_API.md) | Documentación técnica de handlers y métodos |
+| [📊 EXCEL.md](docs/EXCEL.md) | Estructura del Excel, fórmulas y hojas |
+| [🛠️ DESARROLLO.md](docs/DESARROLLO.md) | Guía para desarrolladores |
+
+---
+
+## 🤝 Contribución
+
+Las contribuciones son bienvenidas. Por favor:
+
+1. Hacé fork del proyecto
+2. Creá una rama para tu feature (`git checkout -b feature/nueva-funcionalidad`)
+3. Hacé commit de tus cambios (`git commit -m 'Agrega nueva funcionalidad'`)
+4. Hacé push a la rama (`git push origin feature/nueva-funcionalidad`)
+5. Abrí un Pull Request
+
+Ver [DESARROLLO.md](docs/DESARROLLO.md) para convenciones y guía de desarrollo.
 
 ---
 
 ## 📄 Licencia
 
-MIT — Libre para uso de caficultores colombianos 🇨🇴☕
+**MIT** — Libre para uso de caficultores colombianos 🇨🇴☕
+
+---
+
+## 📞 Soporte
+
+¿Problemas con el bot? Contactá al administrador:
+📱 **@MateoWhatsApp**
+
+---
+
+<p align="center">
+  <b>☕ ¡Buena cosecha! 🌱</b><br>
+  <i>Hecho con ❤️ para caficultores colombianos</i>
+</p>
