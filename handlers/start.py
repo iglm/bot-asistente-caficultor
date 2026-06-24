@@ -114,9 +114,21 @@ def get_start_router(db: Database) -> Router:
 
         logger.info(f"/start recibido de user {user_id} (@{username})")
 
-        # Mostrar aviso legal a TODOS los usuarios (incluyendo admin)
-        await mostrar_aviso_legal(message, db)
-        return
+        # Verificar si ya aceptó términos
+        user = db.get_user(user_id)
+
+        if user and user.get('acepto_terminos', 0) == 1:
+            # Ya aceptó: directo al menú principal
+            is_admin = user_id in ADMIN_IDS
+            keyboard = construir_menu_principal(db=None, user_id=user_id, is_admin=is_admin)
+            await message.answer(
+                "☕ <b>Asistente de Costos</b>\n\n¿Qué querés hacer?",
+                parse_mode="HTML",
+                reply_markup=keyboard,
+            )
+        else:
+            # No aceptó o es nuevo: mostrar aviso legal
+            await mostrar_aviso_legal(message, db)
 
     @router.callback_query(F.data == "aceptar_terminos")
     async def aceptar_terminos(callback: types.CallbackQuery):
