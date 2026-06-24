@@ -1,0 +1,276 @@
+"""
+Handler de /ingreso - Registro de ingresos por ventas de café.
+"""
+import logging
+from datetime import datetime
+from aiogram import Router, types, F
+from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+
+from database import Database
+from config import TIPOS_CAFE
+
+logger = logging.getLogger(__name__)
+
+
+class IngresoForm(StatesGroup):
+    esperando_finca = State()
+    esperando_fecha = State()
+    esperando_tipo = State()
+    esperando_cantidad = State()
+    esperando_valor_total = State()
+    esperando_confirmar = State()
+
+
+def get_ingresos_router(db: Database) -> Router:
+    router = Router()
+
+    @router.message(Command("ingreso"))
+    @router.callback_query(F.data == "menu_ingresos")
+    async def cmd_ingreso(event: types.Message | types.CallbackQuery, state: FSMContext):
+        """Inicia el registro de un ingreso."""
+        user_id = event.from_user.id
+
+        if isinstance(event, types.CallbackQuery):
+            await event.answer()
+            message = event.message
+            send = message.answer
+        else:
+            message = event
+            send = message.answer
+
+        if not db.is_approved(user_id):
+            await send("⏳ *No tienes acceso.* Usa /start para solicitar aprobación.", parse_mode="Markdown")
+            return
+
+        try:
+            fincas = db.get_fincas(user_id)
+            if not fincas:
+                await send(
+                    "❌ *No tienes fincas registradas.*\n\n"
+                    "Primero crea una finca con /fincas 🗺️",
+                    parse_mode="Markdown",
+                )
+                return
+
+            if len(fincas) == 1:
+                await state.update_data(finca_id=fincas[0]["id"], finca_nombre=fincas[0]["nombre"])
+                await preguntar_fecha(message, state)
+                return
+
+            # Varias fincas - seleccionar
+            keyboard = types.InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [types.InlineKeyboardButton(
+                        text=f"🏠 {f['nombre']}",
+                        callback_data=f"ingreso_finca:{f['id']}",
+                    )]
+                    for f in fincas
+                ]
+                + [
+                    [types.InlineKeyboardButton(text="🔙 Volver", callback_data="volver_menu")],
+                ]
+            )
+
+            await send(
+                "💰 *Registrar Ingreso*\n\nSelecciona la finca:",
+                parse_mode="Markdown",
+                reply_markup=keyboard,
+            )
+            await state.set_state(IngresoForm.esperando_finca)
+
+        except Exception as e:
+            logger.error(f"Error en /ingreso: {e}", exc_info=True)
+            await send("❌ *Error al iniciar registro.*", parse_mode="Markdown")
+
+    @router.callback_query(IngresoForm.esperando_finca, F.data.startswith("ingreso_finca:"))
+    async def seleccionar_finca_ingreso(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        finca_id = int(callback.data.split(":")[1])
+        finca = db.get_finca_by_id(finca_id)
+        if not finca:
+            await callback.message.edit_text("❌ *Finca no encontrada.*", parse_mode="Markdown")
+            await state.clear()
+            return
+
+        await state.update_data(finca_id=finca_id, finca_nombre=finca["nombre"])
+        await preguntar_fecha(callback.message, state)
+
+    async def preguntar_fecha(message: types.Message, state: FSMContext):
+        await message.edit_text(
+            "💰 *Registrar Ingreso*\n\n"
+            "¿Cuál es la *fecha* de la venta?\n\n"
+            "*(Formato: DD/MM/AAAA)*",
+            parse_mode="Markdown",
+        )
+        await state.set_state(IngresoForm.esperando_fecha)
+
+    @router.message(IngresoForm.esperando_fecha, F.text)
+    async def recibir_fecha(message: types.Message, state: FSMContext):
+        fecha_str = message.text.strip()
+
+        fecha_valida = None
+        for fmt in ["%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"]:
+            try:
+                fecha_valida = datetime.strptime(fecha_str, fmt)
+                break
+            except ValueError:
+                continue
+
+        if not fecha_valida:
+            await message.answer("❌ Fecha inválida. Usa formato DD/MM/AAAA:")
+            return
+
+        # Guardar en ISO
+        fecha_iso = fecha_valida.strftime("%Y-%m-%d")
+        await state.update_data(fecha=fecha_iso)
+
+        keyboard = types.InlineKeyboardMarkup(
+            inline_keyboard=[
+                [types.InlineKeyboardButton(text=tipo, callback_data=f"tipo_cafe:{tipo}")]
+                for tipo in TIPOS_CAFE
+            ]
+        )
+
+        await message.answer(
+            f"✅ *Fecha:* {fecha_str}\n\n"
+            "¿Qué *tipo de café* vendiste?",
+            parse_mode="Markdown",
+            reply_markup=keyboard,
+        )
+        await state.set_state(IngresoForm.esperando_tipo)
+
+    @router.callback_query(IngresoForm.esperando_tipo, F.data.startswith("tipo_cafe:"))
+    async def recibir_tipo(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        tipo = callback.data.split(":", 1)[1]
+        await state.update_data(tipo=tipo)
+
+        await callback.message.edit_text(
+            f"✅ *Tipo:* {tipo}\n\n"
+            "¿Cuántos *kilos* vendiste?\n\n"
+            "*(Escribe el número)*",
+            parse_mode="Markdown",
+        )
+        await state.set_state(IngresoForm.esperando_cantidad)
+
+    @router.message(IngresoForm.esperando_cantidad, F.text)
+    async def recibir_cantidad(message: types.Message, state: FSMContext):
+        try:
+            cantidad = float(message.text.strip().replace(",", "."))
+            if cantidad <= 0:
+                raise ValueError
+        except ValueError:
+            await message.answer("❌ Ingresa una cantidad válida (mayor a 0):")
+            return
+
+        await state.update_data(cantidad=cantidad)
+        await message.answer(
+            f"✅ *Cantidad:* {cantidad} kg\n\n"
+            "¿Cuál fue el *valor total* de la venta?\n\n"
+            "*(Escribe el valor en pesos, ej: 1500000)*",
+            parse_mode="Markdown",
+        )
+        await state.set_state(IngresoForm.esperando_valor_total)
+
+    @router.message(IngresoForm.esperando_valor_total, F.text)
+    async def recibir_valor_total(message: types.Message, state: FSMContext):
+        try:
+            valor = float(message.text.strip().replace(".", "").replace(",", "."))
+            if valor <= 0:
+                raise ValueError
+        except ValueError:
+            await message.answer("❌ Ingresa un valor válido (mayor a 0):")
+            return
+
+        await state.update_data(valor_total=valor)
+
+        data = await state.get_data()
+        tipo = data["tipo"]
+        cantidad = data["cantidad"]
+        valor_unitario = valor / cantidad if cantidad > 0 else 0
+
+        # Resumen para confirmar
+        texto = (
+            f"📋 *Resumen del Ingreso*\n\n"
+            f"🏠 *Finca:* {data.get('finca_nombre', '')}\n"
+            f"📅 *Fecha:* {data.get('fecha', '')}\n"
+            f"☕ *Tipo:* {tipo}\n"
+            f"⚖️ *Cantidad:* {cantidad} kg\n"
+            f"💰 *Valor Total:* ${valor:,.0f}\n"
+            f"💵 *Valor Unitario:* ${valor_unitario:,.0f}/kg\n\n"
+            "¿*Confirmas* que deseas guardar este ingreso?"
+        )
+
+        keyboard = types.InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    types.InlineKeyboardButton(text="✅ Sí, guardar", callback_data="conf_ingreso:si"),
+                    types.InlineKeyboardButton(text="❌ Cancelar", callback_data="conf_ingreso:no"),
+                ]
+            ]
+        )
+
+        await message.answer(texto, parse_mode="Markdown", reply_markup=keyboard)
+        await state.set_state(IngresoForm.esperando_confirmar)
+
+    @router.callback_query(IngresoForm.esperando_confirmar, F.data.startswith("conf_ingreso:"))
+    async def confirmar_ingreso(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        decision = callback.data.split(":", 1)[1]
+
+        if decision == "no":
+            await callback.message.edit_text(
+                "❌ *Registro cancelado.*\n\n"
+                "Usa /ingreso cuando quieras intentarlo de nuevo.",
+                parse_mode="Markdown",
+            )
+            await state.clear()
+            return
+
+        data = await state.get_data()
+
+        # Mapear tipo a categoría
+        tipo_map = {"CPS": "ingreso_cps", "Pasilla": "ingreso_pasilla", "Re-re": "ingreso_rere"}
+        categoria = tipo_map.get(data.get("tipo", ""), "ingreso_cps")
+
+        try:
+            db.insert_transaccion(
+                finca_id=data["finca_id"],
+                lote_id=0,
+                categoria=categoria,
+                fecha=data["fecha"],
+                labor=f"Venta {data['tipo']}",
+                producto=data["tipo"],
+                cantidad=data["cantidad"],
+                unidad="kg",
+                valor_unitario=data["valor_total"] / data["cantidad"] if data["cantidad"] > 0 else 0,
+                valor_total=data["valor_total"],
+            )
+
+            await callback.message.edit_text(
+                f"✅ *¡Ingreso registrado exitosamente!* 🎉☕\n\n"
+                f"☕ *Tipo:* {data['tipo']}\n"
+                f"⚖️ *Cantidad:* {data['cantidad']} kg\n"
+                f"💰 *Valor:* ${data['valor_total']:,.0f}\n\n"
+                "Usa /resumen para ver tus datos o /ingreso para agregar otro.",
+                parse_mode="Markdown",
+            )
+
+        except Exception as e:
+            logger.error(f"Error al guardar ingreso: {e}", exc_info=True)
+            await callback.message.edit_text(
+                "❌ *Error al guardar el ingreso.* Intenta de nuevo.",
+                parse_mode="Markdown",
+            )
+
+        await state.clear()
+
+    @router.callback_query(F.data == "menu_ingresos")
+    async def menu_ingresos_callback(callback: types.CallbackQuery):
+        await callback.answer()
+        # Reenviar al comando
+        await cmd_ingreso(callback, None)
+
+    return router

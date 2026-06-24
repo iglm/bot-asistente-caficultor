@@ -1,0 +1,14 @@
+[Unit]
+Description=Bot Asistente Financiero Caficultor
+After=network.target
+
+[Service]
+Type=simple
+User=lucas-mateo
+WorkingDirectory=/home/lucas-mateo/bot-asistente-caficultor
+ExecStart=/home/lucas-mateo/bot-asistente-caficultor/venv/bin/python main.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
