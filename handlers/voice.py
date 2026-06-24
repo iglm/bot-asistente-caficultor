@@ -19,6 +19,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 from database import Database
 from voice_handler import transcribe_audio, parse_voice_text
+from utils import boton_menu, botones_menu_cancelar, agregar_boton_menu
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,7 @@ def format_parsed_data_html(data: dict) -> tuple:
             ],
         ]
     )
+    keyboard = agregar_boton_menu(keyboard)
 
     return "\n".join(lines), keyboard
 
@@ -102,6 +104,7 @@ async def guardar_transaccion_voz(
             "✅ <b>¡Transacción guardada exitosamente!</b> 🎉\n\n"
             "Usa /resumen para ver tus datos o envía otro mensaje de voz.",
             parse_mode="HTML",
+            reply_markup=boton_menu(),
         )
         logger.info(f"Voz → transacción guardada: {categoria} en finca {finca_id}")
     except Exception as e:
@@ -109,6 +112,7 @@ async def guardar_transaccion_voz(
         await message.edit_text(
             "❌ <b>Error al guardar la transacción.</b> Intenta de nuevo.",
             parse_mode="HTML",
+            reply_markup=boton_menu(),
         )
 
 
@@ -127,6 +131,7 @@ def get_voice_router(db: Database) -> Router:
             await message.answer(
                 "⏳ <b>No tienes acceso.</b> Usa /start para solicitar aprobación.",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
             return
 
@@ -152,6 +157,7 @@ def get_voice_router(db: Database) -> Router:
                     "❌ <b>No se pudo transcribir el audio.</b>\n\n"
                     "Intenta enviar un mensaje de voz más claro o escribe el dato manualmente.",
                     parse_mode="HTML",
+                    reply_markup=boton_menu(),
                 )
                 return
 
@@ -176,6 +182,7 @@ def get_voice_router(db: Database) -> Router:
                 "❌ <b>Error al procesar el mensaje de voz.</b>\n\n"
                 "Intenta de nuevo o escribe los datos manualmente.",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
         finally:
             # Limpiar archivo temporal
@@ -198,6 +205,7 @@ def get_voice_router(db: Database) -> Router:
             await callback.message.edit_text(
                 "❌ <b>Error: datos no encontrados.</b> Envía el mensaje de voz de nuevo.",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
             await state.clear()
             return
@@ -211,6 +219,7 @@ def get_voice_router(db: Database) -> Router:
                 "❌ <b>No tienes fincas registradas.</b>\n\n"
                 "Primero crea una finca con /fincas 🗺️",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
             await state.clear()
             return
@@ -232,10 +241,8 @@ def get_voice_router(db: Database) -> Router:
                     ]
                     for f in fincas
                 ]
-                + [
-                    [types.InlineKeyboardButton(text="❌ Cancelar", callback_data="voice_cancel")],
-                ]
             )
+            keyboard = agregar_boton_menu(keyboard)
             await callback.message.edit_text(
                 "🏠 <b>Selecciona la finca para guardar:</b>",
                 parse_mode="HTML",
@@ -265,6 +272,7 @@ def get_voice_router(db: Database) -> Router:
         await callback.message.edit_text(
             "❌ <b>Registro cancelado.</b>",
             parse_mode="HTML",
+            reply_markup=boton_menu(),
         )
         await state.clear()
 
@@ -279,6 +287,7 @@ def get_voice_router(db: Database) -> Router:
             "Envía un mensaje de texto con la información corregida o "
             "un nuevo mensaje de voz.",
             parse_mode="HTML",
+            reply_markup=boton_menu(),
         )
         await state.clear()
 
@@ -291,6 +300,7 @@ def get_voice_router(db: Database) -> Router:
         await callback.message.edit_text(
             "❌ <b>Operación cancelada.</b>",
             parse_mode="HTML",
+            reply_markup=boton_menu(),
         )
         await state.clear()
 

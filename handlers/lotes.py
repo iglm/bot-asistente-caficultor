@@ -8,6 +8,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 from database import Database
+from utils import boton_menu, botones_menu_cancelar, agregar_boton_menu
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +51,9 @@ def get_lotes_router(db: Database) -> Router:
                         text="➕ Nuevo Lote",
                         callback_data=f"nuevo_lote:{finca_id}",
                     )],
-                    [types.InlineKeyboardButton(text="🔙 Volver", callback_data="volver_menu")],
                 ]
             )
+            keyboard = agregar_boton_menu(keyboard)
 
             if edit:
                 await message.edit_text(texto, parse_mode="HTML", reply_markup=keyboard)
@@ -63,9 +64,9 @@ def get_lotes_router(db: Database) -> Router:
             logger.error(f"Error al mostrar lotes: {e}", exc_info=True)
             error_text = "❌ Error al obtener lotes."
             if edit:
-                await message.edit_text(error_text, parse_mode="HTML")
+                await message.edit_text(error_text, parse_mode="HTML", reply_markup=boton_menu())
             else:
-                await message.answer(error_text, parse_mode="HTML")
+                await message.answer(error_text, parse_mode="HTML", reply_markup=boton_menu())
 
     @router.message(Command("lotes"))
     @router.callback_query(F.data == "menu_lotes")
@@ -85,7 +86,7 @@ def get_lotes_router(db: Database) -> Router:
             is_callback = False
 
         if not db.is_approved(user_id):
-            await send("⏳ <b>No tienes acceso.</b> Usa /start para solicitar aprobación.", parse_mode="HTML")
+            await send("⏳ <b>No tienes acceso.</b> Usa /start para solicitar aprobación.", parse_mode="HTML", reply_markup=boton_menu())
             return
 
         try:
@@ -95,6 +96,7 @@ def get_lotes_router(db: Database) -> Router:
                     "❌ <b>No tienes fincas registradas.</b>\n\n"
                     "Primero crea una finca con /fincas 🗺️",
                     parse_mode="HTML",
+                    reply_markup=boton_menu(),
                 )
                 return
 
@@ -112,10 +114,8 @@ def get_lotes_router(db: Database) -> Router:
                     )]
                     for f in fincas
                 ]
-                + [
-                    [types.InlineKeyboardButton(text="🔙 Volver", callback_data="volver_menu")],
-                ]
             )
+            keyboard = agregar_boton_menu(keyboard)
 
             await send(
                 "🌱 <b>Gestión de Lotes</b>\n\nSelecciona una finca:",
@@ -125,7 +125,7 @@ def get_lotes_router(db: Database) -> Router:
 
         except Exception as e:
             logger.error(f"Error en /lotes: {e}", exc_info=True)
-            await send("❌ <b>Error al obtener lotes.</b>", parse_mode="HTML")
+            await send("❌ <b>Error al obtener lotes.</b>", parse_mode="HTML", reply_markup=boton_menu())
 
     @router.callback_query(F.data.startswith("lotes_finca:"))
     async def seleccionar_finca_lotes(callback: types.CallbackQuery):
@@ -135,10 +135,10 @@ def get_lotes_router(db: Database) -> Router:
         finca_id = int(callback.data.split(":")[1])
         finca = db.get_finca_by_id(finca_id)
         if not finca:
-            await callback.message.edit_text("❌ <b>Finca no encontrada.</b>", parse_mode="HTML")
+            await callback.message.edit_text("❌ <b>Finca no encontrada.</b>", parse_mode="HTML", reply_markup=boton_menu())
             return
         if finca["user_id"] != user_id:
-            await callback.message.edit_text("❌ <b>Esta finca no te pertenece.</b>", parse_mode="HTML")
+            await callback.message.edit_text("❌ <b>Esta finca no te pertenece.</b>", parse_mode="HTML", reply_markup=boton_menu())
             return
 
         await mostrar_lotes(db, callback.message, finca_id, finca["nombre"], edit=True)
@@ -150,16 +150,16 @@ def get_lotes_router(db: Database) -> Router:
         user_id = callback.from_user.id
 
         if not db.is_approved(user_id):
-            await callback.message.edit_text("⏳ <b>No tienes acceso.</b> Usa /start para solicitar aprobación.", parse_mode="HTML")
+            await callback.message.edit_text("⏳ <b>No tienes acceso.</b> Usa /start para solicitar aprobación.", parse_mode="HTML", reply_markup=boton_menu())
             return
 
         finca_id = int(callback.data.split(":")[1])
         finca = db.get_finca_by_id(finca_id)
         if not finca:
-            await callback.message.edit_text("❌ <b>Finca no encontrada.</b>", parse_mode="HTML")
+            await callback.message.edit_text("❌ <b>Finca no encontrada.</b>", parse_mode="HTML", reply_markup=boton_menu())
             return
         if finca["user_id"] != user_id:
-            await callback.message.edit_text("❌ <b>Esta finca no te pertenece.</b>", parse_mode="HTML")
+            await callback.message.edit_text("❌ <b>Esta finca no te pertenece.</b>", parse_mode="HTML", reply_markup=boton_menu())
             return
 
         await state.update_data(finca_id=finca_id, finca_nombre=finca["nombre"])
@@ -169,6 +169,7 @@ def get_lotes_router(db: Database) -> Router:
             "Paso 1/5: ¿Cuál es el <b>nombre</b> del lote?\n\n"
             "<i>(Escribe el nombre o /cancelar)</i>",
             parse_mode="HTML",
+            reply_markup=botones_menu_cancelar(),
         )
         await state.set_state(LoteForm.esperando_nombre)
 
@@ -176,7 +177,7 @@ def get_lotes_router(db: Database) -> Router:
     async def recibir_nombre_lote(message: types.Message, state: FSMContext):
         nombre = message.text.strip()
         if not nombre:
-            await message.answer("❌ El nombre no puede estar vacío:")
+            await message.answer("❌ El nombre no puede estar vacío:", reply_markup=botones_menu_cancelar())
             return
 
         await state.update_data(nombre=nombre)
@@ -186,6 +187,7 @@ def get_lotes_router(db: Database) -> Router:
             "Paso 2/5: ¿Cuál es el <b>área</b> en hectáreas?\n\n"
             "<i>(Ej: 2.5 — escribe 0 si no sabes)</i>",
             parse_mode="HTML",
+            reply_markup=botones_menu_cancelar(),
         )
         await state.set_state(LoteForm.esperando_area)
 
@@ -196,7 +198,7 @@ def get_lotes_router(db: Database) -> Router:
             if area < 0:
                 raise ValueError
         except ValueError:
-            await message.answer("❌ Ingresa un número válido (ej: 2.5):")
+            await message.answer("❌ Ingresa un número válido (ej: 2.5):", reply_markup=botones_menu_cancelar())
             return
 
         await state.update_data(area=area)
@@ -205,6 +207,7 @@ def get_lotes_router(db: Database) -> Router:
             "Paso 3/5: ¿Cuántos <b>árboles</b> tiene el lote?\n\n"
             "<i>(Escribe 0 si no sabes)</i>",
             parse_mode="HTML",
+            reply_markup=botones_menu_cancelar(),
         )
         await state.set_state(LoteForm.esperando_arboles)
 
@@ -215,7 +218,7 @@ def get_lotes_router(db: Database) -> Router:
             if arboles < 0:
                 raise ValueError
         except ValueError:
-            await message.answer("❌ Ingresa un número entero válido:")
+            await message.answer("❌ Ingresa un número entero válido:", reply_markup=botones_menu_cancelar())
             return
 
         await state.update_data(arboles=arboles)
@@ -224,6 +227,7 @@ def get_lotes_router(db: Database) -> Router:
             "Paso 4/5: ¿Cuál es la <b>variedad</b> de café?\n\n"
             "<i>(Ej: Castillo, Caturra, Colombia — o '/' para omitir)</i>",
             parse_mode="HTML",
+            reply_markup=botones_menu_cancelar(),
         )
         await state.set_state(LoteForm.esperando_variedad)
 
@@ -239,6 +243,7 @@ def get_lotes_router(db: Database) -> Router:
             "Paso 5/5: ¿Cuál es la <b>fecha de siembra</b>?\n\n"
             "<i>(Formato: DD/MM/AAAA o AAAA-MM-DD — o '/' para omitir)</i>",
             parse_mode="HTML",
+            reply_markup=botones_menu_cancelar(),
         )
         await state.set_state(LoteForm.esperando_fecha_siembra)
 
@@ -268,7 +273,8 @@ def get_lotes_router(db: Database) -> Router:
 
             if not fecha_valida:
                 await message.answer(
-                    "❌ Fecha inválida. Usa formato DD/MM/AAAA o AAAA-MM-DD:"
+                    "❌ Fecha inválida. Usa formato DD/MM/AAAA o AAAA-MM-DD:",
+                    reply_markup=botones_menu_cancelar(),
                 )
                 return
 
@@ -298,11 +304,12 @@ def get_lotes_router(db: Database) -> Router:
                 f"📅 <b>Siembra:</b> {fecha or 'No especificada'}\n\n"
                 "Usa /lotes para ver tus lotes o /ingreso para registrar ventas. ☕",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
 
         except Exception as e:
             logger.error(f"Error al crear lote: {e}", exc_info=True)
-            await message.answer("❌ <b>Error al crear el lote.</b> Intenta de nuevo.", parse_mode="HTML")
+            await message.answer("❌ <b>Error al crear el lote.</b> Intenta de nuevo.", parse_mode="HTML", reply_markup=boton_menu())
 
         await state.clear()
 

@@ -9,6 +9,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 from database import Database
 from config import ADMIN_IDS
+from utils import boton_menu, botones_menu_cancelar
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ def get_fincas_router(db: Database) -> Router:
 
         # Verificar acceso
         if not db.is_approved(user_id):
-            await send("⏳ <b>No tienes acceso.</b> Usa /start para solicitar aprobación.", parse_mode="HTML")
+            await send("⏳ <b>No tienes acceso.</b> Usa /start para solicitar aprobación.", parse_mode="HTML", reply_markup=boton_menu())
             return
 
         try:
@@ -65,7 +66,7 @@ def get_fincas_router(db: Database) -> Router:
 
         except Exception as e:
             logger.error(f"Error en /fincas: {e}", exc_info=True)
-            await send("❌ <b>Error al obtener las fincas.</b>", parse_mode="HTML")
+            await send("❌ <b>Error al obtener las fincas.</b>", parse_mode="HTML", reply_markup=boton_menu())
 
     @router.callback_query(F.data == "nueva_finca")
     async def nueva_finca(callback: types.CallbackQuery, state: FSMContext):
@@ -76,6 +77,7 @@ def get_fincas_router(db: Database) -> Router:
             "Paso 1/3: ¿Cuál es el <b>nombre</b> de tu finca?\n\n"
             "<i>(Escribe el nombre o /cancelar para cancelar)</i>",
             parse_mode="HTML",
+            reply_markup=botones_menu_cancelar(),
         )
         await state.set_state(FincaForm.esperando_nombre)
 
@@ -84,11 +86,11 @@ def get_fincas_router(db: Database) -> Router:
         """Recibe el nombre de la finca."""
         nombre = message.text.strip()
         if not nombre:
-            await message.answer("❌ El nombre no puede estar vacío. Intenta de nuevo:")
+            await message.answer("❌ El nombre no puede estar vacío. Intenta de nuevo:", reply_markup=botones_menu_cancelar())
             return
 
         if len(nombre) > 100:
-            await message.answer("❌ El nombre es demasiado largo (máx. 100 caracteres). Intenta de nuevo:")
+            await message.answer("❌ El nombre es demasiado largo (máx. 100 caracteres). Intenta de nuevo:", reply_markup=botones_menu_cancelar())
             return
 
         # Verificar que no exista otra finca con el mismo nombre para este usuario
@@ -101,6 +103,7 @@ def get_fincas_router(db: Database) -> Router:
                     f"⚠️ <b>Ya tienes una finca llamada \"{nombre}\".</b>\n\n"
                     "Por favor, elige un nombre diferente o usa /cancelar para cancelar.",
                     parse_mode="HTML",
+                    reply_markup=botones_menu_cancelar(),
                 )
                 return
 
@@ -110,6 +113,7 @@ def get_fincas_router(db: Database) -> Router:
             "Paso 2/3: ¿Cuál es la <b>región</b> de tu finca?\n\n"
             "<i>(Escribe la región o '/' para omitir)</i>",
             parse_mode="HTML",
+            reply_markup=botones_menu_cancelar(),
         )
         await state.set_state(FincaForm.esperando_region)
 
@@ -126,6 +130,7 @@ def get_fincas_router(db: Database) -> Router:
             "Paso 3/3: ¿Cuál es el <b>departamento</b> de tu finca?\n\n"
             "<i>(Escribe el departamento o '/' para omitir)</i>",
             parse_mode="HTML",
+            reply_markup=botones_menu_cancelar(),
         )
         await state.set_state(FincaForm.esperando_departamento)
 
@@ -156,6 +161,7 @@ def get_fincas_router(db: Database) -> Router:
                 f"🆔 <b>ID:</b> <code>{finca_id}</code>\n\n"
                 "Ahora puedes registrar lotes con /lotes 🌱",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
 
         except Exception as e:
@@ -163,6 +169,7 @@ def get_fincas_router(db: Database) -> Router:
             await message.answer(
                 "❌ <b>Error al crear la finca.</b> Intenta de nuevo más tarde.",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
 
         await state.clear()
@@ -175,6 +182,7 @@ def get_fincas_router(db: Database) -> Router:
         await message.answer(
             "❌ Por favor, escribe un texto válido o usa /cancelar para cancelar.",
             parse_mode="HTML",
+            reply_markup=botones_menu_cancelar(),
         )
 
     return router

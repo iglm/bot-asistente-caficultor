@@ -10,6 +10,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 from database import Database
 from config import TIPOS_CAFE, TIPOS_CAFE_LIST
+from utils import boton_menu, botones_menu_cancelar, agregar_boton_menu
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ async def preguntar_fecha(message: types.Message, state: FSMContext):
         "¿Cuál es la <b>fecha</b> de la venta?\n\n"
         "<i>(Formato: DD/MM/AAAA)</i>",
         parse_mode="HTML",
+        reply_markup=botones_menu_cancelar(),
     )
     await state.set_state(IngresoForm.esperando_fecha)
 
@@ -54,7 +56,7 @@ def get_ingresos_router(db: Database) -> Router:
             send = message.answer
 
         if not db.is_approved(user_id):
-            await send("⏳ <b>No tienes acceso.</b> Usa /start para solicitar aprobación.", parse_mode="HTML")
+            await send("⏳ <b>No tienes acceso.</b> Usa /start para solicitar aprobación.", parse_mode="HTML", reply_markup=boton_menu())
             return
 
         try:
@@ -64,6 +66,7 @@ def get_ingresos_router(db: Database) -> Router:
                     "❌ <b>No tienes fincas registradas.</b>\n\n"
                     "Primero crea una finca con /fincas 🗺️",
                     parse_mode="HTML",
+                    reply_markup=boton_menu(),
                 )
                 return
 
@@ -85,6 +88,7 @@ def get_ingresos_router(db: Database) -> Router:
                     [types.InlineKeyboardButton(text="🔙 Volver", callback_data="volver_menu")],
                 ]
             )
+            keyboard = agregar_boton_menu(keyboard)
 
             await send(
                 "💰 <b>Registrar Ingreso</b>\n\nSelecciona la finca:",
@@ -95,7 +99,7 @@ def get_ingresos_router(db: Database) -> Router:
 
         except Exception as e:
             logger.error(f"Error en /ingreso: {e}", exc_info=True)
-            await send("❌ <b>Error al iniciar registro.</b>", parse_mode="HTML")
+            await send("❌ <b>Error al iniciar registro.</b>", parse_mode="HTML", reply_markup=boton_menu())
 
     @router.callback_query(IngresoForm.esperando_finca, F.data.startswith("ingreso_finca:"))
     async def seleccionar_finca_ingreso(callback: types.CallbackQuery, state: FSMContext):
@@ -104,12 +108,12 @@ def get_ingresos_router(db: Database) -> Router:
         finca_id = int(callback.data.split(":")[1])
         finca = db.get_finca_by_id(finca_id)
         if not finca:
-            await callback.message.edit_text("❌ <b>Finca no encontrada.</b>", parse_mode="HTML")
+            await callback.message.edit_text("❌ <b>Finca no encontrada.</b>", parse_mode="HTML", reply_markup=boton_menu())
             await state.clear()
             return
         # Validar que la finca pertenezca al usuario
         if finca["user_id"] != user_id:
-            await callback.message.edit_text("❌ <b>Esta finca no te pertenece.</b>", parse_mode="HTML")
+            await callback.message.edit_text("❌ <b>Esta finca no te pertenece.</b>", parse_mode="HTML", reply_markup=boton_menu())
             await state.clear()
             return
 
@@ -129,7 +133,7 @@ def get_ingresos_router(db: Database) -> Router:
                 continue
 
         if not fecha_valida:
-            await message.answer("❌ Fecha inválida. Usa formato DD/MM/AAAA:")
+            await message.answer("❌ Fecha inválida. Usa formato DD/MM/AAAA:", reply_markup=botones_menu_cancelar())
             return
 
         # Guardar en ISO
@@ -144,6 +148,7 @@ def get_ingresos_router(db: Database) -> Router:
                 [types.InlineKeyboardButton(text="🔙 Volver", callback_data="ingreso_volver_fecha")],
             ]
         )
+        keyboard = agregar_boton_menu(keyboard)
 
         await message.answer(
             f"✅ <b>Fecha:</b> {fecha_str}\n\n"
@@ -170,6 +175,7 @@ def get_ingresos_router(db: Database) -> Router:
             "¿Cuántos <b>kilos</b> vendiste?\n\n"
             "<i>(Escribe el número)</i>",
             parse_mode="HTML",
+            reply_markup=botones_menu_cancelar(),
         )
         await state.set_state(IngresoForm.esperando_cantidad)
 
@@ -180,7 +186,7 @@ def get_ingresos_router(db: Database) -> Router:
             if cantidad <= 0:
                 raise ValueError
         except ValueError:
-            await message.answer("❌ Ingresa una cantidad válida (mayor a 0):")
+            await message.answer("❌ Ingresa una cantidad válida (mayor a 0):", reply_markup=botones_menu_cancelar())
             return
 
         await state.update_data(cantidad=cantidad)
@@ -189,6 +195,7 @@ def get_ingresos_router(db: Database) -> Router:
             "¿Cuál fue el <b>valor total</b> de la venta?\n\n"
             "<i>(Escribe el valor en pesos, ej: 1500000)</i>",
             parse_mode="HTML",
+            reply_markup=botones_menu_cancelar(),
         )
         await state.set_state(IngresoForm.esperando_valor_total)
 
@@ -199,7 +206,7 @@ def get_ingresos_router(db: Database) -> Router:
             if valor <= 0:
                 raise ValueError
         except ValueError:
-            await message.answer("❌ Ingresa un valor válido (mayor a 0):")
+            await message.answer("❌ Ingresa un valor válido (mayor a 0):", reply_markup=botones_menu_cancelar())
             return
 
         await state.update_data(valor_total=valor)
@@ -229,6 +236,7 @@ def get_ingresos_router(db: Database) -> Router:
                 ]
             ]
         )
+        keyboard = agregar_boton_menu(keyboard)
 
         await message.answer(texto, parse_mode="HTML", reply_markup=keyboard)
         await state.set_state(IngresoForm.esperando_confirmar)
@@ -243,6 +251,7 @@ def get_ingresos_router(db: Database) -> Router:
                 "❌ <b>Registro cancelado.</b>\n\n"
                 "Usa /ingreso cuando quieras intentarlo de nuevo.",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
             await state.clear()
             return
@@ -269,6 +278,13 @@ def get_ingresos_router(db: Database) -> Router:
                 valor_total=data["valor_total"],
             )
 
+            keyboard_success = types.InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [types.InlineKeyboardButton(text="💰 Otro Ingreso", callback_data="menu_ingresos")],
+                ]
+            )
+            keyboard_success = agregar_boton_menu(keyboard_success)
+
             await callback.message.edit_text(
                 f"✅ <b>¡Ingreso registrado exitosamente!</b> 🎉☕\n\n"
                 f"☕ <b>Tipo:</b> {data['tipo']}\n"
@@ -276,6 +292,7 @@ def get_ingresos_router(db: Database) -> Router:
                 f"💰 <b>Valor:</b> ${data['valor_total']:,.0f}\n\n"
                 "Usa /resumen para ver tus datos o /ingreso para agregar otro.",
                 parse_mode="HTML",
+                reply_markup=keyboard_success,
             )
 
         except Exception as e:
@@ -283,6 +300,7 @@ def get_ingresos_router(db: Database) -> Router:
             await callback.message.edit_text(
                 "❌ <b>Error al guardar el ingreso.</b> Intenta de nuevo.",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
 
         await state.clear()

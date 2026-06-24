@@ -10,6 +10,7 @@ from aiogram.fsm.context import FSMContext
 
 from database import Database
 from config import CATEGORIAS, EXPORTS_DIR, EXCEL_TEMPLATE, ADMIN_IDS
+from utils import boton_menu, agregar_boton_menu
 
 logger = logging.getLogger(__name__)
 
@@ -82,9 +83,9 @@ async def mostrar_resumen(db: Database, send_func, finca_id: int, finca_nombre: 
                 text="📊 Generar Excel",
                 callback_data=f"generar_excel:{finca_id}",
             )],
-            [types.InlineKeyboardButton(text="🔙 Volver", callback_data="volver_menu")],
         ]
     )
+    keyboard = agregar_boton_menu(keyboard)
 
     # Manejar textos largos
     partes = _split_texto(texto)
@@ -114,7 +115,7 @@ def get_reportes_router(db: Database) -> Router:
             send = message.answer
 
         if not db.is_approved(user_id):
-            await send("⏳ <b>No tienes acceso.</b> Usa /start para solicitar aprobación.", parse_mode="HTML")
+            await send("⏳ <b>No tienes acceso.</b> Usa /start para solicitar aprobación.", parse_mode="HTML", reply_markup=boton_menu())
             return
 
         try:
@@ -124,6 +125,7 @@ def get_reportes_router(db: Database) -> Router:
                     "❌ <b>No tienes fincas registradas.</b>\n\n"
                     "Primero crea una finca con /fincas 🗺️",
                     parse_mode="HTML",
+                    reply_markup=boton_menu(),
                 )
                 return
 
@@ -153,7 +155,7 @@ def get_reportes_router(db: Database) -> Router:
 
         except Exception as e:
             logger.error(f"Error en /resumen: {e}", exc_info=True)
-            await send("❌ <b>Error al generar resumen.</b>", parse_mode="HTML")
+            await send("❌ <b>Error al generar resumen.</b>", parse_mode="HTML", reply_markup=boton_menu())
 
     @router.callback_query(F.data.startswith("resumen_finca:"))
     async def seleccionar_finca_resumen(callback: types.CallbackQuery):
@@ -208,6 +210,7 @@ def get_reportes_router(db: Database) -> Router:
                                     "Podés llenarlo manualmente o crear una finca "
                                     "con /fincas y volver a exportar.",
                             parse_mode="HTML",
+                            reply_markup=boton_menu(),
                         )
 
                     # Limpiar archivo temporal
@@ -222,12 +225,14 @@ def get_reportes_router(db: Database) -> Router:
                         "❌ <b>Error:</b> El template Excel no está disponible.\n\n"
                         "Contacta al administrador.",
                         parse_mode="HTML",
+                        reply_markup=boton_menu(),
                     )
                 except Exception as e:
                     logger.error(f"Error al generar plantilla vacía: {e}", exc_info=True)
                     await callback.message.edit_text(
                         "❌ <b>Error al generar la plantilla.</b> Intenta de nuevo más tarde.",
                         parse_mode="HTML",
+                        reply_markup=boton_menu(),
                     )
                 return
 
@@ -293,12 +298,14 @@ def get_reportes_router(db: Database) -> Router:
                 "❌ <b>Error:</b> El template Excel no está disponible.\n\n"
                 "Contacta al administrador.",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
         except Exception as e:
             logger.error(f"Error al generar Excel: {e}", exc_info=True)
             await callback.message.edit_text(
                 "❌ <b>Error al generar el Excel.</b> Intenta de nuevo más tarde.",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
 
     return router

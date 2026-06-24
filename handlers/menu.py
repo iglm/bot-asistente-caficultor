@@ -9,6 +9,7 @@ from aiogram.fsm.context import FSMContext
 
 from database import Database
 from config import ADMIN_IDS
+from utils import boton_menu, agregar_boton_menu
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +97,7 @@ def get_menu_router(db: Database) -> Router:
                 "✅ <b>No tenés datos en el sistema.</b>\n\n"
                 "Ya está todo limpio. Podés empezar creando una finca con /fincas ☕",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
             return
 
@@ -107,6 +109,7 @@ def get_menu_router(db: Database) -> Router:
                 ],
             ]
         )
+        keyboard = agregar_boton_menu(keyboard)
 
         await callback.message.answer(
             "⚠️ <b>¿Estás seguro de que querés borrar TODOS tus datos?</b>\n\n"
@@ -130,6 +133,7 @@ def get_menu_router(db: Database) -> Router:
                 "✅ <b>Operación cancelada.</b>\n\n"
                 "Tus datos están a salvo. Usá /menu para continuar.",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
             return
 
@@ -142,6 +146,7 @@ def get_menu_router(db: Database) -> Router:
                 ],
             ]
         )
+        keyboard = agregar_boton_menu(keyboard)
 
         await callback.message.edit_text(
             "🚨 <b>⚠️ ¡ÚLTIMA ADVERTENCIA! ⚠️</b>\n\n"
@@ -167,6 +172,7 @@ def get_menu_router(db: Database) -> Router:
                 "✅ <b>Operación cancelada.</b>\n\n"
                 "Tus datos están a salvo. Usá /menu para continuar.",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
             return
 
@@ -180,6 +186,7 @@ def get_menu_router(db: Database) -> Router:
                 f"💰 Transacciones eliminadas: {resultado['transacciones']}\n\n"
                 "Podés empezar de nuevo con /fincas ☕",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
         except Exception as e:
             logger.error(f"Error al borrar datos: {e}", exc_info=True)
@@ -187,6 +194,7 @@ def get_menu_router(db: Database) -> Router:
                 "❌ <b>Error al borrar los datos.</b>\n\n"
                 "Intentá de nuevo o contactá al administrador.",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
 
     @router.callback_query(F.data == "ir_admin")
@@ -202,11 +210,13 @@ def get_menu_router(db: Database) -> Router:
                 "• /aprobar — Aprobar usuario pendiente\n\n"
                 "Usá los comandos para gestionar.",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
         else:
             await callback.message.answer(
                 "❌ <b>Acceso denegado.</b>\n\nSolo administradores.",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
 
     @router.callback_query(F.data == "volver_menu")
@@ -222,6 +232,7 @@ def get_menu_router(db: Database) -> Router:
             await callback.message.answer(
                 "⏳ <b>Esperando aprobación</b>\n\nUsa /start para verificar.",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
             return
 
@@ -259,6 +270,17 @@ def get_menu_router(db: Database) -> Router:
             "¿Qué querés hacer? Usá los botones:",
             parse_mode="HTML",
             reply_markup=keyboard,
+        )
+
+    @router.callback_query(F.data == "cancelar_operacion")
+    async def cancelar_operacion(callback: types.CallbackQuery, state: FSMContext):
+        """Cancela cualquier operación actual y vuelve al menú."""
+        await callback.answer()
+        await state.clear()
+        await callback.message.answer(
+            "✅ <b>Operación cancelada.</b>\n\nUsá los botones para continuar:",
+            parse_mode="HTML",
+            reply_markup=boton_menu(),
         )
 
     return router

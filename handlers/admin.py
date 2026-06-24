@@ -7,6 +7,7 @@ from aiogram.filters import Command
 
 from database import Database
 from config import ADMIN_IDS
+from utils import boton_menu, agregar_boton_menu
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ def get_admin_router(db: Database) -> Router:
     async def cmd_usuarios(message: types.Message):
         """Lista todos los usuarios organizados por estado con botones inline."""
         if not is_admin(message.from_user.id):
-            await message.answer("❌ <b>No tienes permiso para usar este comando.</b>", parse_mode="HTML")
+            await message.answer("❌ <b>No tienes permiso para usar este comando.</b>", parse_mode="HTML", reply_markup=boton_menu())
             return
 
         try:
@@ -109,19 +110,20 @@ def get_admin_router(db: Database) -> Router:
 
             if inline_buttons:
                 keyboard = types.InlineKeyboardMarkup(inline_keyboard=inline_buttons)
+                keyboard = agregar_boton_menu(keyboard)
                 await message.answer(texto, parse_mode="HTML", reply_markup=keyboard)
             else:
-                await message.answer(texto, parse_mode="HTML")
+                await message.answer(texto, parse_mode="HTML", reply_markup=boton_menu())
 
         except Exception as e:
             logger.error(f"Error en /usuarios: {e}", exc_info=True)
-            await message.answer("❌ <b>Error al obtener la lista de usuarios.</b>", parse_mode="HTML")
+            await message.answer("❌ <b>Error al obtener la lista de usuarios.</b>", parse_mode="HTML", reply_markup=boton_menu())
 
     @router.message(Command("revocar"))
     async def cmd_revocar(message: types.Message):
         """Revoca acceso de un usuario aprobado. Uso: /revocar USER_ID"""
         if not is_admin(message.from_user.id):
-            await message.answer("❌ <b>No tienes permiso para usar este comando.</b>", parse_mode="HTML")
+            await message.answer("❌ <b>No tienes permiso para usar este comando.</b>", parse_mode="HTML", reply_markup=boton_menu())
             return
 
         args = message.text.strip().split()
@@ -130,13 +132,14 @@ def get_admin_router(db: Database) -> Router:
                 "⚠️ <b>Uso:</b> <code>/revocar USER_ID</code>\n\n"
                 "Ejemplo: <code>/revocar 123456789</code>",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
             return
 
         try:
             target_id = int(args[1])
         except ValueError:
-            await message.answer("❌ <b>ID inválido.</b> Debe ser un número.", parse_mode="HTML")
+            await message.answer("❌ <b>ID inválido.</b> Debe ser un número.", parse_mode="HTML", reply_markup=boton_menu())
             return
 
         try:
@@ -148,6 +151,7 @@ def get_admin_router(db: Database) -> Router:
                     f"El usuario ha sido cambiado a estado: <b>rechazado</b>.\n\n"
                     f"Puedes usar /usuarios para ver la lista actualizada.",
                     parse_mode="HTML",
+                    reply_markup=boton_menu(),
                 )
                 # Notificar al usuario revocado
                 try:
@@ -166,10 +170,11 @@ def get_admin_router(db: Database) -> Router:
                     "El usuario no existe o no está en estado <b>aprobado</b>.\n"
                     "Usa /usuarios para ver los usuarios aprobados.",
                     parse_mode="HTML",
+                    reply_markup=boton_menu(),
                 )
         except Exception as e:
             logger.error(f"Error en /revocar para {target_id}: {e}", exc_info=True)
-            await message.answer("❌ <b>Error al revocar usuario.</b>", parse_mode="HTML")
+            await message.answer("❌ <b>Error al revocar usuario.</b>", parse_mode="HTML", reply_markup=boton_menu())
 
     @router.callback_query(F.data.startswith("aprobar:"))
     async def callback_aprobar(callback: types.CallbackQuery):
@@ -201,6 +206,7 @@ def get_admin_router(db: Database) -> Router:
             await callback.message.edit_text(
                 f"{callback.message.text}\n\n✅ <b>Usuario aprobado</b> ✅",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
 
         except Exception as e:
@@ -236,6 +242,7 @@ def get_admin_router(db: Database) -> Router:
             await callback.message.edit_text(
                 f"{callback.message.text}\n\n❌ <b>Usuario rechazado</b> ❌",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
 
         except Exception as e:
@@ -272,6 +279,7 @@ def get_admin_router(db: Database) -> Router:
                 await callback.message.edit_text(
                     f"{callback.message.text}\n\n🚫 <b>Usuario revocado</b> 🚫",
                     parse_mode="HTML",
+                    reply_markup=boton_menu(),
                 )
             else:
                 await callback.answer("❌ El usuario no está aprobado.", show_alert=True)
@@ -311,6 +319,7 @@ def get_admin_router(db: Database) -> Router:
                 await callback.message.edit_text(
                     f"{callback.message.text}\n\n🔄 <b>Usuario re-activado</b> (pendiente) 🔄",
                     parse_mode="HTML",
+                    reply_markup=boton_menu(),
                 )
             else:
                 await callback.answer("❌ El usuario no está rechazado.", show_alert=True)

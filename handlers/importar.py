@@ -13,6 +13,8 @@ from aiogram.types import BufferedInputFile
 from database import Database
 from config import CATEGORIAS
 
+from utils import boton_menu, botones_menu_cancelar, agregar_boton_menu
+
 logger = logging.getLogger(__name__)
 
 
@@ -73,6 +75,7 @@ def get_importar_router(db: Database) -> Router:
                 )],
             ]
         )
+        keyboard = agregar_boton_menu(keyboard)
 
         await callback.message.answer(
             "📥 <b>Importar Excel</b>\n\n"
@@ -131,6 +134,7 @@ def get_importar_router(db: Database) -> Router:
                 "❌ <b>Error al generar la plantilla.</b>\n\n"
                 "Intentá de nuevo más tarde.",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
 
     @router.message(F.document, ImportExcelState.esperando_archivo)
@@ -145,6 +149,7 @@ def get_importar_router(db: Database) -> Router:
                 "❌ <b>Formato incorrecto.</b>\n\n"
                 "Solo acepto archivos <b>.xlsx</b>. Enviame un archivo válido.",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
             return
 
@@ -270,7 +275,7 @@ def get_importar_router(db: Database) -> Router:
                 if len(errores) > 10:
                     msg_error += f"... y {len(errores) - 10} más\n"
                 msg_error += "\nCorregí el archivo y enviálo de nuevo."
-                await message.answer(msg_error, parse_mode="HTML")
+                await message.answer(msg_error, parse_mode="HTML", reply_markup=boton_menu())
                 return
 
             if not datos_parseados:
@@ -280,6 +285,7 @@ def get_importar_router(db: Database) -> Router:
                     "Fincas, Lotes, Ingresos, Costos_MO o Costos_Insumos.\n\n"
                     "Enviá el archivo corregido o /cancelar.",
                     parse_mode="HTML",
+                    reply_markup=boton_menu(),
                 )
                 return
 
@@ -321,6 +327,7 @@ def get_importar_router(db: Database) -> Router:
                     ],
                 ]
             )
+            keyboard = agregar_boton_menu(keyboard)
 
             await message.answer(
                 preview + "¿Querés importar estos datos?",
@@ -340,6 +347,7 @@ def get_importar_router(db: Database) -> Router:
                 f"Detalle: {str(e)[:200]}\n\n"
                 "Asegurate de que sea un archivo .xlsx válido y enviálo de nuevo.",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
 
     @router.callback_query(F.data == "importar:cancelar", ImportExcelState.preview_mostrado)
@@ -349,8 +357,9 @@ def get_importar_router(db: Database) -> Router:
         await state.clear()
         await callback.message.edit_text(
             "✅ <b>Importación cancelada.</b>\n\n"
-            "Ningún dato fue modificado. Usá /menu para continuar.",
+            "Ningún dato fue modificado.",
             parse_mode="HTML",
+            reply_markup=boton_menu(),
         )
 
     @router.callback_query(F.data == "importar:confirmar", ImportExcelState.preview_mostrado)
@@ -521,19 +530,14 @@ def get_importar_router(db: Database) -> Router:
                 if len(errores_import) > 5:
                     resultado += f"  ... y {len(errores_import) - 5} más\n"
 
-            keyboard = types.InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [types.InlineKeyboardButton(text="🔙 Volver al menú", callback_data="volver_menu")],
-                ]
-            )
-
-            await callback.message.edit_text(resultado, parse_mode="HTML", reply_markup=keyboard)
+            await callback.message.edit_text(resultado, parse_mode="HTML", reply_markup=boton_menu())
 
         except Exception as e:
             logger.error(f"Error en importación: {e}", exc_info=True)
             await callback.message.edit_text(
                 f"❌ <b>Error durante la importación.</b>\n\n{str(e)[:300]}",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
 
         finally:

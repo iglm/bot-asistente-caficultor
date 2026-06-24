@@ -10,15 +10,12 @@ from aiogram.fsm.state import State, StatesGroup
 
 from database import Database
 from config import CATEGORIAS_PADRE, CATEGORIAS_SIMPLE
+from utils import boton_menu, botones_menu_cancelar, agregar_boton_menu, agregar_menu_cancelar
 
 logger = logging.getLogger(__name__)
 
 # Botón de cancelar reutilizable
-CANCEL_KB = types.InlineKeyboardMarkup(
-    inline_keyboard=[
-        [types.InlineKeyboardButton(text="❌ Cancelar", callback_data="cancelar_operacion")],
-    ]
-)
+CANCEL_KB = botones_menu_cancelar()
 
 
 class CostoForm(StatesGroup):
@@ -66,6 +63,9 @@ async def mostrar_categorias_costos(message: types.Message, state: FSMContext, e
             [
                 types.InlineKeyboardButton(text="🔙 Volver", callback_data="volver_menu"),
             ],
+            [
+                types.InlineKeyboardButton(text="🏠 Menú Principal", callback_data="volver_menu"),
+            ],
         ]
     )
 
@@ -107,6 +107,10 @@ async def mostrar_lotes_costos(db: Database, message: types.Message, state: FSMC
 
     keyboard_buttons.append(
         [types.InlineKeyboardButton(text="🔙 Volver", callback_data="volver_menu")]
+    )
+
+    keyboard_buttons.append(
+        [types.InlineKeyboardButton(text="🏠 Menú Principal", callback_data="volver_menu")]
     )
 
     keyboard = types.InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
@@ -190,7 +194,7 @@ def get_costos_router(db: Database) -> Router:
             is_callback = False
 
         if not db.is_approved(user_id):
-            await send("⏳ <b>No tienes acceso.</b> Usa /start para solicitar aprobación.", parse_mode="HTML")
+            await send("⏳ <b>No tienes acceso.</b> Usa /start para solicitar aprobación.", parse_mode="HTML", reply_markup=boton_menu())
             return
 
         try:
@@ -200,6 +204,7 @@ def get_costos_router(db: Database) -> Router:
                     "❌ <b>No tienes fincas registradas.</b>\n\n"
                     "Primero crea una finca con /fincas 🗺️",
                     parse_mode="HTML",
+                    reply_markup=boton_menu(),
                 )
                 return
 
@@ -221,6 +226,7 @@ def get_costos_router(db: Database) -> Router:
                     [types.InlineKeyboardButton(text="🔙 Volver", callback_data="volver_menu")],
                 ]
             )
+            keyboard = agregar_boton_menu(keyboard)
 
             await send(
                 "📉 <b>Registrar Costo</b>\n\nSelecciona la finca:",
@@ -231,7 +237,7 @@ def get_costos_router(db: Database) -> Router:
 
         except Exception as e:
             logger.error(f"Error en /costo: {e}", exc_info=True)
-            await send("❌ <b>Error al iniciar registro.</b>", parse_mode="HTML")
+            await send("❌ <b>Error al iniciar registro.</b>", parse_mode="HTML", reply_markup=boton_menu())
 
     @router.callback_query(CostoForm.esperando_finca, F.data.startswith("costo_finca:"))
     async def seleccionar_finca_costo(callback: types.CallbackQuery, state: FSMContext):
@@ -240,12 +246,12 @@ def get_costos_router(db: Database) -> Router:
         finca_id = int(callback.data.split(":")[1])
         finca = db.get_finca_by_id(finca_id)
         if not finca:
-            await callback.message.edit_text("❌ <b>Finca no encontrada.</b>", parse_mode="HTML")
+            await callback.message.edit_text("❌ <b>Finca no encontrada.</b>", parse_mode="HTML", reply_markup=boton_menu())
             await state.clear()
             return
         # Validar que la finca pertenezca al usuario
         if finca["user_id"] != user_id:
-            await callback.message.edit_text("❌ <b>Esta finca no te pertenece.</b>", parse_mode="HTML")
+            await callback.message.edit_text("❌ <b>Esta finca no te pertenece.</b>", parse_mode="HTML", reply_markup=boton_menu())
             await state.clear()
             return
 
@@ -262,7 +268,7 @@ def get_costos_router(db: Database) -> Router:
         else:
             lote = db.get_lote_by_id(lote_id)
             if not lote:
-                await callback.message.edit_text("❌ <b>Lote no encontrado.</b>", parse_mode="HTML")
+                await callback.message.edit_text("❌ <b>Lote no encontrado.</b>", parse_mode="HTML", reply_markup=boton_menu())
                 await state.clear()
                 return
             lote_nombre = lote["nombre"]
@@ -296,7 +302,7 @@ def get_costos_router(db: Database) -> Router:
                 "<i>(Formato: DD/MM/AAAA)</i>"
             )
         else:
-            await callback.message.edit_text("❌ <b>Categoría no válida.</b>", parse_mode="HTML")
+            await callback.message.edit_text("❌ <b>Categoría no válida.</b>", parse_mode="HTML", reply_markup=boton_menu())
             await state.clear()
             return
 
@@ -315,7 +321,7 @@ def get_costos_router(db: Database) -> Router:
                 continue
 
         if not fecha_valida:
-            await message.answer("❌ Fecha inválida. Usa formato DD/MM/AAAA:")
+            await message.answer("❌ Fecha inválida. Usa formato DD/MM/AAAA:", reply_markup=botones_menu_cancelar())
             return
 
         fecha_iso = fecha_valida.strftime("%Y-%m-%d")
@@ -330,6 +336,7 @@ def get_costos_router(db: Database) -> Router:
                 "¿Cuál es el <b>gasto administrativo</b>?\n\n"
                 "<i>(Describe el gasto, ej: Servicios públicos, Transporte)</i>",
                 parse_mode="HTML",
+                reply_markup=botones_menu_cancelar(),
             )
             await state.set_state(CostoForm.esperando_labor)
         else:
@@ -338,6 +345,7 @@ def get_costos_router(db: Database) -> Router:
                 "¿Cuál es la <b>labor realizada</b>?\n\n"
                 "<i>(Describe la labor o actividad)</i>",
                 parse_mode="HTML",
+                reply_markup=botones_menu_cancelar(),
             )
             await state.set_state(CostoForm.esperando_labor)
 
@@ -345,7 +353,7 @@ def get_costos_router(db: Database) -> Router:
     async def recibir_labor(message: types.Message, state: FSMContext):
         labor = message.text.strip()
         if not labor:
-            await message.answer("❌ La labor no puede estar vacía:")
+            await message.answer("❌ La labor no puede estar vacía:", reply_markup=botones_menu_cancelar())
             return
 
         await state.update_data(labor=labor)
@@ -360,6 +368,7 @@ def get_costos_router(db: Database) -> Router:
                 "¿Cuál fue el <b>valor total</b> del gasto?\n\n"
                 "<i>(Escribe el valor en pesos)</i>",
                 parse_mode="HTML",
+                reply_markup=botones_menu_cancelar(),
             )
             await state.set_state(CostoForm.esperando_valor_total)
         elif cat_key == "recoleccion":
@@ -368,6 +377,7 @@ def get_costos_router(db: Database) -> Router:
                 "¿Cuántos <b>kilos</b> se recolectaron?\n\n"
                 "<i>(Escribe la cantidad)</i>",
                 parse_mode="HTML",
+                reply_markup=botones_menu_cancelar(),
             )
             await state.set_state(CostoForm.esperando_cantidad)
         elif cat_key == "beneficio":
@@ -376,6 +386,7 @@ def get_costos_router(db: Database) -> Router:
                 "¿Cuántos <b>jornales</b> se usaron?\n\n"
                 "<i>(Escribe el número)</i>",
                 parse_mode="HTML",
+                reply_markup=botones_menu_cancelar(),
             )
             await state.set_state(CostoForm.esperando_cantidad)
         else:
@@ -385,6 +396,7 @@ def get_costos_router(db: Database) -> Router:
                 "¿Cuántos <b>jornales</b> se usaron?\n\n"
                 "<i>(Escribe el número)</i>",
                 parse_mode="HTML",
+                reply_markup=botones_menu_cancelar(),
             )
             await state.set_state(CostoForm.esperando_cantidad)
 
@@ -395,7 +407,7 @@ def get_costos_router(db: Database) -> Router:
             if cantidad <= 0:
                 raise ValueError
         except ValueError:
-            await message.answer("❌ Ingresa un número válido (mayor a 0):")
+            await message.answer("❌ Ingresa un número válido (mayor a 0):", reply_markup=botones_menu_cancelar())
             return
 
         await state.update_data(cantidad=cantidad)
@@ -410,6 +422,7 @@ def get_costos_router(db: Database) -> Router:
                 "¿Cuál fue el <b>valor total</b> pagado?\n\n"
                 "<i>(Escribe el valor en pesos)</i>",
                 parse_mode="HTML",
+                reply_markup=botones_menu_cancelar(),
             )
             await state.set_state(CostoForm.esperando_valor_total)
         else:
@@ -418,6 +431,7 @@ def get_costos_router(db: Database) -> Router:
                 "¿Cuál fue el <b>valor unitario</b> por jornal?\n\n"
                 "<i>(Escribe el valor en pesos)</i>",
                 parse_mode="HTML",
+                reply_markup=botones_menu_cancelar(),
             )
             await state.set_state(CostoForm.esperando_valor_unitario)
 
@@ -428,7 +442,7 @@ def get_costos_router(db: Database) -> Router:
             if vu <= 0:
                 raise ValueError
         except ValueError:
-            await message.answer("❌ Ingresa un valor válido (mayor a 0):")
+            await message.answer("❌ Ingresa un valor válido (mayor a 0):", reply_markup=botones_menu_cancelar())
             return
 
         await state.update_data(valor_unitario=vu)
@@ -443,6 +457,7 @@ def get_costos_router(db: Database) -> Router:
             "¿<b>Confirmas</b> el valor total o quieres ingresar uno diferente?\n\n"
             "<i>(Escribe el valor total u 'ok' para aceptar el calculado)</i>",
             parse_mode="HTML",
+            reply_markup=botones_menu_cancelar(),
         )
         await state.update_data(valor_total_calculado=valor_total)
         await state.set_state(CostoForm.esperando_valor_total)
@@ -460,7 +475,7 @@ def get_costos_router(db: Database) -> Router:
                 if valor_total <= 0:
                     raise ValueError
             except ValueError:
-                await message.answer("❌ Ingresa un valor válido u 'ok':")
+                await message.answer("❌ Ingresa un valor válido u 'ok':", reply_markup=botones_menu_cancelar())
                 return
 
         await state.update_data(valor_total=valor_total)
@@ -514,6 +529,7 @@ def get_costos_router(db: Database) -> Router:
                     ],
                 ]
             )
+            keyboard = agregar_boton_menu(keyboard)
         else:
             texto_resumen += "¿<b>Confirmas</b> y guardas?"
             keyboard = types.InlineKeyboardMarkup(
@@ -524,6 +540,7 @@ def get_costos_router(db: Database) -> Router:
                     ],
                 ]
             )
+            keyboard = agregar_boton_menu(keyboard)
 
         await message.answer(texto_resumen, parse_mode="HTML", reply_markup=keyboard)
         await state.set_state(CostoForm.esperando_confirmar_mo)
@@ -537,6 +554,7 @@ def get_costos_router(db: Database) -> Router:
             await callback.message.edit_text(
                 "❌ <b>Registro cancelado.</b>\n\nUsa /costo para intentar de nuevo.",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
             await state.clear()
             return
@@ -553,6 +571,7 @@ def get_costos_router(db: Database) -> Router:
                 "Ahora, ¿cuál es el <b>producto/insumo</b> usado?\n\n"
                 "<i>(Escribe el nombre del producto)</i>",
                 parse_mode="HTML",
+                reply_markup=botones_menu_cancelar(),
             )
             await state.set_state(CostoForm.esperando_producto)
             return
@@ -563,6 +582,7 @@ def get_costos_router(db: Database) -> Router:
             "✅ <b>¡Costo registrado exitosamente!</b> 🎉📉\n\n"
             "Usa /costo para registrar otro o /resumen para ver tus datos.",
             parse_mode="HTML",
+            reply_markup=boton_menu(),
         )
         await state.clear()
 
@@ -572,7 +592,7 @@ def get_costos_router(db: Database) -> Router:
     async def recibir_producto(message: types.Message, state: FSMContext):
         producto = message.text.strip()
         if not producto:
-            await message.answer("❌ El producto no puede estar vacío:")
+            await message.answer("❌ El producto no puede estar vacío:", reply_markup=botones_menu_cancelar())
             return
 
         await state.update_data(producto=producto)
@@ -581,6 +601,7 @@ def get_costos_router(db: Database) -> Router:
             "¿Cuál es la <b>cantidad</b> del insumo?\n\n"
             "<i>(Ej: 5 litros, 10 kg, 2 unidades)</i>",
             parse_mode="HTML",
+            reply_markup=botones_menu_cancelar(),
         )
         await state.set_state(CostoForm.esperando_cantidad_insumo)
 
@@ -591,7 +612,7 @@ def get_costos_router(db: Database) -> Router:
             if cantidad <= 0:
                 raise ValueError
         except ValueError:
-            await message.answer("❌ Ingresa una cantidad válida:")
+            await message.answer("❌ Ingresa una cantidad válida:", reply_markup=botones_menu_cancelar())
             return
 
         await state.update_data(cantidad_insumo=cantidad)
@@ -600,6 +621,7 @@ def get_costos_router(db: Database) -> Router:
             "¿Cuál es el <b>valor unitario</b> del insumo?\n\n"
             "<i>(Escribe el valor en pesos)</i>",
             parse_mode="HTML",
+            reply_markup=botones_menu_cancelar(),
         )
         await state.set_state(CostoForm.esperando_valor_unitario_insumo)
 
@@ -610,7 +632,7 @@ def get_costos_router(db: Database) -> Router:
             if vu <= 0:
                 raise ValueError
         except ValueError:
-            await message.answer("❌ Ingresa un valor válido:")
+            await message.answer("❌ Ingresa un valor válido:", reply_markup=botones_menu_cancelar())
             return
 
         await state.update_data(vu_insumo=vu)
@@ -625,6 +647,7 @@ def get_costos_router(db: Database) -> Router:
             "¿<b>Confirmas</b> el valor total?\n\n"
             "<i>(Escribe el valor u 'ok' para aceptar)</i>",
             parse_mode="HTML",
+            reply_markup=botones_menu_cancelar(),
         )
         await state.update_data(valor_total_insumo_calc=valor_total)
         await state.set_state(CostoForm.esperando_valor_total_insumo)
@@ -642,7 +665,7 @@ def get_costos_router(db: Database) -> Router:
                 if valor_total <= 0:
                     raise ValueError
             except ValueError:
-                await message.answer("❌ Ingresa un valor válido u 'ok':")
+                await message.answer("❌ Ingresa un valor válido u 'ok':", reply_markup=botones_menu_cancelar())
                 return
 
         await state.update_data(valor_total_insumo=valor_total)
@@ -666,6 +689,7 @@ def get_costos_router(db: Database) -> Router:
                 ],
             ]
         )
+        keyboard = agregar_boton_menu(keyboard)
 
         await message.answer(texto_resumen, parse_mode="HTML", reply_markup=keyboard)
         await state.set_state(CostoForm.esperando_confirmar_insumo)
@@ -679,6 +703,7 @@ def get_costos_router(db: Database) -> Router:
             await callback.message.edit_text(
                 "❌ <b>Insumo cancelado.</b> Los datos de MO ya fueron guardados.",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
             await state.clear()
             return
@@ -691,7 +716,7 @@ def get_costos_router(db: Database) -> Router:
             categoria_db = CATEGORIAS_PADRE[cat_key]["insumos"]
         else:
             logger.warning(f"No hay categoría de insumos para {cat_key}")
-            await callback.message.edit_text("❌ <b>Error al guardar insumo.</b>", parse_mode="HTML")
+            await callback.message.edit_text("❌ <b>Error al guardar insumo.</b>", parse_mode="HTML", reply_markup=boton_menu())
             await state.clear()
             return
 
@@ -711,7 +736,7 @@ def get_costos_router(db: Database) -> Router:
             logger.info(f"Insumo guardado: {categoria_db} en finca {data['finca_id']}")
         except Exception as e:
             logger.error(f"Error al guardar insumo: {e}", exc_info=True)
-            await callback.message.edit_text("❌ <b>Error al guardar insumo.</b>", parse_mode="HTML")
+            await callback.message.edit_text("❌ <b>Error al guardar insumo.</b>", parse_mode="HTML", reply_markup=boton_menu())
             await state.clear()
             return
 
@@ -721,6 +746,7 @@ def get_costos_router(db: Database) -> Router:
                 "¿Cuál es el siguiente <b>producto/insumo</b>?\n\n"
                 "<i>(Escribe el nombre o /cancelar para terminar)</i>",
                 parse_mode="HTML",
+                reply_markup=botones_menu_cancelar(),
             )
             await state.set_state(CostoForm.esperando_producto)
         else:
@@ -728,6 +754,7 @@ def get_costos_router(db: Database) -> Router:
                 "✅ <b>¡Todos los datos registrados exitosamente!</b> 🎉📉\n\n"
                 "Usa /costo para registrar otro o /resumen para ver tus datos.",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
             await state.clear()
 
@@ -739,6 +766,7 @@ def get_costos_router(db: Database) -> Router:
         await callback.message.edit_text(
             "❌ <b>Operación cancelada.</b>\n\nUsa /costo para intentar de nuevo.",
             parse_mode="HTML",
+            reply_markup=boton_menu(),
         )
 
     return router

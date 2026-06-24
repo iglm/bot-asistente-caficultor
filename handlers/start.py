@@ -7,6 +7,7 @@ from aiogram.filters import CommandStart
 
 from database import Database
 from config import ADMIN_IDS, BOT_NAME, NOTIFICATION_GROUP_ID
+from utils import boton_menu
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,7 @@ def get_start_router(db: Database) -> Router:
                         "En breve recibirás una notificación cuando sea aprobada. ⏳\n\n"
                         "☕ <b>¡Gracias por confiar en nosotros para gestionar tu finca!</b>",
                         parse_mode="HTML",
+                        reply_markup=boton_menu(),
                     )
 
                     # Notificar a los admins con botones inline
@@ -130,6 +132,7 @@ def get_start_router(db: Database) -> Router:
                             "El administrador te notificará cuando sea aprobada. "
                             "¡Gracias por tu paciencia! ☕",
                             parse_mode="HTML",
+                            reply_markup=boton_menu(),
                         )
                     else:
                         await message.answer(
@@ -137,6 +140,7 @@ def get_start_router(db: Database) -> Router:
                             "No tienes acceso al bot. Contacta al administrador "
                             "si consideras que esto es un error.",
                             parse_mode="HTML",
+                            reply_markup=boton_menu(),
                         )
 
             elif status == "pending":
@@ -145,6 +149,7 @@ def get_start_router(db: Database) -> Router:
                     "El administrador te notificará cuando sea aprobada. "
                     "¡Gracias por tu paciencia! ☕",
                     parse_mode="HTML",
+                    reply_markup=boton_menu(),
                 )
 
             elif status == "approved":
@@ -156,6 +161,7 @@ def get_start_router(db: Database) -> Router:
                     "Tu solicitud fue rechazada. Contacta al administrador "
                     "si consideras que esto es un error.",
                     parse_mode="HTML",
+                    reply_markup=boton_menu(),
                 )
 
             else:
@@ -163,6 +169,7 @@ def get_start_router(db: Database) -> Router:
                     "⚠️ <b>Error de estado.</b>\n\n"
                     "Contacta al administrador para resolver este problema.",
                     parse_mode="HTML",
+                    reply_markup=boton_menu(),
                 )
 
         except Exception as e:
@@ -171,6 +178,7 @@ def get_start_router(db: Database) -> Router:
                 "❌ <b>Error interno.</b>\n\n"
                 "Ocurrió un error al procesar tu solicitud. Intenta de nuevo más tarde.",
                 parse_mode="HTML",
+                reply_markup=boton_menu(),
             )
 
     return router
