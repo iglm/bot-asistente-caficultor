@@ -1625,12 +1625,16 @@ class ExcelManager:
         cell.fill = FILL_SECCION
         row += 1
 
+        # Rentabilidad: proteger división por cero
+        costos_rent = indicadores.get('costos_total', 0)
+        ingresos_rent = indicadores.get('ingresos_totales', 0)
+        rentabilidad = ((ingresos_rent - costos_rent) / costos_rent * 100) if costos_rent > 0 else 0
         kpis = [
             ("Productividad", f"{indicadores.get('productividad', 0):,.1f} kg/ha", "kg/ha"),
             ("Rendimiento", f"{indicadores.get('rendimiento', 0):,.1f} kg/ha productivo", "kg/ha"),
             ("Costo por Hectárea", f"${indicadores.get('costo_total_por_ha', 0):,.0f}", "$/ha"),
             ("Margen por Hectárea", f"${indicadores.get('margen_por_ha', 0):,.0f}", "$/ha"),
-            ("Rentabilidad", f"{((indicadores.get('ingresos_totales', 0) - indicadores.get('costos_total', 0)) / indicadores.get('costos_total', 1) * 100):,.0f}%", "%"),
+            ("Rentabilidad", f"{rentabilidad:,.0f}%", "%"),
             ("Costo por kg CPS", f"${indicadores.get('costo_por_kilo', 0):,.0f}", "$/kg"),
             ("Precio Venta Promedio", f"${indicadores.get('precio_venta_promedio', 0):,.0f}", "$/kg"),
             ("Jornales/ha", f"{indicadores.get('jornales_por_ha', 0):,.1f}", "jornales/ha"),
