@@ -170,17 +170,34 @@ CATEGORIAS = {
 }
 
 # ── Configuración de presupuesto ──
-# Porcentajes de referencia para presupuesto (base 100%)
+# Datos oficiales FNC/FEPCafé 2024 — Estructura de costos por kilo CPS
+# Fuente: Federación Nacional de Cafeteros (FNC) / FEPCafé 2024
+# https://federaciondecafeteros.org/
 PRESUPUESTO_PORCENTAJES = {
-    "recoleccion": 0.54,
-    "fertilizacion": 0.19,
-    "administrativo": 0.07,
-    "arvenses": 0.06,
-    "beneficio": 0.06,
-    "instalacion": 0.05,
-    "fitosanitario": 0.02,
-    "otras_labores": 0.01,
+    "recoleccion": 0.54,      # $5,320 COP/kg
+    "fertilizacion": 0.19,    # $1,860 COP/kg
+    "administrativo": 0.07,   # $650 COP/kg
+    "arvenses": 0.06,         # $620 COP/kg
+    "beneficio": 0.06,        # $610 COP/kg
+    "fitosanitario": 0.02,    # $170 COP/kg
+    "renovacion": 0.05,       # $530 COP/kg
+    "otras_labores": 0.01,    # $40 COP/kg
 }
 
 # Rubros que aplican a toda la finca (no por lote)
 RUBROS_GLOBALES = ["administrativo", "beneficio"]
+
+# ── Indicadores de referencia FNC/FEPCafé 2024 ──
+# Datos de referencia para comparación con promedios nacionales.
+# Fuente: Federación Nacional de Cafeteros (FNC) / FEPCafé 2024
+FNC_INDICADORES = {
+    "precio_venta_promedio": 17700,      # COP/kg CPS
+    "costo_produccion_kilo": 9790,       # COP/kg CPS
+    "productividad_ha": 1669,            # kg CPS/ha
+    "rendimiento_ha": 2087,              # kg CPS/ha
+    "area_promedio": 2.9,               # ha
+    "costo_ha": 16340000,               # COP/ha
+    "margen_ha": 13164000,              # COP/ha
+    "productividad_pais_sacos_ha": 21,   # sacos/ha
+    "carga_kg_ha": 1500,                # 12.6 cargas × 125kg
+}

@@ -133,6 +133,42 @@ async def mostrar_indicadores(db: Database, send_func, finca_id: int, finca_nomb
         texto += f"• Productividad: {_formatear_numero(indicadores['productividad'], 2)} kg/ha\n"
         texto += f"• Rendimiento: {_formatear_numero(indicadores['rendimiento'], 2)} kg/ha productivo\n\n"
 
+    # ─── Comparación con promedios FNC/FEPCafé 2024 ───
+    if filtro in ("general",):
+        fnc_prod = indicadores.get('fnc_productividad_ha', 1669)
+        fnc_costo = indicadores.get('fnc_costo_ha', 16340000)
+        fnc_rend = indicadores.get('fnc_rendimiento_ha', 2087)
+        fnc_precio = indicadores.get('fnc_precio_venta_promedio', 17700)
+        fnc_costo_kilo = indicadores.get('fnc_costo_produccion_kilo', 9790)
+        fnc_margen = indicadores.get('fnc_margen_ha', 13164000)
+
+        prod = indicadores.get('productividad', 0)
+        costo_ha = indicadores.get('costo_total_por_ha', 0)
+        rend = indicadores.get('rendimiento', 0)
+        precio = indicadores.get('precio_venta_promedio', 0)
+        margen = indicadores.get('margen_por_ha', 0)
+
+        texto += "📊 <b>COMPARACIÓN CON PROMEDIOS FNC</b>\n"
+        texto += "<i>Datos de referencia: Federación Nacional de Cafeteros (FNC) / FEPCafé 2024</i>\n\n"
+
+        texto += f"• Productividad: {_formatear_numero(prod, 2)} kg/ha "
+        texto += f"(FNC: {_formatear_numero(fnc_prod, 0)} kg/ha)\n"
+
+        texto += f"• Rendimiento: {_formatear_numero(rend, 2)} kg/ha "
+        texto += f"(FNC: {_formatear_numero(fnc_rend, 0)} kg/ha)\n"
+
+        texto += f"• Costo/ha: {_formatear_moneda(costo_ha)} "
+        texto += f"(FNC: {_formatear_moneda(fnc_costo)})\n"
+
+        texto += f"• Costo/kg CPS: {_formatear_moneda(indicadores.get('costo_por_kilo', 0))} "
+        texto += f"(FNC: {_formatear_moneda(fnc_costo_kilo)}/kg)\n"
+
+        texto += f"• Precio venta/kg: {_formatear_moneda(precio)} "
+        texto += f"(FNC: {_formatear_moneda(fnc_precio)}/kg)\n"
+
+        texto += f"• Margen/ha: {_formatear_moneda(margen)} "
+        texto += f"(FNC: {_formatear_moneda(fnc_margen)})\n\n"
+
     # ─── Alertas automáticas ───
     texto += _generar_alertas(indicadores, db, finca_id)
 

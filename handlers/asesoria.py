@@ -175,58 +175,76 @@ def get_asesoria_router(db: Database) -> Router:
     return router
 
 
+def _formatear_moneda(valor: float) -> str:
+    """Formatea un número como moneda: $X,XXX,XXX"""
+    return f"${valor:,.0f}"
+
+
 def _generar_interpretacion(ind: dict) -> str:
-    """Genera interpretación profesional de los indicadores."""
+    """Genera interpretación profesional de los indicadores.
+    Compara con promedios nacionales FNC/FEPCafé 2024.
+    """
+    # Datos de referencia FNC/FEPCafé 2024
+    FNC_PROD = 1669       # kg/ha
+    FNC_COSTO_HA = 16340000
+    FNC_MARGEN_HA = 13164000
+    FNC_EFICIENCIA_MO = 0.4  # kg/jornal (estimado ~4 jornales/saca)
+    
     texto = "📊 <b>ANÁLISIS DE TU FINCA</b>\n\n"
 
     # Productividad
     prod = ind.get('productividad', 0)
-    if prod > 1000:
-        texto += f"✅ <b>Productividad:</b> {prod:.0f} kg/ha — Excelente nivel.\n"
-    elif prod > 500:
-        texto += f"⚠️ <b>Productividad:</b> {prod:.0f} kg/ha — Aceptable, pero hay margen de mejora.\n"
+    if prod > FNC_PROD * 0.8:
+        texto += f"✅ <b>Productividad:</b> {prod:.0f} kg/ha — Dentro del 80% del promedio FNC ({FNC_PROD} kg/ha).\n"
+    elif prod > FNC_PROD * 0.5:
+        texto += f"⚠️ <b>Productividad:</b> {prod:.0f} kg/ha — Por debajo del promedio FNC ({FNC_PROD} kg/ha).\n"
     else:
-        texto += f"🔴 <b>Productividad:</b> {prod:.0f} kg/ha — Baja. Requiere atención.\n"
+        texto += f"🔴 <b>Productividad:</b> {prod:.0f} kg/ha — Muy baja vs promedio FNC ({FNC_PROD} kg/ha).\n"
 
     # Costo por hectárea
     costo_ha = ind.get('costo_total_por_ha', 0)
     if costo_ha > 0:
-        if costo_ha < 10000000:
-            texto += f"✅ <b>Costo/ha:</b> ${costo_ha:,.0f} — Eficiente.\n"
-        elif costo_ha < 18000000:
-            texto += f"⚠️ <b>Costo/ha:</b> ${costo_ha:,.0f} — Dentro del promedio.\n"
+        if costo_ha <= FNC_COSTO_HA * 0.9:
+            texto += f"✅ <b>Costo/ha:</b> {_formatear_moneda(costo_ha)} — Menor al promedio FNC ({_formatear_moneda(FNC_COSTO_HA)}). Eficiente.\n"
+        elif costo_ha <= FNC_COSTO_HA * 1.1:
+            texto += f"ℹ️ <b>Costo/ha:</b> {_formatear_moneda(costo_ha)} — Alineado con el promedio FNC ({_formatear_moneda(FNC_COSTO_HA)}).\n"
         else:
-            texto += f"🔴 <b>Costo/ha:</b> ${costo_ha:,.0f} — Alto. Revisá los gastos.\n"
+            texto += f"🔴 <b>Costo/ha:</b> {_formatear_moneda(costo_ha)} — Superior al promedio FNC ({_formatear_moneda(FNC_COSTO_HA)}). Revisá los gastos.\n"
 
     # Margen por hectárea
     margen = ind.get('margen_por_ha', 0)
     if margen > 0:
-        texto += f"✅ <b>Margen/ha:</b> ${margen:,.0f} — Rentable.\n"
+        if margen >= FNC_MARGEN_HA * 0.8:
+            texto += f"✅ <b>Margen/ha:</b> {_formatear_moneda(margen)} — Cercano al promedio FNC ({_formatear_moneda(FNC_MARGEN_HA)}). Rentable.\n"
+        else:
+            texto += f"⚠️ <b>Margen/ha:</b> {_formatear_moneda(margen)} — Positivo pero inferior al promedio FNC ({_formatear_moneda(FNC_MARGEN_HA)}).\n"
     else:
-        texto += f"🔴 <b>Margen/ha:</b> ${margen:,.0f} — Estás perdiendo dinero.\n"
+        texto += f"🔴 <b>Margen/ha:</b> {_formatear_moneda(margen)} — Estás perdiendo dinero (FNC: {_formatear_moneda(FNC_MARGEN_HA)}).\n"
 
     # Eficiencia mano de obra
     eficiencia = ind.get('eficiencia_mo', 0)
-    if eficiencia > 0.5:
-        texto += f"✅ <b>Eficiencia MO:</b> {eficiencia:.2f} kg/jornal — Buena.\n"
-    elif eficiencia > 0.3:
-        texto += f"⚠️ <b>Eficiencia MO:</b> {eficiencia:.2f} kg/jornal — Aceptable.\n"
+    if eficiencia > FNC_EFICIENCIA_MO * 1.2:
+        texto += f"✅ <b>Eficiencia MO:</b> {eficiencia:.2f} kg/jornal — Superior al referente ({FNC_EFICIENCIA_MO:.1f} kg/jornal).\n"
+    elif eficiencia > FNC_EFICIENCIA_MO * 0.7:
+        texto += f"⚠️ <b>Eficiencia MO:</b> {eficiencia:.2f} kg/jornal — Aceptable (referente: {FNC_EFICIENCIA_MO:.1f} kg/jornal).\n"
     else:
-        texto += f"🔴 <b>Eficiencia MO:</b> {eficiencia:.2f} kg/jornal — Baja.\n"
+        texto += f"🔴 <b>Eficiencia MO:</b> {eficiencia:.2f} kg/jornal — Baja (referente: {FNC_EFICIENCIA_MO:.1f} kg/jornal).\n"
 
     texto += "\n💡 <b>Recomendación general:</b>\n"
 
-    if prod > 800 and costo_ha < 15000000:
-        texto += "Tu finca está en buen camino. Mantené las prácticas actuales y "
-        texto += "considerá invertir en renovación para sostener la productividad."
-    elif prod < 500:
+    if prod > FNC_PROD * 0.8 and costo_ha <= FNC_COSTO_HA * 1.1:
+        texto += "Tu finca está al nivel o por encima de los promedios FNC. "
+        texto += "Mantené las prácticas actuales y considerá invertir en renovación para sostener la productividad."
+    elif prod < FNC_PROD * 0.5:
         texto += "Priorizá la fertilización y el control de arvenses. "
         texto += "Considerá renovar lotes con baja productividad."
-    elif costo_ha > 18000000:
+    elif costo_ha > FNC_COSTO_HA * 1.2:
         texto += "Revisá los gastos en insumos y administrativos. "
         texto += "Buscá proveedores más competitivos o ajustá las dosis."
     else:
         texto += "Tu finca tiene potencial de mejora. "
         texto += "Enfocate en aumentar la productividad por hectárea."
+
+    texto += "\n\n<i>Datos de referencia: Federación Nacional de Cafeteros (FNC) / FEPCafé 2024</i>"
 
     return texto

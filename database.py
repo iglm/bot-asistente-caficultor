@@ -825,7 +825,7 @@ class Database:
             - total_litros: cantidad total en L equivalentes (líquidos)
             - total_estandar: cantidad total en kg (todo convertido a kg)
         """
-        from config import CONVERSION_A_KG, CONVERSION_A_LITROS, UNIDADES_SOLIDOS, UNIDADES_LIQUIDOS
+        from config import CONVERSION_A_KG, CONVERSION_A_LITROS, UNIDADES_SOLIDOS, UNIDADES_LIQUIDOS, FNC_INDICADORES
         
         conn = self.get_conn()
         try:
@@ -945,7 +945,10 @@ class Database:
         """Calcula todos los indicadores técnicos de la finca.
         
         Basado en metodología estándar del sector.
+        Incluye datos de referencia FNC/FEPCafé 2024 para comparación.
         """
+        from config import FNC_INDICADORES
+        
         # Obtener área total y productiva
         conn = self.get_conn()
         try:
@@ -994,6 +997,14 @@ class Database:
             'insumos_total_kg': insumos_cant['total_estandar'],
             'insumos_total_litros': insumos_cant['total_litros'],
             'eficiencia_insumos': kg_producidos / insumos_cant['total_estandar'] if insumos_cant['total_estandar'] > 0 else 0,
+            # Comparación con promedios FNC/FEPCafé 2024
+            'fnc_productividad_ha': FNC_INDICADORES['productividad_ha'],
+            'fnc_costo_ha': FNC_INDICADORES['costo_ha'],
+            'fnc_rendimiento_ha': FNC_INDICADORES['rendimiento_ha'],
+            'fnc_precio_venta_promedio': FNC_INDICADORES['precio_venta_promedio'],
+            'fnc_costo_produccion_kilo': FNC_INDICADORES['costo_produccion_kilo'],
+            'fnc_margen_ha': FNC_INDICADORES['margen_ha'],
+            'fnc_area_promedio': FNC_INDICADORES['area_promedio'],
         }
 
     def get_ejecucion_presupuesto(self, finca_id: int, anio: int) -> dict:
