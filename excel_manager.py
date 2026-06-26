@@ -264,10 +264,9 @@ class ExcelManager:
     def generar_plantilla_vacia(self, output_path: str) -> str:
         """
         Genera una plantilla Excel vacía a partir del template.
-        - Mantiene TODAS las hojas con su formato
-        - Limpia filas de datos (desde fila 3 en adelante)
-        - Agrega fila de ejemplo (fila 2) con datos de muestra
-        - Agrega hoja NOTAS con instrucciones detalladas
+        - SOLO estructura (headers, fórmulas, formato)
+        - ELIMINA hojas vacías (Plan de ordenamiento, Plan de acción, Cronograma)
+        - SIN datos de ejemplo — el usuario llena manualmente
         
         Args:
             output_path: Ruta donde guardar el Excel
@@ -285,131 +284,22 @@ class ExcelManager:
         # 2. Abrir con openpyxl
         wb = openpyxl.load_workbook(output_path, keep_vba=False)
         
-        # 3. Limpiar datos y agregar ejemplos en hojas de datos
-        self._preparar_hojas_plantilla(wb)
+        # 3. ELIMINAR HOJAS VACÍAS del template original
+        HOJAS_ELIMINAR = ["Plan de ordenamiento", "Plan de acción", "Cronograma"]
+        for hoja in HOJAS_ELIMINAR:
+            if hoja in wb.sheetnames:
+                del wb[hoja]
+                logger.info(f"Hoja vacía '{hoja}' eliminada de plantilla")
         
-        # 4. Agregar hoja NOTAS
+        # 4. Agregar hoja NOTAS con instrucciones
         self._agregar_hoja_notas(wb)
         
-        # 5. Guardar
+        # 5. Guardar (sin datos de ejemplo — solo estructura limpia)
         wb.save(output_path)
         wb.close()
-        logger.info(f"Plantilla vacía generada: {output_path}")
+        logger.info(f"Plantilla vacía generada (solo estructura): {output_path}")
         
         return output_path
-
-    def _preparar_hojas_plantilla(self, wb):
-        """
-        Prepara las hojas de datos en la plantilla:
-        - Limpia filas de datos desde fila 3
-        - Agrega fila 2 con datos de ejemplo
-        - Mantiene headers y formato intactos
-        """
-        from openpyxl.styles import Font, PatternFill, Alignment
-        
-        # Hojas que deben tener datos de ejemplo
-        HOJAS_EJEMPLO = {
-            "ID lotes": {
-                "ejemplo": ["Ejemplo Lote 1", 1.5, 7500, "Castillo", "", "", 3, "", ""],
-                "limpiar_desde": 2,
-            },
-            "Ingresos por ventas de cafe": {
-                "ejemplo": ["", "", "CPS", 150, None, 0],
-                "limpiar_desde": 3,
-            },
-            "Instalacion de Cafe": {
-                "mo": ["Ejemplo Lote 1", None, "Trazo y ahoyado", 20, 50000, None],
-                "insumos": [None, "Fertilizante 15-15-15", 10, 120000, None],
-                "limpiar_desde": 3,
-            },
-            "Control de arvenses": {
-                "mo": ["Ejemplo Lote 1", None, "Control manual de arvenses", 8, 45000, None],
-                "insumos": [None, "Control químico", "Glifosato", 4, 25000, None],
-                "limpiar_desde": 3,
-            },
-            "Fertilizacion": {
-                "mo": ["Ejemplo Lote 1", None, "Aplicación de fertilizante", 10, 50000, None],
-                "insumos": [None, "Urea", 100, 2800, None],
-                "limpiar_desde": 3,
-            },
-            "Control Fitosanitario": {
-                "mo": ["Ejemplo Lote 1", None, "Aplicación de fungicida", 5, 45000, None],
-                "insumos": [None, "Aplicación fitosanitaria", "Fungicida cúprico", 3, 35000, None],
-                "limpiar_desde": 3,
-            },
-            "Regulacion de sombrio": {
-                "mo": ["Ejemplo Lote 1", None, "Regulación de sombra", 6, 45000, None],
-                "insumos": [None, "Machete", 2, 12000, None],
-                "limpiar_desde": 3,
-            },
-            "Otras Labores": {
-                "mo": ["Ejemplo Lote 1", None, "Mantenimiento general", 5, 45000, None],
-                "insumos": [None, "Herramientas varias", 1, 85000, None],
-                "limpiar_desde": 3,
-            },
-            "Recoleccion": {
-                "ejemplo": [None, "recolección cereza", 200, None, 0],
-                "limpiar_desde": 3,
-            },
-            "Beneficio": {
-                "ejemplo": [None, "Beneficio húmedo", 10, 25000, None],
-                "limpiar_desde": 3,
-            },
-            "Gastos Administrativos": {
-                "ejemplo": [None, "Pago servicios públicos", 0],
-                "limpiar_desde": 3,
-            },
-        }
-        
-        for hoja_nombre, config in HOJAS_EJEMPLO.items():
-            if hoja_nombre not in wb.sheetnames:
-                logger.warning(f"Hoja '{hoja_nombre}' no encontrada en template, saltando")
-                continue
-            
-            ws = wb[hoja_nombre]
-            limpiar_desde = config.get("limpiar_desde", 3)
-            max_col = ws.max_column
-            
-            # Limpiar filas de datos desde 'limpiar_desde' en adelante
-            for row in range(limpiar_desde, ws.max_row + 1):
-                for col in range(1, max_col + 1):
-                    cell = ws.cell(row=row, column=col)
-                    # Verificar si la celda está fusionada (no se puede escribir en merged cells hijas)
-                    try:
-                        cell.value = None
-                    except AttributeError:
-                        # MergedCell — ignorar
-                        pass
-            
-            # Agregar fila de ejemplo (fila 2)
-            estilo_ejemplo = Font(italic=True, color="999999", size=10, name="Calibri")
-            
-            def _escribir_si_posible(ws, row, col, valor, font):
-                """Escribe un valor en una celda si no está fusionada."""
-                try:
-                    cell = ws.cell(row=row, column=col, value=valor)
-                    cell.font = font
-                except AttributeError:
-                    # MergedCell — ignorar
-                    pass
-            
-            if "ejemplo" in config:
-                for col_idx, valor in enumerate(config["ejemplo"], 1):
-                    if valor is not None:
-                        _escribir_si_posible(ws, 2, col_idx, valor, estilo_ejemplo)
-            
-            if "mo" in config:
-                for col_idx, valor in enumerate(config["mo"], 1):
-                    if valor is not None:
-                        _escribir_si_posible(ws, 2, col_idx, valor, estilo_ejemplo)
-            
-            if "insumos" in config:
-                for col_idx, valor in enumerate(config["insumos"], 1):
-                    col_real = 8 + col_idx - 1  # Insumos empiezan en col H (8)
-                    if valor is not None and col_real <= max_col:
-                        _escribir_si_posible(ws, 2, col_real, valor, estilo_ejemplo)
-            
-            logger.debug(f"Hoja '{hoja_nombre}' preparada en plantilla vacía")
 
     def _agregar_hoja_notas(self, wb):
         """
@@ -1125,15 +1015,9 @@ class ExcelManager:
             ("otras_labores", "🔧 Otras labores", 1),
         ]
 
-        # Determinar año más reciente con presupuesto
-        anios = db.get_presupuesto_anios(finca_id)
-        if not anios:
-            logger.info("No hay presupuestos guardados, saltando hoja Presupuesto")
-            return
-
-        anio = anios[0]  # Más reciente
-        presupuesto_data = db.get_ejecucion_presupuesto(finca_id, anio)
-        categorias_data = {c["categoria"]: c for c in presupuesto_data["categorias"]}
+        # ─── Determinar año y fuente de datos ───
+        anios_presupuesto = db.get_presupuesto_anios(finca_id)
+        anios_transacciones = db.get_anios_con_datos(finca_id)
 
         # Crear o reemplazar la hoja
         hoja_nombre = "Presupuesto"
@@ -1141,9 +1025,32 @@ class ExcelManager:
             del wb[hoja_nombre]
         ws = wb.create_sheet(hoja_nombre)
 
+        if not anios_presupuesto and not anios_transacciones:
+            # Sin datos de ningún tipo — hoja informativa mínima
+            ws.cell(row=1, column=1, value="Presupuesto").font = FONT_TITLE
+            ws.merge_cells("A1:F1")
+            ws.cell(row=3, column=1, value="No hay datos registrados para esta finca.").font = FONT_NORMAL
+            ws.cell(row=4, column=1, value="Agregue costos y/o cree un presupuesto desde el menú de presupuesto.").font = Font(size=10, name="Calibri", italic=True, color="666666")
+            logger.info(f"No hay datos para presupuesto en finca {finca_id}")
+            return
+
+        if anios_presupuesto:
+            # ─── Flujo con presupuesto planificado (existente) ───
+            anio = anios_presupuesto[0]  # Más reciente
+            presupuesto_data = db.get_ejecucion_presupuesto(finca_id, anio)
+            es_sugerido = False
+        else:
+            # ─── Flujo sin presupuesto: usar datos reales como referencia ───
+            anio = anios_transacciones[0]  # Año más reciente con transacciones
+            presupuesto_data = db.get_ejecucion_presupuesto(finca_id, anio)
+            es_sugerido = True
+
+        categorias_data = {c["categoria"]: c for c in presupuesto_data["categorias"]}
+
         # ─── Título ───
         ws.merge_cells("A1:F1")
-        cell = ws.cell(row=1, column=1, value=f"Presupuesto {anio}")
+        titulo = f"Presupuesto Sugerido {anio}" if es_sugerido else f"Presupuesto {anio}"
+        cell = ws.cell(row=1, column=1, value=titulo)
         cell.font = FONT_TITLE
         ws.cell(row=1, column=1).alignment = Alignment(horizontal="center", vertical="center")
 
@@ -1286,7 +1193,8 @@ class ExcelManager:
         except Exception as e:
             logger.warning(f"No se pudo generar el gráfico de presupuesto: {e}")
 
-        logger.info(f"Hoja 'Presupuesto' generada para finca {finca_id} año {anio}")
+        tipo_log = "Sugerido" if es_sugerido else "Planificado"
+        logger.info(f"Hoja 'Presupuesto' ({tipo_log}) generada para finca {finca_id} año {anio}")
 
     # ------------------------------------------------------------------
     # Hoja Indicadores Técnicos
