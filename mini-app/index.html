@@ -3,158 +3,424 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Asistente de Costos</title>
+    <title>Asistente de Costos para Caficultores ☕</title>
     <link rel="stylesheet" href="css/styles.css">
-    <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-    <div id="app">
-        <!-- Header -->
-        <header class="header">
-            <h1>☕ Asistente de Costos</h1>
-            <p class="subtitle">Panel de control</p>
-        </header>
+<div id="app">
+    <!-- ═══ HEADER ═══ -->
+    <header class="header">
+        <h1>☕ Asistente de Costos</h1>
+        <p class="subtitle" id="headerSubtitle">Panel de control</p>
+    </header>
 
-        <!-- Navegación -->
-        <nav class="nav">
-            <button class="nav-btn active" data-tab="dashboard">📊 Dashboard</button>
-            <button class="nav-btn" data-tab="transacciones">💰 Transacciones</button>
-            <button class="nav-btn" data-tab="indicadores">📈 Indicadores</button>
-            <button class="nav-btn" data-tab="exportar">📥 Exportar</button>
-            <button class="nav-btn" data-tab="planes">⭐ Planes</button>
-        </nav>
+    <!-- ═══ NAV ═══ -->
+    <nav class="nav" id="mainNav">
+        <button class="nav-btn active" data-tab="dashboard">📊 Panel</button>
+        <button class="nav-btn" data-tab="fincas">🗺️ Fincas</button>
+        <button class="nav-btn" data-tab="lotes">🌱 Lotes</button>
+        <button class="nav-btn" data-tab="ingresos">💰 Ingresos</button>
+        <button class="nav-btn" data-tab="costos">📉 Costos</button>
+        <button class="nav-btn" data-tab="presupuesto">📋 Presupuesto</button>
+        <button class="nav-btn" data-tab="indicadores">📈 Indicadores</button>
+        <button class="nav-btn" data-tab="asesoria">👨‍🏫 Asesoría</button>
+        <button class="nav-btn" data-tab="exportar">📥 Exportar</button>
+    </nav>
 
-        <!-- Contenido -->
-        <main class="content">
-            <!-- Dashboard -->
-            <section id="dashboard" class="tab-content active">
-                <div class="cards">
-                    <div class="card">
-                        <span class="card-icon">💰</span>
-                        <span class="card-label">Ingresos</span>
-                        <span class="card-value" id="ingresos">$0</span>
-                    </div>
-                    <div class="card">
-                        <span class="card-icon">📉</span>
-                        <span class="card-label">Costos</span>
-                        <span class="card-value" id="costos">$0</span>
-                    </div>
-                    <div class="card">
-                        <span class="card-icon">📈</span>
-                        <span class="card-label">Margen</span>
-                        <span class="card-value" id="margen">$0</span>
-                    </div>
-                    <div class="card">
-                        <span class="card-icon">🌱</span>
-                        <span class="card-label">Productividad</span>
-                        <span class="card-value" id="productividad">0 kg/ha</span>
-                    </div>
+    <!-- ═══ CONTENT ═══ -->
+    <main class="content">
+
+        <!-- ─── LOGIN / AVISO LEGAL ─── -->
+        <section id="loginScreen" class="tab-content active">
+            <div class="loading" id="loginLoading">
+                <div class="spinner"></div>
+                <p>Verificando acceso...</p>
+            </div>
+            <div id="avisoLegal" class="hidden">
+                <div class="aviso-legal" id="avisoTexto"></div>
+                <div class="btn-group" style="justify-content:center;">
+                    <button class="btn btn-primary btn-lg" onclick="app.aceptarTerminos()">✅ Aceptar términos</button>
+                    <button class="btn btn-secondary btn-lg" onclick="app.rechazarTerminos()">❌ No acepto</button>
                 </div>
+            </div>
+        </section>
+
+        <!-- ─── MENÚ PRINCIPAL (DASHBOARD) ─── -->
+        <section id="dashboard" class="tab-content">
+            <div id="menuScreen" class="hidden">
+                <div class="menu-grid" id="menuGrid">
+                    <button class="menu-item" onclick="app.irAFincas()"><span class="menu-icon">🗺️</span><span class="menu-label">Fincas</span></button>
+                    <button class="menu-item" onclick="app.irALotes()"><span class="menu-icon">🌱</span><span class="menu-label">Lotes</span></button>
+                    <button class="menu-item" onclick="app.irAIngresos()"><span class="menu-icon">💰</span><span class="menu-label">Ingresos</span></button>
+                    <button class="menu-item" onclick="app.irACostos()"><span class="menu-icon">📉</span><span class="menu-label">Costos</span></button>
+                    <button class="menu-item" onclick="app.cargarResumen()"><span class="menu-icon">📊</span><span class="menu-label">Resumen</span></button>
+                    <button class="menu-item" onclick="app.cargarIndicadores()"><span class="menu-icon">📈</span><span class="menu-label">Indicadores</span></button>
+                    <button class="menu-item" onclick="app.irAPresupuesto()"><span class="menu-icon">📋</span><span class="menu-label">Presupuesto</span></button>
+                    <button class="menu-item" onclick="app.irAExportar()"><span class="menu-icon">📥</span><span class="menu-label">Exportar</span></button>
+                    <button class="menu-item" onclick="app.irAAsesoria()"><span class="menu-icon">👨‍🏫</span><span class="menu-label">Asesoría</span></button>
+                </div>
+            </div>
+
+            <div id="dashboardResumen">
+                <h3 class="section-title">📊 Resumen financiero</h3>
+                <div class="cards">
+                    <div class="card"><span class="card-icon">💰</span><span class="card-label">Ingresos</span><span class="card-value" id="dashIngresos">$0</span></div>
+                    <div class="card"><span class="card-icon">📉</span><span class="card-label">Costos</span><span class="card-value" id="dashCostos">$0</span></div>
+                    <div class="card"><span class="card-icon">📈</span><span class="card-label">Margen</span><span class="card-value" id="dashMargen">$0</span></div>
+                    <div class="card"><span class="card-icon">🌱</span><span class="card-label">Costo/ha</span><span class="card-value" id="dashCostoHa">$0</span></div>
+                </div>
+
                 <div class="chart-container">
                     <h3>Gastos por categoría</h3>
                     <canvas id="chartGastos"></canvas>
                 </div>
-            </section>
 
-            <!-- Transacciones -->
-            <section id="transacciones" class="tab-content">
-                <div class="form-section">
-                    <h3>Nueva Transacción</h3>
-                    <form id="formTransaccion">
-                        <select id="tipo" required>
-                            <option value="">Tipo...</option>
-                            <option value="ingreso_cps">💰 Ingreso CPS</option>
-                            <option value="ingreso_pasilla">💰 Ingreso Pasilla</option>
-                            <option value="recoleccion">☕ Recolección</option>
-                            <option value="fertilizacion_mo">🧪 Fertilización MO</option>
-                            <option value="fertilizacion_insumos">🧪 Fertilización Insumos</option>
-                            <option value="arvenses_mo">🌿 Arvenses</option>
-                            <option value="administrativo">📋 Administrativo</option>
-                        </select>
-                        <input type="date" id="fecha" required>
-                        <input type="text" id="labor" placeholder="Labor realizada">
-                        <input type="text" id="producto" placeholder="Producto">
-                        <input type="number" id="cantidad" placeholder="Cantidad" step="0.01">
-                        <input type="text" id="unidad" placeholder="Unidad (kg, L, jornal)">
-                        <input type="number" id="valorUnitario" placeholder="Valor unitario (COP)" step="1000">
-                        <input type="number" id="valorTotal" placeholder="Valor total (COP)" step="1000">
-                        <button type="submit" class="btn-primary">✅ Guardar</button>
-                    </form>
-                </div>
+                <div id="alertasContainer"></div>
+
                 <div class="list-section">
-                    <h3>Últimas transacciones</h3>
-                    <div id="listaTransacciones"></div>
+                    <h3>⚡ Acceso rápido</h3>
+                    <div class="toggle-container">
+                        <button class="toggle-btn active" onclick="app.mostrarMenuRapido('resumen')" id="rapidResumenBtn">📊 Resumen</button>
+                        <button class="toggle-btn" onclick="app.mostrarMenuRapido('indicadores')" id="rapidIndicadoresBtn">📈 Indicadores</button>
+                        <button class="toggle-btn" onclick="app.mostrarMenuRapido('periodo')" id="rapidPeriodoBtn">📅 Período</button>
+                    </div>
+                    <div id="rapidContent"></div>
                 </div>
-            </section>
+            </div>
+        </section>
 
-            <!-- Indicadores -->
-            <section id="indicadores" class="tab-content">
-                <div class="indicadores-grid">
-                    <div class="indicador-item">
-                        <span class="indicador-label">Productividad</span>
-                        <span class="indicador-value" id="indProductividad">-</span>
-                        <span class="indicador-ref">Ref: 1,669 kg/ha</span>
+        <!-- ─── FINCAS ─── -->
+        <section id="fincas" class="tab-content">
+            <div class="flex-between mb-1">
+                <h3 class="section-title" style="border:none;margin:0;padding:0;">🗺️ Mis Fincas</h3>
+                <button class="btn btn-primary btn-sm" onclick="app.mostrarFormFinca()">+ Nueva</button>
+            </div>
+            <div id="formFinca" class="form-section hidden">
+                <h3>Nueva Finca</h3>
+                <div class="form-group"><label>Nombre *</label><input type="text" id="fincaNombre" placeholder="Ej: Finca El Bosque"></div>
+                <div class="form-row">
+                    <div class="form-group"><label>Región</label><input type="text" id="fincaRegion" placeholder="Ej: Eje Cafetero"></div>
+                    <div class="form-group"><label>Departamento</label><input type="text" id="fincaDepto" placeholder="Ej: Caldas"></div>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="app.guardarFinca()">💾 Guardar</button>
+                    <button class="btn btn-secondary" onclick="app.ocultarFormFinca()">Cancelar</button>
+                </div>
+            </div>
+            <div id="fincasList"><div class="loading"><div class="spinner"></div><p>Cargando fincas...</p></div></div>
+        </section>
+
+        <!-- ─── LOTES ─── -->
+        <section id="lotes" class="tab-content">
+            <div id="lotesSelectorFinca" class="form-section">
+                <h3>🌱 Seleccionar Finca</h3>
+                <select id="lotesFincaSelect" onchange="app.cargarLotes()"></select>
+            </div>
+            <div class="flex-between mb-1">
+                <h3 class="section-title" style="border:none;margin:0;padding:0;">Lotes</h3>
+                <button class="btn btn-primary btn-sm" onclick="app.mostrarFormLote()">+ Nuevo</button>
+            </div>
+            <div id="formLote" class="form-section hidden">
+                <h3>Nuevo Lote</h3>
+                <div class="form-group"><label>Nombre *</label><input type="text" id="loteNombre" placeholder="Ej: Lote 1 La Montaña"></div>
+                <div class="form-row">
+                    <div class="form-group"><label>Área (hectáreas)</label><input type="number" id="loteArea" placeholder="2.5" step="0.1"></div>
+                    <div class="form-group"><label>N° Árboles</label><input type="number" id="loteArboles" placeholder="5000"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Variedad</label><input type="text" id="loteVariedad" placeholder="Ej: Castillo"></div>
+                    <div class="form-group"><label>Fecha siembra</label><input type="date" id="loteFechaSiembra"></div>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="app.guardarLote()">💾 Guardar</button>
+                    <button class="btn btn-secondary" onclick="app.ocultarFormLote()">Cancelar</button>
+                </div>
+            </div>
+            <div id="lotesList"><p class="empty-state"><span class="icon">🌱</span>Seleccioná una finca para ver sus lotes.</p></div>
+        </section>
+
+        <!-- ─── INGRESOS ─── -->
+        <section id="ingresos" class="tab-content">
+            <div id="ingresosSelectorFinca" class="form-section hidden">
+                <h3>Seleccionar Finca</h3>
+                <select id="ingresosFincaSelect" onchange="app.cargarIngresos()"></select>
+            </div>
+
+            <div class="flex-between mb-1">
+                <h3 class="section-title" style="border:none;margin:0;padding:0;">💰 Registrar Ingreso</h3>
+            </div>
+
+            <div class="form-section" id="formIngreso">
+                <h3>Nuevo Ingreso</h3>
+                <div class="form-group"><label>Fecha *</label><input type="date" id="ingresoFecha"></div>
+                <div class="form-row">
+                    <div class="form-group"><label>Tipo de café *</label>
+                        <select id="ingresoTipo">
+                            <option value="ingreso_cps">CPS (Café Pergamino Seco)</option>
+                            <option value="ingreso_pasilla">Pasilla</option>
+                        </select>
                     </div>
-                    <div class="indicador-item">
-                        <span class="indicador-label">Rendimiento</span>
-                        <span class="indicador-value" id="indRendimiento">-</span>
-                        <span class="indicador-ref">Ref: 2,087 kg/ha</span>
-                    </div>
-                    <div class="indicador-item">
-                        <span class="indicador-label">Costo/ha</span>
-                        <span class="indicador-value" id="indCostoHa">-</span>
-                        <span class="indicador-ref">Ref: $16.3M</span>
-                    </div>
-                    <div class="indicador-item">
-                        <span class="indicador-label">Precio venta</span>
-                        <span class="indicador-value" id="indPrecioVenta">-</span>
-                        <span class="indicador-ref">Ref: $17,700/kg</span>
-                    </div>
-                    <div class="indicador-item">
-                        <span class="indicador-label">Margen/ha</span>
-                        <span class="indicador-value" id="indMargenHa">-</span>
-                        <span class="indicador-ref">Ref: $13.2M</span>
-                    </div>
-                    <div class="indicador-item">
-                        <span class="indicador-label">Jornales/ha</span>
-                        <span class="indicador-value" id="indJornales">-</span>
-                        <span class="indicador-ref">Ref: 58</span>
+                    <div class="form-group"><label>Lote</label>
+                        <select id="ingresoLote"><option value="0">General</option></select>
                     </div>
                 </div>
-            </section>
-
-            <!-- Exportar -->
-            <section id="exportar" class="tab-content">
-                <div class="export-section">
-                    <h3>Exportar / Importar</h3>
-                    <button class="btn-export" onclick="exportarExcel()">📊 Exportar Excel</button>
-                    <button class="btn-import" onclick="document.getElementById('fileInput').click()">📥 Importar Excel</button>
-                    <input type="file" id="fileInput" accept=".xlsx" style="display:none" onchange="importarExcel(event)">
-                    <p class="hint">Descargá la plantilla, llenala y subila de nuevo.</p>
+                <div class="form-row">
+                    <div class="form-group"><label>Cantidad (kg) *</label><input type="number" id="ingresoKg" placeholder="Ej: 500" step="0.1" min="0"></div>
+                    <div class="form-group"><label>Valor total ($) *</label><input type="number" id="ingresoValorTotal" placeholder="Ej: 8500000" step="1000" min="0"></div>
                 </div>
-            </section>
+                <div class="form-group"><label>Labor</label><input type="text" id="ingresoLabor" placeholder="Ej: Venta cosecha principal"></div>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="app.guardarIngreso()">💾 Guardar ingreso</button>
+                </div>
+            </div>
 
-            <!-- Planes -->
-            <section id="planes" class="tab-content">
-                <div class="planes-section">
-                    <h3>Planes y Precios</h3>
-                    <div class="planes-grid" id="planesGrid">
-                        <!-- Se llena dinámicamente -->
+            <div id="ingresosResumen" class="form-section"></div>
+
+            <div class="list-section">
+                <h3>📋 Historial de Ingresos</h3>
+                <div id="ingresosList"></div>
+            </div>
+        </section>
+
+        <!-- ─── COSTOS ─── -->
+        <section id="costos" class="tab-content">
+            <div id="costosStepContainer">
+                <!-- Step 1: Seleccionar finca -->
+                <div id="costosStep1" class="form-section">
+                    <h3><span class="step">1</span> Seleccionar Finca</h3>
+                    <select id="costosFincaSelect" onchange="app.costosSeleccionarFinca()"></select>
+                </div>
+
+                <!-- Step 2: Seleccionar lote(s) -->
+                <div id="costosStep2" class="form-section hidden">
+                    <h3><span class="step">2</span> Seleccionar Lote(s)</h3>
+                    <div class="toggle-container">
+                        <button class="toggle-btn active" onclick="app.costosModoLote('todos')" id="costosModoTodos">Toda la finca</button>
+                        <button class="toggle-btn" onclick="app.costosModoLote('especifico')" id="costosModoEspecifico">Lote específico</button>
+                        <button class="toggle-btn" onclick="app.costosModoLote('seleccionar')" id="costosModoSeleccion">Seleccionar</button>
+                    </div>
+                    <div id="costosLoteOptions"></div>
+                    <button class="btn btn-primary btn-block mt-1" onclick="app.costosSiguienteCategoria()">Continuar →</button>
+                </div>
+
+                <!-- Step 3: Categoría -->
+                <div id="costosStep3" class="form-section hidden">
+                    <h3><span class="step">3</span> Categoría de Costo</h3>
+                    <div class="menu-grid" id="costosCategoriasGrid"></div>
+                </div>
+
+                <!-- Step 4: Tipo (MO / Insumos / Ambos) -->
+                <div id="costosStep4" class="form-section hidden">
+                    <h3><span class="step">4</span> Tipo de Costo</h3>
+                    <div class="btn-group" id="costosTipoBtns"></div>
+                </div>
+
+                <!-- Step 5: Formulario MO -->
+                <div id="costosStep5" class="form-section hidden">
+                    <h3><span class="step">5</span> Registrar Mano de Obra</h3>
+                    <div class="form-group"><label>Fecha *</label><input type="date" id="costoMOFecha"></div>
+                    <div class="form-group"><label>Labor *</label><input type="text" id="costoMOLabor" placeholder="Ej: Fertilización manual"></div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Cantidad (jornales) *</label><input type="number" id="costoMOCantidad" placeholder="5" step="0.5" min="0"></div>
+                        <div class="form-group"><label>Valor unitario ($) *</label><input type="number" id="costoMOVU" placeholder="55000" step="1000" min="0"></div>
+                    </div>
+                    <div class="form-group"><label>Valor total ($)</label><input type="number" id="costoMOVT" placeholder="Auto-calculado o manual" step="1000"></div>
+                    <p class="hint" id="costoMOHint"></p>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="app.guardarCostoMO()">💾 Guardar MO</button>
+                        <button class="btn btn-secondary" onclick="app.costosAtras()">Atrás</button>
                     </div>
                 </div>
-            </section>
-        </main>
 
-        <!-- Footer -->
-        <footer class="footer">
-            <p>Desarrollado por Lucas Mateo Tabares Franco</p>
-            <p>Asesorado por Ing. Jhoan Sebastian Bustamante Montes</p>
-        </footer>
-    </div>
+                <!-- Step 6: Formulario Insumos -->
+                <div id="costosStep6" class="form-section hidden">
+                    <h3><span class="step">6</span> Registrar Insumo</h3>
+                    <div class="form-group"><label>Fecha *</label><input type="date" id="costoInsumoFecha"></div>
+                    <div class="form-group"><label>Producto *</label><input type="text" id="costoInsumoProducto" placeholder="Ej: Urea"></div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Unidad</label>
+                            <select id="costoInsumoUnidad">
+                                <option value="kg">Kilogramos (kg)</option>
+                                <option value="g">Gramos (g)</option>
+                                <option value="l">Litros (L)</option>
+                                <option value="ml">Mililitros (mL)</option>
+                                <option value="bulto">Bulto 50kg</option>
+                            </select>
+                        </div>
+                        <div class="form-group"><label>Cantidad *</label><input type="number" id="costoInsumoCantidad" placeholder="50" step="0.1" min="0"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Valor unitario ($) *</label><input type="number" id="costoInsumoVU" placeholder="3200" step="100" min="0"></div>
+                        <div class="form-group"><label>Valor total ($)</label><input type="number" id="costoInsumoVT" placeholder="Auto-calculado" step="1000"></div>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="app.guardarCostoInsumo()">💾 Guardar insumo</button>
+                        <button class="btn btn-info" onclick="app.guardarCostoInsumoYOtro()">➕ Guardar y otro</button>
+                        <button class="btn btn-secondary" onclick="app.costosAtras()">Atrás</button>
+                    </div>
+                </div>
+            </div>
 
-    <script src="js/api.js"></script>
-    <script src="js/charts.js"></script>
-    <script src="js/app.js"></script>
+            <!-- Lista de costos -->
+            <div class="list-section mt-2">
+                <h3>📋 Últimos costos registrados</h3>
+                <div id="costosList"></div>
+            </div>
+
+            <div class="form-section">
+                <h3>📅 Filtrar costos por período</h3>
+                <div class="form-row">
+                    <div class="form-group"><label>Desde</label><input type="date" id="costosFiltroInicio"></div>
+                    <div class="form-group"><label>Hasta</label><input type="date" id="costosFiltroFin"></div>
+                </div>
+                <button class="btn btn-sm btn-outline" onclick="app.filtrarCostos()">🔍 Filtrar</button>
+                <button class="btn btn-sm btn-secondary" onclick="app.limpiarFiltroCostos()">Limpiar</button>
+            </div>
+        </section>
+
+        <!-- ─── PRESUPUESTO ─── -->
+        <section id="presupuesto" class="tab-content">
+            <div id="presupSelectFinca" class="form-section">
+                <h3>Seleccionar Finca</h3>
+                <select id="presupFincaSelect" onchange="app.cargarPresupuestoMenu()"></select>
+            </div>
+
+            <div class="toggle-container" id="presupMenu">
+                <button class="toggle-btn active" onclick="app.presupMostrar('crear')" id="presupCrearBtn">📝 Crear</button>
+                <button class="toggle-btn" onclick="app.presupMostrar('consultar')" id="presupConsultarBtn">👁️ Consultar</button>
+                <button class="toggle-btn" onclick="app.presupMostrar('ejecucion')" id="presupEjecucionBtn">📊 Ejecución</button>
+            </div>
+
+            <div id="presupCrear" class="tab-content active">
+                <div class="form-section">
+                    <h3>Crear Presupuesto</h3>
+                    <div class="form-group"><label>Año</label>
+                        <select id="presupAnio"></select>
+                    </div>
+                    <button class="btn btn-primary" onclick="app.cargarPresupuestoSugerido()">📝 Cargar sugerido</button>
+                    <div id="presupCategorias" class="mt-2"></div>
+                    <div class="btn-group mt-2">
+                        <button class="btn btn-success" onclick="app.guardarPresupuesto()">💾 Guardar presupuesto</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="presupConsultar" class="tab-content hidden">
+                <div id="presupConsultarContent"><p class="empty-state"><span class="icon">📋</span>Seleccioná un año para consultar.</p></div>
+            </div>
+
+            <div id="presupEjecucion" class="tab-content hidden">
+                <div id="presupEjecucionContent"><p class="empty-state"><span class="icon">📊</span>Seleccioná un año para ver la ejecución.</p></div>
+            </div>
+        </section>
+
+        <!-- ─── INDICADORES ─── -->
+        <section id="indicadores" class="tab-content">
+            <div id="indicFincaSelect" class="form-section">
+                <h3>Seleccionar Finca</h3>
+                <select id="indicFincaSelect" onchange="app.cargarTodosIndicadores()"></select>
+            </div>
+
+            <div class="toggle-container">
+                <button class="toggle-btn active" onclick="app.indicMostrar('general')" id="indicGeneralBtn">📊 General</button>
+                <button class="toggle-btn" onclick="app.indicMostrar('mo')" id="indicMOBtn">👷 MO</button>
+                <button class="toggle-btn" onclick="app.indicMostrar('insumos')" id="indicInsumosBtn">🧪 Insumos</button>
+                <button class="toggle-btn" onclick="app.indicMostrar('financiero')" id="indicFinancieroBtn">💰 Financiero</button>
+            </div>
+
+            <div id="indicGeneral" class="tab-content active">
+                <div class="indicadores-grid" id="indicGeneralGrid"></div>
+                <div class="chart-container"><h3>Comparativa contra promedio FNC</h3><canvas id="chartIndicComparativa"></canvas></div>
+            </div>
+            <div id="indicMO" class="tab-content hidden">
+                <div class="indicadores-grid" id="indicMOGrid"></div>
+            </div>
+            <div id="indicInsumos" class="tab-content hidden">
+                <div class="indicadores-grid" id="indicInsumosGrid"></div>
+            </div>
+            <div id="indicFinanciero" class="tab-content hidden">
+                <div class="indicadores-grid" id="indicFinancieroGrid"></div>
+                <div class="chart-container"><h3>Ingresos vs Costos</h3><canvas id="chartIngresosVsCostos"></canvas></div>
+            </div>
+        </section>
+
+        <!-- ─── ASESORÍA ─── -->
+        <section id="asesoria" class="tab-content">
+            <h3 class="section-title">👨‍🏫 Servicio de Asesoría</h3>
+
+            <div class="toggle-container">
+                <button class="toggle-btn active" onclick="app.asesoriaMostrar('interpretar')" id="asesoriaInterpretarBtn">📊 Interpretar</button>
+                <button class="toggle-btn" onclick="app.asesoriaMostrar('sugerencias')" id="asesoriaSugerenciasBtn">💡 Sugerencias</button>
+                <button class="toggle-btn" onclick="app.asesoriaMostrar('plan')" id="asesoriaPlanBtn">🎯 Plan</button>
+                <button class="toggle-btn" onclick="app.asesoriaMostrar('contacto')" id="asesoriaContactoBtn">📞 Contacto</button>
+            </div>
+
+            <div id="asesoriaInterpretar" class="tab-content active">
+                <div class="form-section">
+                    <select id="asesoriaFincaSelect" onchange="app.interpretarDatos()"></select>
+                </div>
+                <div id="asesoriaInterpretarContent"></div>
+            </div>
+            <div id="asesoriaSugerencias" class="tab-content hidden">
+                <div id="asesoriaSugerenciasContent"><div class="loading"><div class="spinner"></div></div></div>
+            </div>
+            <div id="asesoriaPlan" class="tab-content hidden">
+                <div id="asesoriaPlanContent"><div class="loading"><div class="spinner"></div></div></div>
+            </div>
+            <div id="asesoriaContacto" class="tab-content hidden">
+                <div id="asesoriaContactoContent"><div class="loading"><div class="spinner"></div></div></div>
+            </div>
+        </section>
+
+        <!-- ─── EXPORTAR ─── -->
+        <section id="exportar" class="tab-content">
+            <div id="exportFincaSelect" class="form-section">
+                <h3>Seleccionar Finca</h3>
+                <select id="exportFincaSelect"></select>
+            </div>
+
+            <div class="export-section">
+                <span class="export-icon">📊</span>
+                <h3>Exportar a Excel</h3>
+                <p class="hint mb-2">Descargá un Excel completo con todos los datos de tu finca: ingresos, costos, indicadores y más.</p>
+                <button class="btn btn-primary btn-lg btn-block" onclick="app.exportarExcel()">📥 Descargar Excel</button>
+            </div>
+
+            <div class="export-section">
+                <span class="export-icon">📄</span>
+                <h3>Descargar Plantilla</h3>
+                <p class="hint mb-2">Descargá la plantilla vacía para llenar tus datos y luego importarlos.</p>
+                <button class="btn btn-outline btn-lg btn-block" onclick="app.descargarPlantilla()">📋 Descargar plantilla</button>
+            </div>
+
+            <div class="export-section">
+                <span class="export-icon">📥</span>
+                <h3>Importar Excel</h3>
+                <p class="hint mb-2">Subí un archivo Excel con datos de fincas, lotes, ingresos y costos.</p>
+                <div class="form-group">
+                    <input type="file" id="importFile" accept=".xlsx" onchange="app.importarExcel(event)">
+                </div>
+                <div id="importResult"></div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ═══ FOOTER ═══ -->
+    <footer class="footer">
+        <p>Desarrollado por Lucas Mateo Tabares Franco</p>
+        <p>Asesorado por Ing. Jhoan Sebastian Bustamante Montes</p>
+    </footer>
+</div>
+
+<!-- ═══ MODAL ═══ -->
+<div id="modalOverlay" class="modal-overlay hidden" onclick="if(event.target===this)app.cerrarModal()">
+    <div class="modal" id="modalContent"></div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>
