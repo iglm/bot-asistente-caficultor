@@ -12,6 +12,7 @@ import shutil
 import logging
 from copy import copy
 from datetime import datetime
+from typing import Optional
 
 import openpyxl
 from openpyxl.chart import BarChart, PieChart, LineChart, Reference
@@ -264,9 +265,10 @@ class ExcelManager:
     def generar_plantilla_vacia(self, output_path: str) -> str:
         """
         Genera una plantilla Excel vacía a partir del template.
-        - SOLO estructura (headers, fórmulas, formato)
-        - ELIMINA hojas vacías (Plan de ordenamiento, Plan de acción, Cronograma)
-        - SIN datos de ejemplo — el usuario llena manualmente
+        - Mantiene TODAS las hojas con su formato
+        - Limpia filas de datos (desde fila 3 en adelante)
+        - Agrega fila de ejemplo (fila 2) con datos de muestra
+        - Agrega hoja NOTAS con instrucciones detalladas
         
         Args:
             output_path: Ruta donde guardar el Excel
@@ -284,22 +286,131 @@ class ExcelManager:
         # 2. Abrir con openpyxl
         wb = openpyxl.load_workbook(output_path, keep_vba=False)
         
-        # 3. ELIMINAR HOJAS VACÍAS del template original
-        HOJAS_ELIMINAR = ["Plan de ordenamiento", "Plan de acción", "Cronograma"]
-        for hoja in HOJAS_ELIMINAR:
-            if hoja in wb.sheetnames:
-                del wb[hoja]
-                logger.info(f"Hoja vacía '{hoja}' eliminada de plantilla")
+        # 3. Limpiar datos y agregar ejemplos en hojas de datos
+        self._preparar_hojas_plantilla(wb)
         
-        # 4. Agregar hoja NOTAS con instrucciones
+        # 4. Agregar hoja NOTAS
         self._agregar_hoja_notas(wb)
         
-        # 5. Guardar (sin datos de ejemplo — solo estructura limpia)
+        # 5. Guardar
         wb.save(output_path)
         wb.close()
-        logger.info(f"Plantilla vacía generada (solo estructura): {output_path}")
+        logger.info(f"Plantilla vacía generada: {output_path}")
         
         return output_path
+
+    def _preparar_hojas_plantilla(self, wb):
+        """
+        Prepara las hojas de datos en la plantilla:
+        - Limpia filas de datos desde fila 3
+        - Agrega fila 2 con datos de ejemplo
+        - Mantiene headers y formato intactos
+        """
+        from openpyxl.styles import Font, PatternFill, Alignment
+        
+        # Hojas que deben tener datos de ejemplo
+        HOJAS_EJEMPLO = {
+            "ID lotes": {
+                "ejemplo": ["Ejemplo Lote 1", 1.5, 7500, "Castillo", "", "", 3, "", ""],
+                "limpiar_desde": 2,
+            },
+            "Ingresos por ventas de cafe": {
+                "ejemplo": ["", "", "CPS", 150, None, 0],
+                "limpiar_desde": 3,
+            },
+            "Instalacion de Cafe": {
+                "mo": ["Ejemplo Lote 1", None, "Trazo y ahoyado", 20, 50000, None],
+                "insumos": [None, "Fertilizante 15-15-15", 10, 120000, None],
+                "limpiar_desde": 3,
+            },
+            "Control de arvenses": {
+                "mo": ["Ejemplo Lote 1", None, "Control manual de arvenses", 8, 45000, None],
+                "insumos": [None, "Control químico", "Glifosato", 4, 25000, None],
+                "limpiar_desde": 3,
+            },
+            "Fertilizacion": {
+                "mo": ["Ejemplo Lote 1", None, "Aplicación de fertilizante", 10, 50000, None],
+                "insumos": [None, "Urea", 100, 2800, None],
+                "limpiar_desde": 3,
+            },
+            "Control Fitosanitario": {
+                "mo": ["Ejemplo Lote 1", None, "Aplicación de fungicida", 5, 45000, None],
+                "insumos": [None, "Aplicación fitosanitaria", "Fungicida cúprico", 3, 35000, None],
+                "limpiar_desde": 3,
+            },
+            "Regulacion de sombrio": {
+                "mo": ["Ejemplo Lote 1", None, "Regulación de sombra", 6, 45000, None],
+                "insumos": [None, "Machete", 2, 12000, None],
+                "limpiar_desde": 3,
+            },
+            "Otras Labores": {
+                "mo": ["Ejemplo Lote 1", None, "Mantenimiento general", 5, 45000, None],
+                "insumos": [None, "Herramientas varias", 1, 85000, None],
+                "limpiar_desde": 3,
+            },
+            "Recoleccion": {
+                "ejemplo": [None, "recolección cereza", 200, None, 0],
+                "limpiar_desde": 3,
+            },
+            "Beneficio": {
+                "ejemplo": [None, "Beneficio húmedo", 10, 25000, None],
+                "limpiar_desde": 3,
+            },
+            "Gastos Administrativos": {
+                "ejemplo": [None, "Pago servicios públicos", 0],
+                "limpiar_desde": 3,
+            },
+        }
+        
+        for hoja_nombre, config in HOJAS_EJEMPLO.items():
+            if hoja_nombre not in wb.sheetnames:
+                logger.warning(f"Hoja '{hoja_nombre}' no encontrada en template, saltando")
+                continue
+            
+            ws = wb[hoja_nombre]
+            limpiar_desde = config.get("limpiar_desde", 3)
+            max_col = ws.max_column
+            
+            # Limpiar filas de datos desde 'limpiar_desde' en adelante
+            for row in range(limpiar_desde, ws.max_row + 1):
+                for col in range(1, max_col + 1):
+                    cell = ws.cell(row=row, column=col)
+                    # Verificar si la celda está fusionada (no se puede escribir en merged cells hijas)
+                    try:
+                        cell.value = None
+                    except AttributeError:
+                        # MergedCell — ignorar
+                        pass
+            
+            # Agregar fila de ejemplo (fila 2)
+            estilo_ejemplo = Font(italic=True, color="999999", size=10, name="Calibri")
+            
+            def _escribir_si_posible(ws, row, col, valor, font):
+                """Escribe un valor en una celda si no está fusionada."""
+                try:
+                    cell = ws.cell(row=row, column=col, value=valor)
+                    cell.font = font
+                except AttributeError:
+                    # MergedCell — ignorar
+                    pass
+            
+            if "ejemplo" in config:
+                for col_idx, valor in enumerate(config["ejemplo"], 1):
+                    if valor is not None:
+                        _escribir_si_posible(ws, 2, col_idx, valor, estilo_ejemplo)
+            
+            if "mo" in config:
+                for col_idx, valor in enumerate(config["mo"], 1):
+                    if valor is not None:
+                        _escribir_si_posible(ws, 2, col_idx, valor, estilo_ejemplo)
+            
+            if "insumos" in config:
+                for col_idx, valor in enumerate(config["insumos"], 1):
+                    col_real = 8 + col_idx - 1  # Insumos empiezan en col H (8)
+                    if valor is not None and col_real <= max_col:
+                        _escribir_si_posible(ws, 2, col_real, valor, estilo_ejemplo)
+            
+            logger.debug(f"Hoja '{hoja_nombre}' preparada en plantilla vacía")
 
     def _agregar_hoja_notas(self, wb):
         """
@@ -1015,9 +1126,15 @@ class ExcelManager:
             ("otras_labores", "🔧 Otras labores", 1),
         ]
 
-        # ─── Determinar año y fuente de datos ───
-        anios_presupuesto = db.get_presupuesto_anios(finca_id)
-        anios_transacciones = db.get_anios_con_datos(finca_id)
+        # Determinar año más reciente con presupuesto
+        anios = db.get_presupuesto_anios(finca_id)
+        if not anios:
+            logger.info("No hay presupuestos guardados, saltando hoja Presupuesto")
+            return
+
+        anio = anios[0]  # Más reciente
+        presupuesto_data = db.get_ejecucion_presupuesto(finca_id, anio)
+        categorias_data = {c["categoria"]: c for c in presupuesto_data["categorias"]}
 
         # Crear o reemplazar la hoja
         hoja_nombre = "Presupuesto"
@@ -1025,32 +1142,9 @@ class ExcelManager:
             del wb[hoja_nombre]
         ws = wb.create_sheet(hoja_nombre)
 
-        if not anios_presupuesto and not anios_transacciones:
-            # Sin datos de ningún tipo — hoja informativa mínima
-            ws.cell(row=1, column=1, value="Presupuesto").font = FONT_TITLE
-            ws.merge_cells("A1:F1")
-            ws.cell(row=3, column=1, value="No hay datos registrados para esta finca.").font = FONT_NORMAL
-            ws.cell(row=4, column=1, value="Agregue costos y/o cree un presupuesto desde el menú de presupuesto.").font = Font(size=10, name="Calibri", italic=True, color="666666")
-            logger.info(f"No hay datos para presupuesto en finca {finca_id}")
-            return
-
-        if anios_presupuesto:
-            # ─── Flujo con presupuesto planificado (existente) ───
-            anio = anios_presupuesto[0]  # Más reciente
-            presupuesto_data = db.get_ejecucion_presupuesto(finca_id, anio)
-            es_sugerido = False
-        else:
-            # ─── Flujo sin presupuesto: usar datos reales como referencia ───
-            anio = anios_transacciones[0]  # Año más reciente con transacciones
-            presupuesto_data = db.get_ejecucion_presupuesto(finca_id, anio)
-            es_sugerido = True
-
-        categorias_data = {c["categoria"]: c for c in presupuesto_data["categorias"]}
-
         # ─── Título ───
         ws.merge_cells("A1:F1")
-        titulo = f"Presupuesto Sugerido {anio}" if es_sugerido else f"Presupuesto {anio}"
-        cell = ws.cell(row=1, column=1, value=titulo)
+        cell = ws.cell(row=1, column=1, value=f"Presupuesto {anio}")
         cell.font = FONT_TITLE
         ws.cell(row=1, column=1).alignment = Alignment(horizontal="center", vertical="center")
 
@@ -1193,8 +1287,7 @@ class ExcelManager:
         except Exception as e:
             logger.warning(f"No se pudo generar el gráfico de presupuesto: {e}")
 
-        tipo_log = "Sugerido" if es_sugerido else "Planificado"
-        logger.info(f"Hoja 'Presupuesto' ({tipo_log}) generada para finca {finca_id} año {anio}")
+        logger.info(f"Hoja 'Presupuesto' generada para finca {finca_id} año {anio}")
 
     # ------------------------------------------------------------------
     # Hoja Indicadores Técnicos
@@ -1533,16 +1626,12 @@ class ExcelManager:
         cell.fill = FILL_SECCION
         row += 1
 
-        # Rentabilidad: proteger división por cero
-        costos_rent = indicadores.get('costos_total', 0)
-        ingresos_rent = indicadores.get('ingresos_totales', 0)
-        rentabilidad = ((ingresos_rent - costos_rent) / costos_rent * 100) if costos_rent > 0 else 0
         kpis = [
             ("Productividad", f"{indicadores.get('productividad', 0):,.1f} kg/ha", "kg/ha"),
             ("Rendimiento", f"{indicadores.get('rendimiento', 0):,.1f} kg/ha productivo", "kg/ha"),
             ("Costo por Hectárea", f"${indicadores.get('costo_total_por_ha', 0):,.0f}", "$/ha"),
             ("Margen por Hectárea", f"${indicadores.get('margen_por_ha', 0):,.0f}", "$/ha"),
-            ("Rentabilidad", f"{rentabilidad:,.0f}%", "%"),
+            ("Rentabilidad", f"{((indicadores.get('ingresos_totales', 0) - indicadores.get('costos_total', 0)) / indicadores.get('costos_total', 1) * 100):,.0f}%", "%"),
             ("Costo por kg CPS", f"${indicadores.get('costo_por_kilo', 0):,.0f}", "$/kg"),
             ("Precio Venta Promedio", f"${indicadores.get('precio_venta_promedio', 0):,.0f}", "$/kg"),
             ("Jornales/ha", f"{indicadores.get('jornales_por_ha', 0):,.1f}", "jornales/ha"),
@@ -1867,250 +1956,6 @@ class ExcelManager:
         logger.info(f"Hoja 'Configuración' creada para finca {finca_id}")
 
     # ------------------------------------------------------------------
-    # Hoja de período — Datos filtrados por rango de fechas
-    # ------------------------------------------------------------------
-
-    def _llenar_hoja_periodo(self, wb, db, finca_id: int, fecha_inicio: str, fecha_fin: str, etiqueta: str = ""):
-        """Crea una hoja con datos filtrados por período (semana/mes/año/personalizado).
-
-        Incluye:
-        - Tabla de transacciones filtradas
-        - Resumen de totales del período
-        - Gráfico de barras con evolución diaria/semanal
-        """
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-        from datetime import datetime
-
-        if etiqueta:
-            hoja_nombre = f"Período {etiqueta}"
-        else:
-            hoja_nombre = f"Período {fecha_inicio} a {fecha_fin}"
-
-        # Acortar nombre de hoja (Excel max 31 chars)
-        if len(hoja_nombre) > 31:
-            hoja_nombre = hoja_nombre[:31]
-
-        if hoja_nombre in wb.sheetnames:
-            del wb[hoja_nombre]
-        ws = wb.create_sheet(hoja_nombre)
-
-        # Obtener datos del período
-        transacciones = db.get_transacciones_por_periodo(finca_id, fecha_inicio, fecha_fin)
-        resumen = db.get_resumen_por_periodo(finca_id, fecha_inicio, fecha_fin)
-
-        # ─── Estilos ───
-        FILL_HEADER = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
-        FILL_TOTAL = PatternFill(start_color="D6E4F0", end_color="D6E4F0", fill_type="solid")
-        FILL_VERDE = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
-        FILL_ROJO = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
-        FONT_HEADER = Font(bold=True, color="FFFFFF", size=10, name="Calibri")
-        FONT_TITLE = Font(bold=True, size=14, name="Calibri", color="1F4E79")
-        FONT_SUBTITLE = Font(bold=True, size=11, name="Calibri", color="1F4E79")
-        FONT_NORMAL = Font(size=10, name="Calibri")
-        FONT_BOLD = Font(bold=True, size=10, name="Calibri")
-        THIN_BORDER = Border(
-            left=Side(style="thin"), right=Side(style="thin"),
-            top=Side(style="thin"), bottom=Side(style="thin"),
-        )
-        CENTER = Alignment(horizontal="center", vertical="center")
-        RIGHT = Alignment(horizontal="right", vertical="center")
-        LEFT = Alignment(horizontal="left", vertical="center")
-
-        # ─── Título ───
-        ws.merge_cells("A1:G1")
-        cell = ws.cell(row=1, column=1, value=f"📊 Datos del Período: {fecha_inicio} al {fecha_fin}")
-        cell.font = FONT_TITLE
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-
-        # ─── Resumen de Totales (fila 3) ───
-        row = 3
-        ws.merge_cells(f"A{row}:G{row}")
-        ws.cell(row=row, column=1, value="💰 RESUMEN DEL PERÍODO").font = FONT_SUBTITLE
-        ws.cell(row=row, column=1).fill = FILL_TOTAL
-        row += 1
-
-        resumen_items = [
-            ("Total Ingresos", f"${resumen['ingresos']:,.0f}", "💰"),
-            ("Total Egresos", f"${resumen['egresos']:,.0f}", "📉"),
-            ("Margen", f"${resumen['margen']:,.0f}", "✅" if resumen['margen'] >= 0 else "❌"),
-            ("Cant. Transacciones", str(len(transacciones)), "📋"),
-        ]
-        for label, valor, icono in resumen_items:
-            ws.cell(row=row, column=1, value=f"{icono} {label}").font = FONT_BOLD
-            ws.cell(row=row, column=1).border = THIN_BORDER
-            ws.cell(row=row, column=2, value=valor).font = FONT_NORMAL
-            ws.cell(row=row, column=2).border = THIN_BORDER
-            ws.cell(row=row, column=2).alignment = RIGHT
-            row += 1
-        row += 1
-
-        # ─── Egresos por categoría ───
-        if resumen["egresos_por_categoria"]:
-            ws.merge_cells(f"A{row}:G{row}")
-            ws.cell(row=row, column=1, value="📉 Egresos por Categoría").font = FONT_SUBTITLE
-            row += 1
-
-            ws.cell(row=row, column=1, value="Categoría").font = FONT_HEADER
-            ws.cell(row=row, column=1).fill = FILL_HEADER
-            ws.cell(row=row, column=1).border = THIN_BORDER
-            ws.cell(row=row, column=2, value="Total ($)").font = FONT_HEADER
-            ws.cell(row=row, column=2).fill = FILL_HEADER
-            ws.cell(row=row, column=2).border = THIN_BORDER
-            row += 1
-
-            from config import CATEGORIAS
-            for cat, total in sorted(resumen["egresos_por_categoria"].items(), key=lambda x: x[1], reverse=True):
-                if total > 0:
-                    nombre_cat = CATEGORIAS.get(cat, {}).get("nombre", cat)
-                    ws.cell(row=row, column=1, value=nombre_cat).font = FONT_NORMAL
-                    ws.cell(row=row, column=1).border = THIN_BORDER
-                    ws.cell(row=row, column=2, value=total).font = FONT_NORMAL
-                    ws.cell(row=row, column=2).border = THIN_BORDER
-                    ws.cell(row=row, column=2).number_format = '$#,##0'
-                    ws.cell(row=row, column=2).alignment = RIGHT
-                    row += 1
-            row += 1
-
-        # ─── Tabla de Transacciones ───
-        if transacciones:
-            ws.merge_cells(f"A{row}:G{row}")
-            ws.cell(row=row, column=1, value="📋 Transacciones del Período").font = FONT_SUBTITLE
-            row += 1
-
-            headers = ["Fecha", "Categoría", "Labor", "Producto", "Cantidad", "V.Unitario", "V.Total"]
-            col_widths = [14, 22, 25, 22, 10, 14, 14]
-            for col_idx, (header, width) in enumerate(zip(headers, col_widths), 1):
-                cell = ws.cell(row=row, column=col_idx, value=header)
-                cell.font = FONT_HEADER
-                cell.fill = FILL_HEADER
-                cell.alignment = CENTER
-                cell.border = THIN_BORDER
-                letter = get_column_letter(col_idx)
-                ws.column_dimensions[letter].width = width
-            row += 1
-
-            from config import CATEGORIAS
-            for t in transacciones:
-                cat_nombre = CATEGORIAS.get(t["categoria"], {}).get("nombre", t["categoria"])
-                ws.cell(row=row, column=1, value=t["fecha"]).font = FONT_NORMAL
-                ws.cell(row=row, column=1).border = THIN_BORDER
-                ws.cell(row=row, column=2, value=cat_nombre).font = FONT_NORMAL
-                ws.cell(row=row, column=2).border = THIN_BORDER
-                ws.cell(row=row, column=3, value=t["labor"] or "").font = FONT_NORMAL
-                ws.cell(row=row, column=3).border = THIN_BORDER
-                ws.cell(row=row, column=4, value=t["producto"] or "").font = FONT_NORMAL
-                ws.cell(row=row, column=4).border = THIN_BORDER
-                ws.cell(row=row, column=5, value=t["cantidad"] or 0).font = FONT_NORMAL
-                ws.cell(row=row, column=5).border = THIN_BORDER
-                ws.cell(row=row, column=5).alignment = RIGHT
-                ws.cell(row=row, column=6, value=t["valor_unitario"] or 0).font = FONT_NORMAL
-                ws.cell(row=row, column=6).border = THIN_BORDER
-                ws.cell(row=row, column=6).alignment = RIGHT
-                ws.cell(row=row, column=6).number_format = '$#,##0'
-                ws.cell(row=row, column=7, value=t["valor_total"] or 0).font = FONT_NORMAL
-                ws.cell(row=row, column=7).border = THIN_BORDER
-                ws.cell(row=row, column=7).alignment = RIGHT
-                ws.cell(row=row, column=7).number_format = '$#,##0'
-                row += 1
-
-            # ─── Gráfico: Evolución diaria/semanal ───
-            chart_start = row + 2
-            try:
-                # Agrupar por fecha
-                from collections import defaultdict
-                daily_totals = defaultdict(float)
-                daily_ingresos = defaultdict(float)
-                for t in transacciones:
-                    fecha = t["fecha"]
-                    daily_totals[fecha] += t["valor_total"] or 0
-                    if t["categoria"].startswith("ingreso_"):
-                        daily_ingresos[fecha] += t["valor_total"] or 0
-
-                # Si hay muchas fechas, agrupar por semana
-                sorted_fechas = sorted(daily_totals.keys())
-                if len(sorted_fechas) > 31:
-                    # Agrupar por semana
-                    ws.cell(row=chart_start, column=1, value="Semana")
-                    ws.cell(row=chart_start, column=2, value="Ingresos")
-                    ws.cell(row=chart_start, column=3, value="Egresos")
-
-                    weekly_ing = defaultdict(float)
-                    weekly_egr = defaultdict(float)
-                    for t in transacciones:
-                        try:
-                            d = datetime.strptime(t["fecha"], "%Y-%m-%d")
-                            week_label = d.strftime("%d/%m")
-                            if t["categoria"].startswith("ingreso_"):
-                                weekly_ing[week_label] += t["valor_total"] or 0
-                            else:
-                                weekly_egr[week_label] += t["valor_total"] or 0
-                        except ValueError:
-                            pass
-
-                    sorted_weeks = sorted(set(list(weekly_ing.keys()) + list(weekly_egr.keys())))
-                    for i, w in enumerate(sorted_weeks):
-                        r = chart_start + 1 + i
-                        ws.cell(row=r, column=1, value=w)
-                        ws.cell(row=r, column=2, value=weekly_ing.get(w, 0))
-                        ws.cell(row=r, column=3, value=weekly_egr.get(w, 0))
-
-                    chart = BarChart()
-                    chart.type = "col"
-                    chart.title = "Evolución Semanal — Ingresos vs Egresos"
-                    chart.y_axis.title = "Valor ($)"
-                    chart.style = 10
-                    chart.width = 20
-                    chart.height = 12
-
-                    data_ref = Reference(ws, min_col=1, min_row=chart_start, max_col=3, max_row=chart_start + len(sorted_weeks))
-                    cats_ref = Reference(ws, min_col=1, min_row=chart_start + 1, max_row=chart_start + len(sorted_weeks))
-                    chart.add_data(data_ref, titles_from_data=True)
-                    chart.set_categories(cats_ref)
-                    if len(chart.series) > 0:
-                        chart.series[0].graphicalProperties.solidFill = "2E7D32"
-                    if len(chart.series) > 1:
-                        chart.series[1].graphicalProperties.solidFill = "C62828"
-
-                    ws.add_chart(chart, f"A{chart_start + len(sorted_weeks) + 2}")
-                else:
-                    # Evolución diaria
-                    ws.cell(row=chart_start, column=1, value="Fecha")
-                    ws.cell(row=chart_start, column=2, value="Ingresos")
-                    ws.cell(row=chart_start, column=3, value="Egresos")
-
-                    for i, fecha in enumerate(sorted_fechas):
-                        r = chart_start + 1 + i
-                        ws.cell(row=r, column=1, value=fecha)
-                        ws.cell(row=r, column=2, value=daily_ingresos.get(fecha, 0))
-                        ws.cell(row=r, column=3, value=daily_totals.get(fecha, 0) - daily_ingresos.get(fecha, 0))
-
-                    chart = BarChart()
-                    chart.type = "col"
-                    chart.title = "Evolución Diaria — Ingresos vs Egresos"
-                    chart.y_axis.title = "Valor ($)"
-                    chart.style = 10
-                    chart.width = 22
-                    chart.height = 12
-
-                    num_dias = len(sorted_fechas)
-                    data_ref = Reference(ws, min_col=1, min_row=chart_start, max_col=3, max_row=chart_start + num_dias)
-                    cats_ref = Reference(ws, min_col=1, min_row=chart_start + 1, max_row=chart_start + num_dias)
-                    chart.add_data(data_ref, titles_from_data=True)
-                    chart.set_categories(cats_ref)
-                    if len(chart.series) > 0:
-                        chart.series[0].graphicalProperties.solidFill = "2E7D32"
-                    if len(chart.series) > 1:
-                        chart.series[1].graphicalProperties.solidFill = "C62828"
-
-                    ws.add_chart(chart, f"A{chart_start + num_dias + 2}")
-
-            except Exception as e:
-                logger.warning(f"No se pudo generar el gráfico de período: {e}")
-
-        ws.sheet_properties.tabColor = "1565C0"
-        logger.info(f"Hoja '{hoja_nombre}' generada: {len(transacciones)} transacciones")
-
-    # ------------------------------------------------------------------
     # Gráficos de tendencia (MEJORA 4)
 
     def _generar_hoja_graficos(self, db, finca_id: int, ws):
@@ -2123,24 +1968,13 @@ class ExcelManager:
         conn = db.get_conn()
         try:
             # =============================================================
-            # 1. BARCHART: Ingresos vs Egresos por año (DINÁMICO)
+            # 1. BARCHART: Ingresos vs Egresos por año
             # =============================================================
-            # Detectar años disponibles en los datos
-            years_raw = conn.execute(
-                "SELECT DISTINCT substr(fecha, 1, 4) as yr FROM transacciones WHERE finca_id = ? ORDER BY yr",
-                (finca_id,)
-            ).fetchall()
-            years = sorted(set(int(r["yr"]) for r in years_raw if r["yr"] and r["yr"].isdigit()))
-            if not years:
-                # Usar año actual por defecto
-                from datetime import datetime as dt
-                years = [dt.now().year]
-
             ws['A1'] = 'Año'
             ws['B1'] = 'Ingresos'
             ws['C1'] = 'Egresos'
 
-            for i, year in enumerate(years):
+            for i, year in enumerate([2023, 2024, 2025]):
                 row = 2 + i
                 ws.cell(row=row, column=1, value=year)
 
@@ -2164,9 +1998,8 @@ class ExcelManager:
             chart1.y_axis.title = "Valor ($)"
             chart1.style = 10
 
-            num_years = len(years)
-            data1 = Reference(ws, min_col=1, min_row=1, max_col=3, max_row=1 + num_years)
-            cats1 = Reference(ws, min_col=1, min_row=2, max_row=1 + num_years)
+            data1 = Reference(ws, min_col=1, min_row=1, max_col=3, max_row=4)
+            cats1 = Reference(ws, min_col=1, min_row=2, max_row=4)
             chart1.add_data(data1, titles_from_data=True)
             chart1.set_categories(cats1)
 

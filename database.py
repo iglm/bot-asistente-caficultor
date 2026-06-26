@@ -30,14 +30,6 @@ class Database:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")
-            
-        # Añadir columna acepto_terminos si no existe (migración)
-        try:
-            conn.execute("ALTER TABLE usuarios ADD COLUMN acepto_terminos INTEGER DEFAULT 0")
-            log.info("✅ Columna acepto_terminos añadida a tabla usuarios")
-        except sqlite3.OperationalError:
-            pass  # Ya existe
-            
         return conn
     
     def init_db(self):
@@ -105,41 +97,6 @@ class Database:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE(finca_id, anio, categoria)
                 );
-                
-                -- Detalle del presupuesto (líneas por lote/rubro/mes)
-                CREATE TABLE IF NOT EXISTS presupuesto_detalle (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    presupuesto_id INTEGER REFERENCES presupuestos(id),
-                    lote_id INTEGER DEFAULT 0,
-                    rubro TEXT NOT NULL,
-                    mes INTEGER DEFAULT 0,
-                    cantidad_plan REAL DEFAULT 0,
-                    unidad TEXT DEFAULT '',
-                    valor_unitario REAL DEFAULT 0,
-                    valor_total_plan REAL DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-                
-                -- Gastos reales ejecutados
-                CREATE TABLE IF NOT EXISTS gastos_reales (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    finca_id INTEGER REFERENCES fincas(id),
-                    lote_id INTEGER DEFAULT 0,
-                    fecha TEXT NOT NULL,
-                    rubro TEXT NOT NULL,
-                    labor TEXT DEFAULT '',
-                    insumo TEXT DEFAULT '',
-                    cantidad REAL DEFAULT 0,
-                    unidad TEXT DEFAULT '',
-                    valor_unitario REAL DEFAULT 0,
-                    valor_total REAL DEFAULT 0,
-                    estado TEXT DEFAULT 'confirmado',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-                
-                CREATE INDEX IF NOT EXISTS idx_presupuesto_detalle_presupuesto ON presupuesto_detalle(presupuesto_id);
-                CREATE INDEX IF NOT EXISTS idx_gastos_reales_finca ON gastos_reales(finca_id);
-                CREATE INDEX IF NOT EXISTS idx_gastos_reales_fecha ON gastos_reales(fecha);
                 
                 -- Tabla para cola de sincronización offline
                 CREATE TABLE IF NOT EXISTS sync_queue (
@@ -274,35 +231,6 @@ class Database:
                 "SELECT user_id, username, created_at FROM usuarios WHERE status='rejected' ORDER BY created_at DESC"
             ).fetchall()
             return [dict(r) for r in rows]
-        finally:
-            conn.close()
-
-    def get_user(self, user_id: int) -> Optional[dict]:
-        """Obtener todos los datos de un usuario.
-        
-        Retorna dict con todos los campos o None si no existe.
-        """
-        conn = self.get_conn()
-        try:
-            row = conn.execute(
-                "SELECT * FROM usuarios WHERE user_id = ?", (user_id,)
-            ).fetchone()
-            return dict(row) if row else None
-        finally:
-            conn.close()
-
-    def aceptar_terminos(self, user_id: int) -> bool:
-        """Marca que el usuario aceptó los términos legales.
-        Retorna True si se actualizó, False si no existía.
-        """
-        conn = self.get_conn()
-        try:
-            cur = conn.execute(
-                "UPDATE usuarios SET acepto_terminos=1 WHERE user_id=?",
-                (user_id,),
-            )
-            conn.commit()
-            return cur.rowcount > 0
         finally:
             conn.close()
 
@@ -482,110 +410,6 @@ class Database:
         finally:
             conn.close()
     
-    def get_transacciones_por_periodo(self, finca_id: int, fecha_inicio: str, fecha_fin: str) -> list:
-        """Obtiene transacciones en un rango de fechas."""
-        conn = self.get_conn()
-        try:
-            rows = conn.execute(
-                "SELECT * FROM transacciones WHERE finca_id=? AND fecha BETWEEN ? AND ? ORDER BY fecha",
-                (finca_id, fecha_inicio, fecha_fin)
-            ).fetchall()
-            return [dict(r) for r in rows]
-        finally:
-            conn.close()
-
-    def get_resumen_por_periodo(self, finca_id: int, fecha_inicio: str, fecha_fin: str) -> dict:
-        """Obtiene resumen financiero de una finca en un período específico."""
-        conn = self.get_conn()
-        try:
-            # Total ingresos en el período
-            ingresos = conn.execute(
-                "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria LIKE 'ingreso_%' AND fecha BETWEEN ? AND ?",
-                (finca_id, fecha_inicio, fecha_fin)
-            ).fetchone()["total"] or 0
-
-            # Total egresos en el período
-            egresos = conn.execute(
-                "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria NOT LIKE 'ingreso_%' AND fecha BETWEEN ? AND ?",
-                (finca_id, fecha_inicio, fecha_fin)
-            ).fetchone()["total"] or 0
-
-            # Egresos por categoría en el período
-            egresos_cat = {}
-            for cat in self.CATEGORIAS_CON_MO_Y_INSUMOS:
-                total_mo = conn.execute(
-                    "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria = ? AND fecha BETWEEN ? AND ?",
-                    (finca_id, f"{cat}_mo", fecha_inicio, fecha_fin)
-                ).fetchone()["total"] or 0
-                total_ins = conn.execute(
-                    "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria = ? AND fecha BETWEEN ? AND ?",
-                    (finca_id, f"{cat}_insumos", fecha_inicio, fecha_fin)
-                ).fetchone()["total"] or 0
-                egresos_cat[cat] = total_mo + total_ins
-            for cat in self.CATEGORIAS_SIMPLE:
-                total = conn.execute(
-                    "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria = ? AND fecha BETWEEN ? AND ?",
-                    (finca_id, cat, fecha_inicio, fecha_fin)
-                ).fetchone()["total"] or 0
-                egresos_cat[cat] = total
-
-            # Ingresos por tipo en el período
-            ingresos_tipos = {}
-            for cat_ing in ["ingreso_cps", "ingreso_pasilla"]:
-                total = conn.execute(
-                    "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria = ? AND fecha BETWEEN ? AND ?",
-                    (finca_id, cat_ing, fecha_inicio, fecha_fin)
-                ).fetchone()["total"] or 0
-                ingresos_tipos[cat_ing] = total
-
-            return {
-                "ingresos": ingresos,
-                "egresos": egresos,
-                "margen": ingresos - egresos,
-                "fecha_inicio": fecha_inicio,
-                "fecha_fin": fecha_fin,
-                "egresos_por_categoria": egresos_cat,
-                "ingresos_por_tipo": ingresos_tipos,
-            }
-        finally:
-            conn.close()
-
-    def get_resumen_semanal(self, finca_id: int, año: int, semana: int) -> dict:
-        """Resumen de una semana específica (ISO week)."""
-        from datetime import datetime, timedelta
-        # Calcular lunes de la semana ISO
-        # Usar el 4 de enero como referencia ISO
-        jan4 = datetime(año, 1, 4)
-        # Día de la semana (lunes=0)
-        jan4_weekday = (jan4.weekday() + 1) % 7  # Lunes=0
-        # Primer día de semana 1
-        week1_start = jan4 - timedelta(days=jan4_weekday)
-        # Fecha inicio de la semana solicitada
-        inicio = week1_start + timedelta(weeks=semana - 1)
-        fin = inicio + timedelta(days=6)
-        fecha_inicio = inicio.strftime("%Y-%m-%d")
-        fecha_fin = fin.strftime("%Y-%m-%d")
-        return self.get_resumen_por_periodo(finca_id, fecha_inicio, fecha_fin)
-
-    def get_resumen_mensual(self, finca_id: int, año: int, mes: int) -> dict:
-        """Resumen de un mes específico."""
-        fecha_inicio = f"{año}-{mes:02d}-01"
-        if mes == 12:
-            fecha_fin = f"{año + 1}-01-01"
-        else:
-            fecha_fin = f"{año}-{mes + 1:02d}-01"
-        from datetime import datetime, timedelta
-        # Restar 1 día para llegar al último día del mes
-        fin_dt = datetime.strptime(fecha_fin, "%Y-%m-%d") - timedelta(days=1)
-        fecha_fin = fin_dt.strftime("%Y-%m-%d")
-        return self.get_resumen_por_periodo(finca_id, fecha_inicio, fecha_fin)
-
-    def get_resumen_anual(self, finca_id: int, año: int) -> dict:
-        """Resumen de un año específico."""
-        fecha_inicio = f"{año}-01-01"
-        fecha_fin = f"{año}-12-31"
-        return self.get_resumen_por_periodo(finca_id, fecha_inicio, fecha_fin)
-
     def get_transacciones(self, finca_id: int, categoria: str) -> list:
         """Obtener transacciones de una finca por categoría."""
         conn = self.get_conn()
@@ -688,7 +512,7 @@ class Database:
             conn.close()
     
     def get_resumen_finca(self, finca_id: int) -> dict:
-        """Obtener resumen financiero de una finca usando GROUP BY."""
+        """Obtener resumen financiero de una finca."""
         conn = self.get_conn()
         try:
             # Total ingresos
@@ -696,46 +520,49 @@ class Database:
                 "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria LIKE 'ingreso_%'",
                 (finca_id,)
             ).fetchone()["total"] or 0
-
+            
             # Total egresos
             egresos = conn.execute(
                 "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria NOT LIKE 'ingreso_%'",
                 (finca_id,)
             ).fetchone()["total"] or 0
-
+            
             # Área total
             area = conn.execute(
                 "SELECT SUM(area_hectareas) as total FROM lotes WHERE finca_id = ?",
                 (finca_id,)
             ).fetchone()["total"] or 0
-
-            # Egresos e ingresos por categoría en UNA sola query GROUP BY
-            rows = conn.execute(
-                """SELECT categoria, SUM(valor_total) as total, COUNT(*) as cantidad
-                   FROM transacciones WHERE finca_id = ?
-                   GROUP BY categoria""",
-                (finca_id,)
-            ).fetchall()
-
-            # Construir dicts a partir del resultado GROUP BY
+            
+            # Egresos por categoría
             egresos_cat = {}
-            ingresos_tipos = {}
-            for r in rows:
-                cat = r["categoria"]
-                total = r["total"] or 0
-                if cat.startswith("ingreso_"):
-                    ingresos_tipos[cat] = total
-                else:
-                    # Agrupar categorías compuestas (con _mo / _insumos) bajo su nombre base
-                    if cat.endswith("_mo"):
-                        base = cat[:-3]
-                        egresos_cat[base] = egresos_cat.get(base, 0) + total
-                    elif cat.endswith("_insumos"):
-                        base = cat[:-8]
-                        egresos_cat[base] = egresos_cat.get(base, 0) + total
-                    else:
-                        egresos_cat[cat] = egresos_cat.get(cat, 0) + total
+            # Categorías con sufijo _mo/_insumos
+            for cat in self.CATEGORIAS_CON_MO_Y_INSUMOS:
+                total_mo = conn.execute(
+                    "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria = ?",
+                    (finca_id, f"{cat}_mo")
+                ).fetchone()["total"] or 0
+                total_ins = conn.execute(
+                    "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria = ?",
+                    (finca_id, f"{cat}_insumos")
+                ).fetchone()["total"] or 0
+                egresos_cat[cat] = total_mo + total_ins
+            # Categorías sin sufijo (recoleccion, beneficio, administrativo)
+            for cat in self.CATEGORIAS_SIMPLE:
+                total = conn.execute(
+                    "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria = ?",
+                    (finca_id, cat)
+                ).fetchone()["total"] or 0
+                egresos_cat[cat] = total
 
+            # Ingresos por tipo
+            ingresos_tipos = {}
+            for cat_ing in ["ingreso_cps", "ingreso_pasilla"]:
+                total = conn.execute(
+                    "SELECT SUM(valor_total) as total FROM transacciones WHERE finca_id = ? AND categoria = ?",
+                    (finca_id, cat_ing)
+                ).fetchone()["total"] or 0
+                ingresos_tipos[cat_ing] = total
+            
             return {
                 "ingresos": ingresos,
                 "egresos": egresos,
@@ -825,7 +652,7 @@ class Database:
             - total_litros: cantidad total en L equivalentes (líquidos)
             - total_estandar: cantidad total en kg (todo convertido a kg)
         """
-        from config import CONVERSION_A_KG, CONVERSION_A_LITROS, UNIDADES_SOLIDOS, UNIDADES_LIQUIDOS, FNC_INDICADORES
+        from config import CONVERSION_A_KG, CONVERSION_A_LITROS, UNIDADES_SOLIDOS, UNIDADES_LIQUIDOS
         
         conn = self.get_conn()
         try:
@@ -945,10 +772,7 @@ class Database:
         """Calcula todos los indicadores técnicos de la finca.
         
         Basado en metodología estándar del sector.
-        Incluye datos de referencia FNC/FEPCafé 2024 para comparación.
         """
-        from config import FNC_INDICADORES
-        
         # Obtener área total y productiva
         conn = self.get_conn()
         try:
@@ -997,14 +821,6 @@ class Database:
             'insumos_total_kg': insumos_cant['total_estandar'],
             'insumos_total_litros': insumos_cant['total_litros'],
             'eficiencia_insumos': kg_producidos / insumos_cant['total_estandar'] if insumos_cant['total_estandar'] > 0 else 0,
-            # Comparación con promedios FNC/FEPCafé 2024
-            'fnc_productividad_ha': FNC_INDICADORES['productividad_ha'],
-            'fnc_costo_ha': FNC_INDICADORES['costo_ha'],
-            'fnc_rendimiento_ha': FNC_INDICADORES['rendimiento_ha'],
-            'fnc_precio_venta_promedio': FNC_INDICADORES['precio_venta_promedio'],
-            'fnc_costo_produccion_kilo': FNC_INDICADORES['costo_produccion_kilo'],
-            'fnc_margen_ha': FNC_INDICADORES['margen_ha'],
-            'fnc_area_promedio': FNC_INDICADORES['area_promedio'],
         }
 
     def get_ejecucion_presupuesto(self, finca_id: int, anio: int) -> dict:
@@ -1090,90 +906,6 @@ class Database:
                 "total_ejecutado": total_ejecutado,
                 "total_diferencia": total_ejecutado - total_planificado,
             }
-        finally:
-            conn.close()
-
-    # ─── Presupuesto Detalle ───
-
-    def guardar_detalle_presupuesto(self, presupuesto_id: int, detalle: dict):
-        """Guarda una línea de detalle del presupuesto."""
-        conn = self.get_conn()
-        try:
-            conn.execute(
-                """INSERT INTO presupuesto_detalle
-                   (presupuesto_id, lote_id, rubro, mes, cantidad_plan, unidad, valor_unitario, valor_total_plan)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    presupuesto_id,
-                    detalle.get("lote_id", 0),
-                    detalle["rubro"],
-                    detalle.get("mes", 0),
-                    detalle.get("cantidad_plan", 0),
-                    detalle.get("unidad", ""),
-                    detalle.get("valor_unitario", 0),
-                    detalle.get("valor_total_plan", 0),
-                ),
-            )
-            conn.commit()
-            return True
-        finally:
-            conn.close()
-
-    def get_ejecucion_por_periodo(self, finca_id: int, fecha_inicio: str, fecha_fin: str) -> dict:
-        """Ejecución presupuestal en un rango de fechas.
-        Compara lo planificado vs lo ejecutado en un período específico.
-        """
-        conn = self.get_conn()
-        try:
-            # Obtener ejecutado real desde transacciones para el período
-            rows = conn.execute(
-                """SELECT categoria, SUM(valor_total) as total
-                   FROM transacciones
-                   WHERE finca_id = ? AND fecha BETWEEN ? AND ?
-                   GROUP BY categoria""",
-                (finca_id, fecha_inicio, fecha_fin),
-            ).fetchall()
-
-            ejecutado_por_categoria = {}
-            total_ejecutado = 0.0
-            for r in rows:
-                cat = r["categoria"]
-                total = r["total"] or 0
-                # Normalizar: agrupar _mo y _insumos bajo su categoría base
-                if cat.endswith("_mo"):
-                    base = cat[:-3]
-                    ejecutado_por_categoria[base] = ejecutado_por_categoria.get(base, 0) + total
-                elif cat.endswith("_insumos"):
-                    base = cat[:-8]
-                    ejecutado_por_categoria[base] = ejecutado_por_categoria.get(base, 0) + total
-                else:
-                    ejecutado_por_categoria[cat] = ejecutado_por_categoria.get(cat, 0) + total
-                total_ejecutado += total
-
-            return {
-                "ejecutado_por_categoria": ejecutado_por_categoria,
-                "total_ejecutado": total_ejecutado,
-                "fecha_inicio": fecha_inicio,
-                "fecha_fin": fecha_fin,
-            }
-        finally:
-            conn.close()
-
-    def get_gastos_por_rubro(self, finca_id: int, fecha_inicio: str, fecha_fin: str) -> list:
-        """Gastos agrupados por rubro en un período.
-        Retorna lista de dicts con rubro y total.
-        """
-        conn = self.get_conn()
-        try:
-            rows = conn.execute(
-                """SELECT rubro, SUM(valor_total) as total
-                   FROM gastos_reales
-                   WHERE finca_id = ? AND fecha BETWEEN ? AND ?
-                   GROUP BY rubro
-                   ORDER BY total DESC""",
-                (finca_id, fecha_inicio, fecha_fin),
-            ).fetchall()
-            return [{"rubro": r["rubro"], "total": r["total"] or 0} for r in rows]
         finally:
             conn.close()
 
