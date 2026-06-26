@@ -265,9 +265,9 @@ class ExcelManager:
     def generar_plantilla_vacia(self, output_path: str) -> str:
         """
         Genera una plantilla Excel vacía a partir del template.
-        - Mantiene TODAS las hojas con su formato
-        - Limpia filas de datos (desde fila 3 en adelante)
-        - Agrega fila de ejemplo (fila 2) con datos de muestra
+        - Mantiene TODAS las hojas con su formato y fórmulas
+        - Limpia filas de datos (desde fila 2 en adelante)
+        - SIN datos de ejemplo — solo estructura limpia
         - Agrega hoja NOTAS con instrucciones detalladas
         
         Args:
@@ -302,115 +302,16 @@ class ExcelManager:
     def _preparar_hojas_plantilla(self, wb):
         """
         Prepara las hojas de datos en la plantilla:
-        - Limpia filas de datos desde fila 3
-        - Agrega fila 2 con datos de ejemplo
+        - Limpia filas de datos desde fila 2 en adelante
+        - NO agrega datos de ejemplo
         - Mantiene headers y formato intactos
         """
-        from openpyxl.styles import Font, PatternFill, Alignment
-        
-        # Hojas que deben tener datos de ejemplo
-        HOJAS_EJEMPLO = {
-            "ID lotes": {
-                "ejemplo": ["Ejemplo Lote 1", 1.5, 7500, "Castillo", "", "", 3, "", ""],
-                "limpiar_desde": 2,
-            },
-            "Ingresos por ventas de cafe": {
-                "ejemplo": ["", "", "CPS", 150, None, 0],
-                "limpiar_desde": 3,
-            },
-            "Instalacion de Cafe": {
-                "mo": ["Ejemplo Lote 1", None, "Trazo y ahoyado", 20, 50000, None],
-                "insumos": [None, "Fertilizante 15-15-15", 10, 120000, None],
-                "limpiar_desde": 3,
-            },
-            "Control de arvenses": {
-                "mo": ["Ejemplo Lote 1", None, "Control manual de arvenses", 8, 45000, None],
-                "insumos": [None, "Control químico", "Glifosato", 4, 25000, None],
-                "limpiar_desde": 3,
-            },
-            "Fertilizacion": {
-                "mo": ["Ejemplo Lote 1", None, "Aplicación de fertilizante", 10, 50000, None],
-                "insumos": [None, "Urea", 100, 2800, None],
-                "limpiar_desde": 3,
-            },
-            "Control Fitosanitario": {
-                "mo": ["Ejemplo Lote 1", None, "Aplicación de fungicida", 5, 45000, None],
-                "insumos": [None, "Aplicación fitosanitaria", "Fungicida cúprico", 3, 35000, None],
-                "limpiar_desde": 3,
-            },
-            "Regulacion de sombrio": {
-                "mo": ["Ejemplo Lote 1", None, "Regulación de sombra", 6, 45000, None],
-                "insumos": [None, "Machete", 2, 12000, None],
-                "limpiar_desde": 3,
-            },
-            "Otras Labores": {
-                "mo": ["Ejemplo Lote 1", None, "Mantenimiento general", 5, 45000, None],
-                "insumos": [None, "Herramientas varias", 1, 85000, None],
-                "limpiar_desde": 3,
-            },
-            "Recoleccion": {
-                "ejemplo": [None, "recolección cereza", 200, None, 0],
-                "limpiar_desde": 3,
-            },
-            "Beneficio": {
-                "ejemplo": [None, "Beneficio húmedo", 10, 25000, None],
-                "limpiar_desde": 3,
-            },
-            "Gastos Administrativos": {
-                "ejemplo": [None, "Pago servicios públicos", 0],
-                "limpiar_desde": 3,
-            },
-        }
-        
-        for hoja_nombre, config in HOJAS_EJEMPLO.items():
-            if hoja_nombre not in wb.sheetnames:
-                logger.warning(f"Hoja '{hoja_nombre}' no encontrada en template, saltando")
-                continue
-            
-            ws = wb[hoja_nombre]
-            limpiar_desde = config.get("limpiar_desde", 3)
-            max_col = ws.max_column
-            
-            # Limpiar filas de datos desde 'limpiar_desde' en adelante
-            for row in range(limpiar_desde, ws.max_row + 1):
-                for col in range(1, max_col + 1):
-                    cell = ws.cell(row=row, column=col)
-                    # Verificar si la celda está fusionada (no se puede escribir en merged cells hijas)
-                    try:
-                        cell.value = None
-                    except AttributeError:
-                        # MergedCell — ignorar
-                        pass
-            
-            # Agregar fila de ejemplo (fila 2)
-            estilo_ejemplo = Font(italic=True, color="999999", size=10, name="Calibri")
-            
-            def _escribir_si_posible(ws, row, col, valor, font):
-                """Escribe un valor en una celda si no está fusionada."""
-                try:
-                    cell = ws.cell(row=row, column=col, value=valor)
-                    cell.font = font
-                except AttributeError:
-                    # MergedCell — ignorar
-                    pass
-            
-            if "ejemplo" in config:
-                for col_idx, valor in enumerate(config["ejemplo"], 1):
-                    if valor is not None:
-                        _escribir_si_posible(ws, 2, col_idx, valor, estilo_ejemplo)
-            
-            if "mo" in config:
-                for col_idx, valor in enumerate(config["mo"], 1):
-                    if valor is not None:
-                        _escribir_si_posible(ws, 2, col_idx, valor, estilo_ejemplo)
-            
-            if "insumos" in config:
-                for col_idx, valor in enumerate(config["insumos"], 1):
-                    col_real = 8 + col_idx - 1  # Insumos empiezan en col H (8)
-                    if valor is not None and col_real <= max_col:
-                        _escribir_si_posible(ws, 2, col_real, valor, estilo_ejemplo)
-            
-            logger.debug(f"Hoja '{hoja_nombre}' preparada en plantilla vacía")
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            # Eliminar todas las filas con datos (desde fila 2)
+            if ws.max_row > 1:
+                ws.delete_rows(2, ws.max_row - 1)
+            logger.debug(f"Hoja '{sheet_name}' limpiada en plantilla vacía")
 
     def _agregar_hoja_notas(self, wb):
         """
@@ -495,8 +396,8 @@ class ExcelManager:
             ("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", False, 10, "2E7D32"),
             ("💡 EJEMPLO RÁPIDO:", True, 12, "2E7D32"),
             ("   1. Crea una finca con /fincas", False, 10, "000000"),
-            ("   2. Abre este Excel (la fila 2 tiene datos de ejemplo como guía)", False, 10, "000000"),
-            ("   3. Reemplaza los datos de ejemplo con tus datos reales", False, 10, "000000"),
+            ("   2. Abre este Excel (está vacío — solo estructura con fórmulas)", False, 10, "000000"),
+            ("   3. Ingresa tus datos reales en las filas correspondientes", False, 10, "000000"),
             ("   4. Guarda el archivo", False, 10, "000000"),
             ("   5. Subilo al bot con /importar", False, 10, "000000"),
             ("", False, 10, "000000"),
@@ -1626,12 +1527,15 @@ class ExcelManager:
         cell.fill = FILL_SECCION
         row += 1
 
+        costos_total = indicadores.get('costos_total', 0)
+        ingresos_totales = indicadores.get('ingresos_totales', 0)
+        rentabilidad = ((ingresos_totales - costos_total) / costos_total * 100) if costos_total > 0 else 0
         kpis = [
             ("Productividad", f"{indicadores.get('productividad', 0):,.1f} kg/ha", "kg/ha"),
             ("Rendimiento", f"{indicadores.get('rendimiento', 0):,.1f} kg/ha productivo", "kg/ha"),
             ("Costo por Hectárea", f"${indicadores.get('costo_total_por_ha', 0):,.0f}", "$/ha"),
             ("Margen por Hectárea", f"${indicadores.get('margen_por_ha', 0):,.0f}", "$/ha"),
-            ("Rentabilidad", f"{((indicadores.get('ingresos_totales', 0) - indicadores.get('costos_total', 0)) / indicadores.get('costos_total', 1) * 100):,.0f}%", "%"),
+            ("Rentabilidad", f"{rentabilidad:,.0f}%", "%"),
             ("Costo por kg CPS", f"${indicadores.get('costo_por_kilo', 0):,.0f}", "$/kg"),
             ("Precio Venta Promedio", f"${indicadores.get('precio_venta_promedio', 0):,.0f}", "$/kg"),
             ("Jornales/ha", f"{indicadores.get('jornales_por_ha', 0):,.1f}", "jornales/ha"),
