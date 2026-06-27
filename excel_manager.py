@@ -91,6 +91,21 @@ HOJA_COSTOS_START_ROW = 3
 HOJA_COSTOS_SUBTOTAL_ROW = 20
 HOJA_COSTOS_TEMPLATE_ROWS = 17  # filas 3-19
 
+# Mapeo de hoja de costo → columna de subtotal en Resultados
+# Formato: {hoja_excel: (columna_letter_Resultados, fila_Resultados)}
+# Se usa para actualizar las fórmulas si el subtotal se mueve
+RESULTADOS_MAP = {
+    "Instalacion de Cafe": {"mo": ("B", 8), "insumos": ("B", 9)},
+    "Control de arvenses": {"mo": ("B", 13), "insumos": ("B", 14)},
+    "Fertilizacion": {"mo": ("B", 18), "insumos": ("B", 19)},
+    "Control Fitosanitario": {"mo": ("E", 8), "insumos": ("E", 9)},
+    "Regulacion de sombrio": {"mo": ("E", 13), "insumos": ("E", 14)},
+    "Recoleccion": {"kilos": ("E", 18), "total": ("E", 19)},
+    "Beneficio": {"mo": ("H", 8)},  # Beneficio no tiene insumos separados
+    "Gastos Administrativos": {"total": ("H", 13)},
+    "Ingresos": {"ventas": ("B", 4)},  # Ingresos por ventas de cafe
+}
+
 
 class ExcelManager:
     """Manejador del template Excel. Solo llena datos, mantiene fórmulas."""
@@ -450,19 +465,33 @@ class ExcelManager:
         wb = openpyxl.load_workbook(output_path, keep_vba=False)
         logger.info(f"Hojas disponibles: {wb.sheetnames}")
 
-        # 2b. ELIMINAR HOJAS VACÍAS
-        HOJAS_ELIMINAR = ["Plan de ordenamiento", "Plan de acción", "Cronograma"]
+        # 2b. ELIMINAR HOJAS VACÍAS O PLACEHOLDER
+        HOJAS_ELIMINAR = ["Plan de ordenamiento", "Plan de acción", "Cronograma", "INICIO"]
         for hoja in HOJAS_ELIMINAR:
             if hoja in wb.sheetnames:
                 del wb[hoja]
                 logger.info(f"Hoja vacía '{hoja}' eliminada")
 
-        # 3. Llenar hojas
-        self._llenar_hoja_lotes(wb, data.get("lotes", []))
-        self._llenar_hoja_ingresos(wb, data)
-        self._llenar_hojas_costos(wb, data)
+        # 2c. Eliminar "Graficos" (template, sin acento) si existe — se reemplaza con "Gráficos"
+        if "Graficos" in wb.sheetnames:
+            del wb["Graficos"]
+            logger.info("Hoja 'Graficos' (template) eliminada — se usará 'Gráficos' generada por código")
 
-        # 3b. Llenar hoja Presupuesto (si existe en template o crearla)
+        # 2d. Eliminar "Presupuesto" placeholder del template (1 celda vacía)
+        if "Presupuesto" in wb.sheetnames:
+            del wb["Presupuesto"]
+            logger.info("Hoja 'Presupuesto' placeholder eliminada del template")
+
+        # Construir diccionario {lote_id: nombre_lote} para usar en las hojas de costos
+        lotes = data.get("lotes", [])
+        lote_map = {l["id"]: l["nombre"] for l in lotes}
+
+        # 3. Llenar hojas
+        self._llenar_hoja_lotes(wb, lotes)
+        self._llenar_hoja_ingresos(wb, data)
+        subtotal_changes = self._llenar_hojas_costos(wb, data)
+
+        # 3b. Llenar hoja Presupuesto
         self._llenar_hoja_presupuesto(wb, db, finca_id)
 
         # 3c. Llenar hoja Indicadores
@@ -480,7 +509,10 @@ class ExcelManager:
         self._crear_hoja_dashboard(wb, db, finca_id)
         self._crear_hoja_configuracion(wb, db, finca_id)
 
-        # 6. Guardar
+        # 6. Actualizar hoja Resultados con los nuevos subtotales
+        self._actualizar_hoja_resultados(wb, subtotal_changes)
+
+        # 7. Guardar
         wb.save(output_path)
         wb.close()
         logger.info(f"Excel generado exitosamente: {output_path}")
@@ -636,8 +668,15 @@ class ExcelManager:
     # Hojas de costos (MO + Insumos, y especiales)
     # ------------------------------------------------------------------
 
-    def _llenar_hojas_costos(self, wb, data: dict):
-        """Llena todas las hojas de costos."""
+    def _llenar_hojas_costos(self, wb, data: dict) -> dict:
+        """
+        Llena todas las hojas de costos.
+        
+        Returns:
+            dict: {sheet_name: {"mo_subtotal": N, "insumos_subtotal": N}} con cambios de subtotal
+        """
+        subtotal_changes = {}
+        
         # Hojas con estructura MO + Insumos
         hojas_mo_insumos = [
             "Instalacion de Cafe",
@@ -652,27 +691,46 @@ class ExcelManager:
             if hoja not in wb.sheetnames:
                 logger.warning(f"Hoja '{hoja}' no encontrada, saltando")
                 continue
-            self._llenar_hoja_mo_insumos(wb, hoja, data)
+            cambios = self._llenar_hoja_mo_insumos(wb, hoja, data)
+            subtotal_changes[hoja] = cambios
 
         # Hojas especiales
         if "Recoleccion" in wb.sheetnames:
-            self._llenar_hoja_recoleccion(wb, data)
+            cambios = self._llenar_hoja_recoleccion(wb, data)
+            subtotal_changes["Recoleccion"] = cambios
         if "Beneficio" in wb.sheetnames:
-            self._llenar_hoja_beneficio(wb, data)
+            cambios = self._llenar_hoja_beneficio(wb, data)
+            subtotal_changes["Beneficio"] = cambios
         if "Gastos Administrativos" in wb.sheetnames:
-            self._llenar_hoja_gastos_admin(wb, data)
+            cambios = self._llenar_hoja_gastos_admin(wb, data)
+            subtotal_changes["Gastos Administrativos"] = cambios
+            
+        # Track ingresos subtotal
+        if "Ingresos por ventas de cafe" in wb.sheetnames:
+            ws = wb["Ingresos por ventas de cafe"]
+            # Find subtotal row by looking for formula with SUM in col F
+            for r in range(3, ws.max_row + 1):
+                val = ws.cell(row=r, column=6).value
+                if val and isinstance(val, str) and "SUM" in val.upper():
+                    subtotal_changes["Ingresos por ventas de cafe"] = {"ingresos_subtotal": r}
+                    break
+        
+        return subtotal_changes
 
-    def _llenar_hoja_mo_insumos(self, wb, hoja_nombre: str, data: dict):
+    def _llenar_hoja_mo_insumos(self, wb, hoja_nombre: str, data: dict) -> dict:
         """
         Llena una hoja que tiene estructura MO (A-F) e Insumos (H-M).
         
         Estrategia: MO e insumos se llenan en las mismas filas, desde la fila 3.
         Si hay más MO que insumos (o viceversa), las celdas vacías quedan en blanco.
+        
+        Returns:
+            dict con {"mo_subtotal": N, "insumos_subtotal": N}
         """
         config = HOJA_CONFIG.get(hoja_nombre)
         if not config:
             logger.warning(f"Sin configuración para hoja '{hoja_nombre}'")
-            return
+            return {}
 
         ws = wb[hoja_nombre]
 
@@ -692,7 +750,7 @@ class ExcelManager:
 
         len_max = max(len(mo_data), len(insumos_data), 0)
         if len_max == 0:
-            return
+            return {}
 
         mo_cols = config.get("mo_cols", {})
         insumos_cols = config.get("insumos_cols", {})
@@ -726,6 +784,18 @@ class ExcelManager:
             celdas_sum=celdas_sum_mo + celdas_sum_insumos
         )
 
+        # Construir lote_map a partir de los datos
+        lote_map = {}
+        for rec in mo_data:
+            lid = rec.get("lote_id", 0)
+            if lid and lid not in lote_map:
+                # Try to get from data['lotes']
+                pass
+        # Use lotes list from data
+        if "lotes" in data:
+            for l in data["lotes"]:
+                lote_map[l["id"]] = l["nombre"]
+
         # Llenar datos
         for i in range(len_max):
             fila = DATA_START + i
@@ -735,7 +805,7 @@ class ExcelManager:
 
             # --- Llenar MO (columnas A-F) ---
             if i < len(mo_data):
-                self._escribir_fila_mo(ws, fila, mo_data[i], mo_cols)
+                self._escribir_fila_mo(ws, fila, mo_data[i], mo_cols, lote_map or {})
             else:
                 # Asegurar fórmula de V.Total MO incluso si no hay datos MO en esta fila
                 self._asegurar_formula_mo(ws, fila, mo_cols)
@@ -750,6 +820,8 @@ class ExcelManager:
         logger.info(
             f"Hoja '{hoja_nombre}' llenada: {len(mo_data)} MO, {len(insumos_data)} Insumos"
         )
+
+        return {"mo_subtotal": new_subtotal_row, "insumos_subtotal": new_subtotal_row}
 
     def _asegurar_formula_mo(self, ws, fila: int, cols_config: dict):
         """Asegura que exista la fórmula de V.Total en la columna F de una fila MO."""
@@ -793,18 +865,25 @@ class ExcelManager:
             if col_cant and col_vu:
                 celda.value = f'=IFERROR(+{get_column_letter(col_cant)}{fila}*{get_column_letter(col_vu)}{fila}, 0)'
 
-    def _escribir_fila_mo(self, ws, fila: int, record: dict, cols_config: dict):
-        """Escribe un registro de MO en una fila."""
+    def _escribir_fila_mo(self, ws, fila: int, record: dict, cols_config: dict, lote_map: dict = None):
+        """Escribe un registro de MO en una fila.
+        
+        Muestra el NOMBRE del lote (no el ID numérico) si lote_map está disponible.
+        """
         if not cols_config:
             return
         start_col = ord(cols_config["start"]) - ord("A") + 1  # 1-indexed
         campos = cols_config["campos"]
 
+        if lote_map is None:
+            lote_map = {}
+
         for j, campo in enumerate(campos):
             col = start_col + j
             if campo == "lote":
                 lote_id = record.get("lote_id", 0)
-                ws.cell(row=fila, column=col, value=str(lote_id) if lote_id else "")
+                nombre_lote = lote_map.get(lote_id, "")
+                ws.cell(row=fila, column=col, value=nombre_lote if nombre_lote else str(lote_id) if lote_id else "")
             elif campo == "fecha":
                 self._poner_fecha(ws, fila, col, record.get("fecha", ""))
             elif campo == "labor":
@@ -820,7 +899,11 @@ class ExcelManager:
                 ws.cell(row=fila, column=col, value="")
 
     def _escribir_fila_insumos(self, ws, fila: int, record: dict, cols_config: dict):
-        """Escribe un registro de Insumos en una fila."""
+        """Escribe un registro de Insumos en una fila.
+        
+        Usa el campo 'labor' de la DB como nombre del producto, ya que 
+        el campo 'producto' está vacío y 'labor' contiene el nombre real del insumo.
+        """
         if not cols_config:
             return
         start_col = ord(cols_config["start"]) - ord("A") + 1  # 1-indexed
@@ -833,7 +916,9 @@ class ExcelManager:
             elif campo == "labor":
                 ws.cell(row=fila, column=col, value=record.get("labor", ""))
             elif campo == "producto":
-                ws.cell(row=fila, column=col, value=record.get("producto", ""))
+                # ✅ Usar 'labor' de la DB como nombre del producto (el campo 'producto' está vacío)
+                nombre_producto = record.get("labor", "") or record.get("producto", "") or record.get("descripcion", "") or record.get("nombre", "")
+                ws.cell(row=fila, column=col, value=nombre_producto)
             elif campo == "cantidad":
                 ws.cell(row=fila, column=col, value=record.get("cantidad", 0) or 0)
             elif campo == "valor_unitario":
@@ -848,7 +933,7 @@ class ExcelManager:
     # Hojas especiales
     # ------------------------------------------------------------------
 
-    def _llenar_hoja_recoleccion(self, wb, data: dict):
+    def _llenar_hoja_recoleccion(self, wb, data: dict) -> dict:
         """Llena la hoja 'Recoleccion'."""
         ws = wb["Recoleccion"]
         records = data.get("recoleccion", [])
@@ -894,8 +979,9 @@ class ExcelManager:
             ws.cell(row=fila, column=5, value=rec.get("valor_total", 0) or 0)
 
         logger.info(f"Hoja 'Recoleccion' llenada con {num_needed} registros")
+        return {"recoleccion_subtotal": new_subtotal_row}
 
-    def _llenar_hoja_beneficio(self, wb, data: dict):
+    def _llenar_hoja_beneficio(self, wb, data: dict) -> dict:
         """Llena la hoja 'Beneficio'."""
         ws = wb["Beneficio"]
         records = data.get("beneficio", [])
@@ -941,8 +1027,9 @@ class ExcelManager:
                 col_e.value = f'=IFERROR(D{fila}*C{fila}, 0)'
 
         logger.info(f"Hoja 'Beneficio' llenada con {num_needed} registros")
+        return {"beneficio_subtotal": new_subtotal_row}
 
-    def _llenar_hoja_gastos_admin(self, wb, data: dict):
+    def _llenar_hoja_gastos_admin(self, wb, data: dict) -> dict:
         """Llena la hoja 'Gastos Administrativos'."""
         ws = wb["Gastos Administrativos"]
         records = data.get("administrativo", [])
@@ -980,6 +1067,73 @@ class ExcelManager:
             ws.cell(row=fila, column=3, value=rec.get("valor_total", 0) or 0)
 
         logger.info(f"Hoja 'Gastos Administrativos' llenada con {num_needed} registros")
+        return {"admin_subtotal": new_subtotal_row}
+
+    # ------------------------------------------------------------------
+    # Actualizar hoja Resultados
+    # ------------------------------------------------------------------
+
+    def _actualizar_hoja_resultados(self, wb, subtotal_changes: dict):
+        """
+        Actualiza las fórmulas en la hoja 'Resultados' si los subtotales
+        se movieron de fila 20 a otra fila.
+        """
+        if "Resultados" not in wb.sheetnames:
+            logger.warning("Hoja 'Resultados' no encontrada, no se pueden actualizar fórmulas")
+            return
+
+        ws = wb["Resultados"]
+        
+        # Mapeo de nombre de hoja → columna subtotal original en template → nueva fila
+        # Resultados espera subtotales en fila 20 (6 cols: B-E-H)
+        subtotal_original = 20
+        
+        # Construir dict de nuevas filas de subtotal por hoja
+        nuevos_subtotales = {}
+        for hoja, cambios in subtotal_changes.items():
+            if "mo_subtotal" in cambios:
+                nuevos_subtotales[hoja] = cambios["mo_subtotal"]
+            elif "recoleccion_subtotal" in cambios:
+                nuevos_subtotales["Recoleccion"] = cambios["recoleccion_subtotal"]
+            elif "beneficio_subtotal" in cambios:
+                nuevos_subtotales["Beneficio"] = cambios["beneficio_subtotal"]
+            elif "admin_subtotal" in cambios:
+                nuevos_subtotales["Gastos Administrativos"] = cambios["admin_subtotal"]
+            elif "ingresos_subtotal" in cambios:
+                nuevos_subtotales["Ingresos por ventas de cafe"] = cambios["ingresos_subtotal"]
+
+        # Si todos los subtotales están en fila 20, no hay nada que actualizar
+        if not nuevos_subtotales:
+            return
+
+        # Scan all cells in Resultados looking for cross-sheet references
+        for row in ws.iter_rows(min_row=1, max_row=ws.max_row, max_col=ws.max_column):
+            for cell in row:
+                val = cell.value
+                if val and isinstance(val, str) and val.startswith("="):
+                    # Look for patterns like 'SheetName'!X20 or +SheetName!X20
+                    new_val = val
+                    for hoja_name, new_row in nuevos_subtotales.items():
+                        if new_row == subtotal_original:
+                            continue
+                        # Replace references like 'SheetName'!F20 → 'SheetName'!F{new_row}
+                        # or +SheetName!F20 → +SheetName!F{new_row}
+                        # Escape single quotes in sheet name for regex
+                        esc_name = re.escape(hoja_name)
+                        pattern = rf"('{esc_name}'!\w+){subtotal_original}\b"
+                        replacement = rf"\g<1>{new_row}"
+                        new_val = re.sub(pattern, replacement, new_val)
+                        
+                        # Also try without quotes for simple names
+                        if "'" not in hoja_name:
+                            pattern2 = rf"(\+{esc_name}!\w+){subtotal_original}\b"
+                            new_val = re.sub(pattern2, replacement, new_val)
+                    
+                    if new_val != val:
+                        cell.value = new_val
+                        logger.debug(f"Resultados: {cell.coordinate}: {val} → {new_val}")
+
+        logger.info(f"Hoja 'Resultados' actualizada con {len(nuevos_subtotales)} cambios de subtotal")
 
     # ------------------------------------------------------------------
     # Hoja Presupuesto
@@ -993,6 +1147,10 @@ class ExcelManager:
         | E: Diferencia | F: % Ejecución
         
         Usa colores: Verde si ejecutado <= planificado, Rojo si sobregiro.
+        
+        Si no hay presupuestos guardados, crea la hoja de todas formas
+        con estructura completa (headers, categorías FEPCAFE, fórmulas)
+        pero con valores 0 y un mensaje informativo.
         """
         from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
@@ -1005,6 +1163,7 @@ class ExcelManager:
         FONT_TITLE = Font(bold=True, size=14, name="Calibri", color="1F4E79")
         FONT_NORMAL = Font(size=10, name="Calibri")
         FONT_BOLD = Font(bold=True, size=10, name="Calibri")
+        FONT_MSG = Font(italic=True, size=10, name="Calibri", color="C62828")
         THIN_BORDER = Border(
             left=Side(style="thin"),
             right=Side(style="thin"),
@@ -1015,7 +1174,7 @@ class ExcelManager:
         RIGHT = Alignment(horizontal="right", vertical="center")
         LEFT = Alignment(horizontal="left", vertical="center")
 
-        # Estructura de costos del sector
+        # Estructura de costos del sector FEPCAFE
         FEPCAFE = [
             ("recoleccion", "☕ Recolección", 54),
             ("fertilizacion", "🧪 Fertilización", 19),
@@ -1029,19 +1188,119 @@ class ExcelManager:
 
         # Determinar año más reciente con presupuesto
         anios = db.get_presupuesto_anios(finca_id)
-        if not anios:
-            logger.info("No hay presupuestos guardados, saltando hoja Presupuesto")
-            return
-
-        anio = anios[0]  # Más reciente
-        presupuesto_data = db.get_ejecucion_presupuesto(finca_id, anio)
-        categorias_data = {c["categoria"]: c for c in presupuesto_data["categorias"]}
-
+        
         # Crear o reemplazar la hoja
         hoja_nombre = "Presupuesto"
         if hoja_nombre in wb.sheetnames:
             del wb[hoja_nombre]
         ws = wb.create_sheet(hoja_nombre)
+
+        if not anios:
+            # ─── SIN PRESUPUESTOS: crear estructura con ceros ───
+            logger.info("No hay presupuestos guardados — creando hoja Presupuesto con valores 0")
+            anio = datetime.now().year
+
+            # Título
+            ws.merge_cells("A1:F1")
+            title_cell = ws.cell(row=1, column=1, value=f"Presupuesto {anio} (Sin datos guardados)")
+            title_cell.font = FONT_TITLE
+            title_cell.alignment = Alignment(horizontal="center", vertical="center")
+
+            # Mensaje informativo
+            ws.merge_cells("A2:F2")
+            msg_cell = ws.cell(row=2, column=1, value="Sin presupuestos guardados — Agregue presupuestos desde el bot")
+            msg_cell.font = FONT_MSG
+            msg_cell.alignment = CENTER
+
+            # ─── Encabezados (fila 3) ───
+            headers = ["Categoría", "% Referencia", "Monto Planificado", "Monto Ejecutado", "Diferencia", "% Ejecución"]
+            col_widths = [30, 12, 20, 20, 20, 15]
+            for col_idx, (header, width) in enumerate(zip(headers, col_widths), 1):
+                cell = ws.cell(row=3, column=col_idx, value=header)
+                cell.font = FONT_HEADER
+                cell.fill = FILL_HEADER
+                cell.alignment = CENTER
+                cell.border = THIN_BORDER
+                letter = chr(64 + col_idx)
+                ws.column_dimensions[letter].width = width
+
+            # ─── Datos con ceros ───
+            DATA_START_ROW = 4
+            row = DATA_START_ROW
+            for cat_id, nombre_cat, pct_ref in FEPCAFE:
+                ws.cell(row=row, column=1, value=nombre_cat).font = FONT_NORMAL
+                ws.cell(row=row, column=1).alignment = LEFT
+                ws.cell(row=row, column=1).border = THIN_BORDER
+
+                ws.cell(row=row, column=2, value=pct_ref).font = FONT_NORMAL
+                ws.cell(row=row, column=2).alignment = CENTER
+                ws.cell(row=row, column=2).border = THIN_BORDER
+                ws.cell(row=row, column=2).number_format = '0"%"'
+
+                ws.cell(row=row, column=3, value=0).font = FONT_NORMAL
+                ws.cell(row=row, column=3).alignment = RIGHT
+                ws.cell(row=row, column=3).border = THIN_BORDER
+                ws.cell(row=row, column=3).number_format = '$#,##0'
+
+                ws.cell(row=row, column=4, value=0).font = FONT_NORMAL
+                ws.cell(row=row, column=4).alignment = RIGHT
+                ws.cell(row=row, column=4).border = THIN_BORDER
+                ws.cell(row=row, column=4).number_format = '$#,##0'
+
+                ws.cell(row=row, column=5, value=0).font = FONT_NORMAL
+                ws.cell(row=row, column=5).alignment = RIGHT
+                ws.cell(row=row, column=5).border = THIN_BORDER
+                ws.cell(row=row, column=5).number_format = '$#,##0'
+
+                ws.cell(row=row, column=6, value=0).font = FONT_NORMAL
+                ws.cell(row=row, column=6).alignment = CENTER
+                ws.cell(row=row, column=6).border = THIN_BORDER
+                ws.cell(row=row, column=6).number_format = '0.0%'
+
+                row += 1
+
+            # ─── Fila Total (ceros) ───
+            ws.cell(row=row, column=1, value="TOTAL").font = FONT_BOLD
+            ws.cell(row=row, column=1).alignment = LEFT
+            ws.cell(row=row, column=1).border = THIN_BORDER
+            ws.cell(row=row, column=1).fill = FILL_TOTAL
+
+            ws.cell(row=row, column=2, value=100).font = FONT_BOLD
+            ws.cell(row=row, column=2).alignment = CENTER
+            ws.cell(row=row, column=2).border = THIN_BORDER
+            ws.cell(row=row, column=2).fill = FILL_TOTAL
+            ws.cell(row=row, column=2).number_format = '0"%"'
+
+            ws.cell(row=row, column=3, value=0).font = FONT_BOLD
+            ws.cell(row=row, column=3).alignment = RIGHT
+            ws.cell(row=row, column=3).border = THIN_BORDER
+            ws.cell(row=row, column=3).fill = FILL_TOTAL
+            ws.cell(row=row, column=3).number_format = '$#,##0'
+
+            ws.cell(row=row, column=4, value=0).font = FONT_BOLD
+            ws.cell(row=row, column=4).alignment = RIGHT
+            ws.cell(row=row, column=4).border = THIN_BORDER
+            ws.cell(row=row, column=4).fill = FILL_TOTAL
+            ws.cell(row=row, column=4).number_format = '$#,##0'
+
+            ws.cell(row=row, column=5, value=0).font = FONT_BOLD
+            ws.cell(row=row, column=5).alignment = RIGHT
+            ws.cell(row=row, column=5).border = THIN_BORDER
+            ws.cell(row=row, column=5).fill = FILL_TOTAL
+            ws.cell(row=row, column=5).number_format = '$#,##0'
+
+            ws.cell(row=row, column=6, value=0).font = FONT_BOLD
+            ws.cell(row=row, column=6).alignment = CENTER
+            ws.cell(row=row, column=6).border = THIN_BORDER
+            ws.cell(row=row, column=6).fill = FILL_TOTAL
+            ws.cell(row=row, column=6).number_format = '0.0%'
+
+            logger.info(f"Hoja 'Presupuesto' creada con estructura de ceros para finca {finca_id}")
+            return
+
+        anio = anios[0]  # Más reciente
+        presupuesto_data = db.get_ejecucion_presupuesto(finca_id, anio)
+        categorias_data = {c["categoria"]: c for c in presupuesto_data["categorias"]}
 
         # ─── Título ───
         ws.merge_cells("A1:F1")
@@ -1861,6 +2120,7 @@ class ExcelManager:
 
     # ------------------------------------------------------------------
     # Gráficos de tendencia (MEJORA 4)
+    # ------------------------------------------------------------------
 
     def _generar_hoja_graficos(self, db, finca_id: int, ws):
         """
@@ -1878,7 +2138,8 @@ class ExcelManager:
             ws['B1'] = 'Ingresos'
             ws['C1'] = 'Egresos'
 
-            for i, year in enumerate([2023, 2024, 2025]):
+            years_with_data = set()
+            for i, year in enumerate([2023, 2024, 2025, 2026]):
                 row = 2 + i
                 ws.cell(row=row, column=1, value=year)
 
@@ -1895,6 +2156,12 @@ class ExcelManager:
                     (finca_id, f"{year}%")
                 ).fetchone()[0]
                 ws.cell(row=row, column=3, value=egr or 0)
+                
+                if (ing or 0) > 0 or (egr or 0) > 0:
+                    years_with_data.add(year)
+
+            # Solo años con datos
+            num_years = max(len(years_with_data), 1)
 
             chart1 = BarChart()
             chart1.type = "col"
@@ -1902,8 +2169,8 @@ class ExcelManager:
             chart1.y_axis.title = "Valor ($)"
             chart1.style = 10
 
-            data1 = Reference(ws, min_col=1, min_row=1, max_col=3, max_row=4)
-            cats1 = Reference(ws, min_col=1, min_row=2, max_row=4)
+            data1 = Reference(ws, min_col=1, min_row=1, max_col=3, max_row=1 + num_years)
+            cats1 = Reference(ws, min_col=1, min_row=2, max_row=1 + num_years)
             chart1.add_data(data1, titles_from_data=True)
             chart1.set_categories(cats1)
 
