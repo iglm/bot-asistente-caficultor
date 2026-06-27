@@ -92,14 +92,16 @@ class TestGetResumenFinca:
         assert resumen["margen"] == 0
         assert resumen["area_total"] == 0
         assert resumen["costo_por_hectarea"] == 0
-        # Todos los egresos_por_categoria deben ser 0
+        # Como no hay transacciones, GROUP BY no devuelve filas,
+        # así que el dict puede estar vacío. Cualquier categoría
+        # consultada debe retornar 0 via .get().
         for cat in Database.CATEGORIAS_CON_MO_Y_INSUMOS + Database.CATEGORIAS_SIMPLE:
-            assert resumen["egresos_por_categoria"][cat] == 0, (
+            assert resumen["egresos_por_categoria"].get(cat, 0) == 0, (
                 f"Se esperaba 0 para '{cat}'"
             )
         # Todos los ingresos_por_tipo deben ser 0
         for tipo in ("ingreso_cps", "ingreso_pasilla"):
-            assert resumen["ingresos_por_tipo"][tipo] == 0, (
+            assert resumen["ingresos_por_tipo"].get(tipo, 0) == 0, (
                 f"Se esperaba 0 para '{tipo}'"
             )
 
@@ -125,10 +127,10 @@ class TestGetResumenFinca:
         )
         # Total egresos debe coincidir
         assert resumen["egresos"] == 250_000
-        # Las demás categorías deben estar en cero
+        # Las demás categorías deben estar en cero (o no existir en el dict)
         for cat in Database.CATEGORIAS_CON_MO_Y_INSUMOS:
             if cat != "instalacion":
-                assert resumen["egresos_por_categoria"][cat] == 0
+                assert resumen["egresos_por_categoria"].get(cat, 0) == 0
 
     def test_resumen_categorias_simples(self, db: Database, finca_id: int):
         """
@@ -332,3 +334,250 @@ class TestPresupuestos:
         rec = [c for c in ej["categorias"] if c["categoria"] == "recoleccion"][0]
         assert rec["diferencia"] == 1_000_000  # Sobregiro
         assert rec["pct_ejecucion"] == 120.0  # 6M / 5M
+
+
+# ─── Tests: CRUD básico ─────────────────────────────────────────────
+
+
+class TestCRUDFincas:
+    """Prueba operaciones CRUD sobre fincas."""
+
+    def test_create_finca(self, db: Database):
+        """Crear una finca y verificar que se guarda con sus datos."""
+        db.upsert_user(user_id=100, username="user_finca")
+        fid = db.create_finca(user_id=100, nombre="Mi Finca", region="Caldas", departamento="Manizales")
+        assert isinstance(fid, int)
+        assert fid > 0
+
+        finca = db.get_finca(fid)
+        assert finca is not None
+        assert finca["nombre"] == "Mi Finca"
+        assert finca["region"] == "Caldas"
+        assert finca["departamento"] == "Manizales"
+        assert finca["user_id"] == 100
+
+    def test_get_fincas_de_usuario(self, db: Database):
+        """Obtener fincas de un usuario específico."""
+        db.upsert_user(user_id=101, username="multi_finca")
+        fid1 = db.create_finca(101, "Finca A", region="Quindío")
+        fid2 = db.create_finca(101, "Finca B", region="Risaralda")
+        fid3 = db.create_finca(101, "Finca C", region="Caldas")
+
+        fincas = db.get_fincas(101)
+        assert len(fincas) == 3
+        ids = [f["id"] for f in fincas]
+        assert fid1 in ids
+        assert fid2 in ids
+        assert fid3 in ids
+
+    def test_get_finca_by_id_returns_none(self, db: Database):
+        """get_finca con ID inexistente retorna None."""
+        assert db.get_finca(99999) is None
+
+    def test_get_finca_by_id_alias(self, db: Database, finca_id: int):
+        """El alias get_finca_by_id funciona igual que get_finca."""
+        f1 = db.get_finca(finca_id)
+        f2 = db.get_finca_by_id(finca_id)
+        assert f1 == f2
+
+
+class TestCRUDLotes:
+    """Prueba operaciones CRUD sobre lotes."""
+
+    def test_create_lote(self, db: Database, finca_id: int):
+        """Crear un lote y verificar datos guardados."""
+        lid = db.create_lote(
+            finca_id=finca_id,
+            nombre="Lote La Esperanza",
+            area=3.5,
+            num_arboles=4200,
+            variedad="Castillo",
+            fecha_siembra="2022-06-01",
+        )
+        assert isinstance(lid, int)
+        assert lid > 0
+
+        lote = db.get_lote_by_id(lid)
+        assert lote is not None
+        assert lote["nombre"] == "Lote La Esperanza"
+        assert lote["area_hectareas"] == 3.5
+        assert lote["num_arboles"] == 4200
+        assert lote["variedad"] == "Castillo"
+        assert lote["fecha_siembra"] == "2022-06-01"
+
+    def test_get_lotes_de_finca(self, db: Database, finca_id: int):
+        """Obtener lista de lotes de una finca."""
+        db.create_lote(finca_id, "Lote 1", area=2.0)
+        db.create_lote(finca_id, "Lote 2", area=3.0)
+        db.create_lote(finca_id, "Lote 3", area=4.0)
+
+        lotes = db.get_lotes(finca_id)
+        assert len(lotes) == 3
+        # Ordenados por nombre
+        assert [l["nombre"] for l in lotes] == ["Lote 1", "Lote 2", "Lote 3"]
+
+    def test_create_lote_con_valores_minimos(self, db: Database, finca_id: int):
+        """Crear lote solo con campos obligatorios."""
+        lid = db.create_lote(finca_id, "Lote Mínimo")
+        assert lid > 0
+        lote = db.get_lote_by_id(lid)
+        assert lote["nombre"] == "Lote Mínimo"
+        assert lote["area_hectareas"] == 0
+        assert lote["num_arboles"] == 0
+
+    def test_get_lote_by_id_returns_none(self, db: Database):
+        """get_lote_by_id con ID inexistente retorna None."""
+        assert db.get_lote_by_id(99999) is None
+
+
+class TestCRUDTransacciones:
+    """Prueba operaciones CRUD sobre transacciones."""
+
+    def test_insert_transaccion(self, db: Database, finca_id: int):
+        """Insertar una transacción y verificar datos guardados."""
+        tid = db.insert_transaccion(
+            finca_id=finca_id,
+            categoria="recoleccion",
+            fecha="2024-10-15",
+            labor="Recolección cereza",
+            cantidad=500,
+            unidad="kg",
+            valor_unitario=55000,
+            valor_total=500 * 55000,
+        )
+        assert isinstance(tid, int)
+        assert tid > 0
+
+        trans = db.get_all_transacciones(finca_id)
+        assert len(trans) == 1
+        assert trans[0]["categoria"] == "recoleccion"
+        assert trans[0]["valor_total"] == 27_500_000
+
+    def test_insert_transaccion_con_lote(self, db: Database, finca_id: int, lote_id: int):
+        """Insertar una transacción asociada a un lote específico."""
+        tid = db.insert_transaccion(
+            finca_id=finca_id,
+            lote_id=lote_id,
+            categoria="fertilizacion_mo",
+            fecha="2024-03-10",
+            labor="Aplicación fertilizante",
+            cantidad=5,
+            unidad="jornal",
+            valor_unitario=55000,
+            valor_total=275000,
+        )
+        assert tid > 0
+        trans = db.get_transacciones(finca_id, "fertilizacion_mo")
+        assert len(trans) == 1
+        assert trans[0]["lote_id"] == lote_id
+
+    def test_get_transacciones_vacio(self, db: Database, finca_id: int):
+        """Obtener transacciones de una finca sin datos retorna lista vacía."""
+        assert db.get_all_transacciones(finca_id) == []
+        assert db.get_transacciones(finca_id, "recoleccion") == []
+
+    def test_get_transacciones_por_periodo(self, db: Database, finca_id: int):
+        """Filtrar transacciones por rango de fechas."""
+        db.insert_transaccion(finca_id, "recoleccion", "2024-01-15", valor_total=100_000)
+        db.insert_transaccion(finca_id, "recoleccion", "2024-06-15", valor_total=200_000)
+        db.insert_transaccion(finca_id, "recoleccion", "2024-12-15", valor_total=300_000)
+
+        # Solo las de la primera mitad del año
+        rango = db.get_transacciones_por_periodo(finca_id, "2024-01-01", "2024-06-30")
+        assert len(rango) == 2
+
+        # Solo las de diciembre
+        rango2 = db.get_transacciones_por_periodo(finca_id, "2024-12-01", "2024-12-31")
+        assert len(rango2) == 1
+        assert rango2[0]["valor_total"] == 300_000
+
+
+class TestIndicadoresTecnicos:
+    """Prueba el cálculo de indicadores técnicos (get_indicadores_tecnicos)."""
+
+    def test_indicadores_vacio(self, db: Database, finca_id: int):
+        """Sin lotes ni transacciones, los indicadores deben estar en cero."""
+        ind = db.get_indicadores_tecnicos(finca_id)
+        assert ind["area_total"] == 0
+        assert ind["area_productiva"] == 0
+        assert ind["ingresos_totales"] == 0
+        assert ind["costos_total"] == 0
+        assert ind["kg_producidos"] == 0
+        assert ind["productividad"] == 0
+        assert ind["costo_por_kilo"] == 0
+        assert ind["precio_venta_promedio"] == 0
+
+    def test_indicadores_con_lotes_y_transacciones(self, db: Database, finca_id: int):
+        """Calcular indicadores con datos completos."""
+        # Crear lotes productivos (con árboles y fecha de siembra)
+        db.create_lote(finca_id, "Lote 1", area=5.0, num_arboles=5000, variedad="Castillo", fecha_siembra="2022-01-01")
+        db.create_lote(finca_id, "Lote 2", area=3.0, num_arboles=3000, variedad="Caturra", fecha_siembra="2021-06-01")
+
+        # Lote no productivo (sin árboles)
+        db.create_lote(finca_id, "Lote Vivero", area=1.0)
+
+        # Ingresos
+        db.insert_transaccion(finca_id, "ingreso_cps", "2024-10-15", producto="CPS", cantidad=2000, valor_unitario=18000, valor_total=36_000_000)
+        db.insert_transaccion(finca_id, "ingreso_pasilla", "2024-10-15", producto="Pasilla", cantidad=200, valor_unitario=3000, valor_total=600_000)
+
+        # Costos MO
+        db.insert_transaccion(finca_id, "recoleccion", "2024-10-01", labor="Corte", cantidad=50, unidad="jornal", valor_unitario=55000, valor_total=2_750_000)
+        db.insert_transaccion(finca_id, "fertilizacion_mo", "2024-03-10", labor="Aplicación", cantidad=10, unidad="jornal", valor_unitario=55000, valor_total=550_000)
+        db.insert_transaccion(finca_id, "administrativo", "2024-12-01", labor="Contador", valor_total=500_000)
+
+        # Costos Insumos
+        db.insert_transaccion(finca_id, "fertilizacion_insumos", "2024-03-10", producto="Urea", cantidad=200, unidad="kg", valor_unitario=3200, valor_total=640_000)
+
+        ind = db.get_indicadores_tecnicos(finca_id)
+
+        # Área
+        assert ind["area_total"] == 9.0
+        assert ind["area_productiva"] == 8.0  # solo Lote 1 + Lote 2
+
+        # Ingresos
+        assert ind["ingresos_totales"] == 36_600_000
+
+        # Costos
+        assert ind["costos_mo"] == 3_800_000  # 2.75M + 0.55M + 0.5M
+        assert ind["costos_insumos"] == 640_000
+        assert ind["costos_total"] == 4_440_000
+
+        # Producción
+        assert ind["kg_producidos"] == 2200  # 2000 CPS + 200 pasilla
+
+        # Indicadores derivados (división segura)
+        assert ind["productividad"] == pytest.approx(2200 / 9.0)  # kg/ha total
+        assert ind["rendimiento"] == pytest.approx(2200 / 8.0)  # kg/ha productiva
+        assert ind["costo_por_kilo"] == pytest.approx(4_440_000 / 2200)  # COP/kg
+        assert ind["precio_venta_promedio"] == pytest.approx(36_600_000 / 2200)
+        assert ind["costo_total_por_ha"] == pytest.approx(4_440_000 / 9.0)
+        assert ind["margen_por_ha"] == pytest.approx((36_600_000 - 4_440_000) / 9.0)
+
+        # Comparación con FNC (valores de referencia)
+        assert "fnc_productividad_ha" in ind
+        assert "fnc_costo_ha" in ind
+        assert "fnc_precio_venta_promedio" in ind
+
+    def test_lote_es_productivo(self, db: Database):
+        """_lote_es_productivo identifica correctamente lotes productivos."""
+        # Productivo: tiene num_arboles y fecha_siembra
+        assert db._lote_es_productivo({"num_arboles": 5000, "fecha_siembra": "2022-01-01"})
+        # No productivo: sin árboles
+        assert not db._lote_es_productivo({"num_arboles": 0, "fecha_siembra": "2022-01-01"})
+        # No productivo: sin fecha de siembra
+        assert not db._lote_es_productivo({"num_arboles": 5000, "fecha_siembra": ""})
+        # No productivo: ambos vacíos
+        assert not db._lote_es_productivo({"num_arboles": 0, "fecha_siembra": ""})
+
+    def test_indicadores_solo_lotes_sin_transacciones(self, db: Database, finca_id: int):
+        """Con lotes pero sin transacciones, indicadores deben ser cero o valores seguros."""
+        db.create_lote(finca_id, "Lote 1", area=5.0, num_arboles=5000, variedad="Castillo", fecha_siembra="2022-01-01")
+
+        ind = db.get_indicadores_tecnicos(finca_id)
+        assert ind["area_total"] == 5.0
+        assert ind["area_productiva"] == 5.0
+        assert ind["ingresos_totales"] == 0
+        assert ind["costos_total"] == 0
+        assert ind["productividad"] == 0  # kg_producidos / area_total = 0 / 5
+        assert ind["costo_por_kilo"] == 0  # costos_total / kg_producidos = 0 / 0
+        assert ind["precio_venta_promedio"] == 0
