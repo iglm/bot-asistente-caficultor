@@ -1607,16 +1607,4 @@ def get_costos_router(db: Database) -> Router:
 
         await state.set_state(CostoForm.esperando_confirmar_insumo)
 
-    @router.callback_query(F.data == "cancelar_operacion")
-    @error_handler
-    async def cancelar_operacion(callback: types.CallbackQuery, state: FSMContext):
-        """Cancela la operación actual desde un botón inline."""
-        await callback.answer()
-        await state.clear()
-        await callback.message.edit_text(
-            "❌ <b>Operación cancelada.</b>\n\nUsa /costo para intentar de nuevo.",
-            parse_mode="HTML",
-            reply_markup=boton_menu(),
-        )
-
     return router

@@ -18,10 +18,8 @@ def get_asesoria_router(db: Database) -> Router:
     """Router para el servicio de asesoría profesional."""
     router = Router()
 
-    @router.message(Command("asesoria"))
-    @error_handler
-    async def cmd_asesoria(message: types.Message, state: FSMContext):
-        """Menú principal de asesoría."""
+    async def _mostrar_menu_asesoria(event, state: FSMContext):
+        """Lógica compartida del menú de asesoría (mensaje o callback)."""
         await state.clear()
 
         keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
@@ -32,14 +30,30 @@ def get_asesoria_router(db: Database) -> Router:
             [types.InlineKeyboardButton(text="🔙 Volver", callback_data="volver_menu")],
         ])
 
-        await message.answer(
+        texto = (
             "👨‍🏫 <b>Servicio de Asesoría</b>\n\n"
             "Acá podés obtener análisis profesional de los datos de tu finca "
             "y sugerencias para mejorar tu producción.\n\n"
-            "¿Qué necesitás?",
-            parse_mode="HTML",
-            reply_markup=keyboard,
+            "¿Qué necesitás?"
         )
+
+        if isinstance(event, types.CallbackQuery):
+            await event.message.edit_text(texto, parse_mode="HTML", reply_markup=keyboard)
+        else:
+            await event.answer(texto, parse_mode="HTML", reply_markup=keyboard)
+
+    @router.message(Command("asesoria"))
+    @error_handler
+    async def cmd_asesoria(message: types.Message, state: FSMContext):
+        """Menú principal de asesoría por comando."""
+        await _mostrar_menu_asesoria(message, state)
+
+    @router.callback_query(F.data == "menu_asesoria")
+    @error_handler
+    async def cb_menu_asesoria(callback: types.CallbackQuery, state: FSMContext):
+        """Menú principal de asesoría desde botón del menú principal."""
+        await callback.answer()
+        await _mostrar_menu_asesoria(callback, state)
 
     @router.callback_query(F.data == "as_interpretar")
     @error_handler
