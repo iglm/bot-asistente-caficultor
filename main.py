@@ -21,6 +21,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.default import DefaultBotProperties
 
 from middleware import CancelMiddleware
+from middleware.rate_limit import RateLimitMiddleware
 
 from config import BOT_TOKEN, ADMIN_IDS
 from database import Database
@@ -66,6 +67,9 @@ async def main():
     bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
     dp = Dispatcher(storage=MemoryStorage())
     
+    # ── Registrar middleware anti-flood (rate limiting para mensajes) ──
+    dp.message.middleware(RateLimitMiddleware())
+
     # ── Registrar middleware de cancelación (limpia FSM con /menu, /cancelar, /) ──
     dp.message.middleware(CancelMiddleware())
     dp.callback_query.middleware(CancelMiddleware())

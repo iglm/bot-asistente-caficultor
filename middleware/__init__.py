@@ -17,9 +17,9 @@ class CancelMiddleware(BaseMiddleware):
     Se ejecuta ANTES de que el dispatcher resuelva qué handler llamar,
     garantizando que el menú tenga prioridad absoluta sobre cualquier FSM.
     """
-    
+
     COMMANDS = {"/menu", "/cancelar", "/start", "/ayuda", "/", "/excel", "/fincas", "/lotes", "/ingreso", "/costo", "/resumen", "/usuarios", "/presupuesto", "/indicadores", "/importar"}
-    
+
     async def __call__(
         self,
         handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
@@ -50,5 +50,5 @@ class CancelMiddleware(BaseMiddleware):
                     if current:
                         logger.info(f"🔄 [Middleware] Cancelando estado {current} por callback {callback_data}")
                         await state.clear()
-        
+
         return await handler(event, data)
