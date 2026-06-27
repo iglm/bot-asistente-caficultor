@@ -8,6 +8,7 @@ from aiogram.filters import CommandStart
 from database import Database
 from config import ADMIN_IDS, BOT_NAME, AVISO_LEGAL, NOTIFICATION_GROUP_ID
 from utils import boton_menu, construir_menu_principal
+from .error_handler import error_handler
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +108,7 @@ def get_start_router(db: Database) -> Router:
     router = Router()
 
     @router.message(CommandStart())
+    @error_handler
     async def cmd_start(message: types.Message):
         user_id = message.from_user.id
         username = message.from_user.username or "sin_username"
@@ -131,6 +133,7 @@ def get_start_router(db: Database) -> Router:
             await mostrar_aviso_legal(message, db)
 
     @router.callback_query(F.data == "aceptar_terminos")
+    @error_handler
     async def aceptar_terminos(callback: types.CallbackQuery):
         user_id = callback.from_user.id
         await callback.answer()
@@ -148,6 +151,7 @@ def get_start_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data == "no_aceptar_terminos")
+    @error_handler
     async def no_aceptar_terminos(callback: types.CallbackQuery):
         await callback.answer()
         await callback.message.edit_text(

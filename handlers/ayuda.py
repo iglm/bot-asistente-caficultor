@@ -5,6 +5,7 @@ import logging
 from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
+from .error_handler import error_handler
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ def get_ayuda_router(db=None) -> Router:
 
     @router.message(Command("ayuda"))
     @router.callback_query(F.data == "menu_ayuda")
+    @error_handler
     async def cmd_ayuda(event: types.Message | types.CallbackQuery, state: FSMContext):
         """Muestra la guía de uso del bot."""
         await state.clear()

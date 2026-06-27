@@ -11,6 +11,7 @@ from aiogram.fsm.state import State, StatesGroup
 from database import Database
 from config import CATEGORIAS_PADRE, CATEGORIAS_SIMPLE, UNIDADES_INSUMO_LABELS
 from utils import boton_menu, botones_menu_cancelar, agregar_boton_menu, agregar_menu_cancelar, botones_fecha, fecha_hoy, fecha_ayer
+from .error_handler import error_handler
 
 logger = logging.getLogger(__name__)
 
@@ -267,6 +268,7 @@ def get_costos_router(db: Database) -> Router:
 
     @router.message(Command("costo"))
     @router.callback_query(F.data == "menu_costos")
+    @error_handler
     async def cmd_costo(event: types.Message | types.CallbackQuery, state: FSMContext):
         """Inicia el registro de un costo. Limpia estado previo primero."""
         # Garantizar que NO haya estado FSM residual
@@ -330,6 +332,7 @@ def get_costos_router(db: Database) -> Router:
             await send("❌ <b>Error al iniciar registro.</b>", parse_mode="HTML", reply_markup=boton_menu())
 
     @router.callback_query(CostoForm.esperando_finca, F.data.startswith("costo_finca:"))
+    @error_handler
     async def seleccionar_finca_costo(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         user_id = callback.from_user.id
@@ -349,6 +352,7 @@ def get_costos_router(db: Database) -> Router:
         await mostrar_lotes_costos(db, callback.message, state, edit=True)
 
     @router.callback_query(CostoForm.esperando_lote, F.data == "costo_lote:todos")
+    @error_handler
     async def costo_toda_finca(callback: types.CallbackQuery, state: FSMContext):
         """Aplica el costo a TODOS los lotes de la finca."""
         await callback.answer()
@@ -364,6 +368,7 @@ def get_costos_router(db: Database) -> Router:
         await mostrar_categorias_costos(callback.message, state, edit=True)
 
     @router.callback_query(CostoForm.esperando_lote, F.data == "costo_lote:especifico")
+    @error_handler
     async def costo_lote_especifico(callback: types.CallbackQuery, state: FSMContext):
         """Muestra lista de lotes para elegir uno."""
         await callback.answer()
@@ -389,6 +394,7 @@ def get_costos_router(db: Database) -> Router:
         )
 
     @router.callback_query(CostoForm.esperando_lote, F.data == "costo_lote:seleccionar")
+    @error_handler
     async def costo_seleccionar_lotes(callback: types.CallbackQuery, state: FSMContext):
         """Muestra lista de lotes con checkboxes para seleccionar múltiples."""
         await callback.answer()
@@ -418,6 +424,7 @@ def get_costos_router(db: Database) -> Router:
         )
 
     @router.callback_query(CostoForm.esperando_lote, F.data.startswith("toggle_lote:"))
+    @error_handler
     async def costo_toggle_lote(callback: types.CallbackQuery, state: FSMContext):
         """Activa/desactiva un lote en la selección múltiple."""
         await callback.answer()
@@ -451,6 +458,7 @@ def get_costos_router(db: Database) -> Router:
         await callback.message.edit_reply_markup(reply_markup=keyboard)
 
     @router.callback_query(CostoForm.esperando_lote, F.data == "costo_lote:confirmar_seleccion")
+    @error_handler
     async def costo_confirmar_seleccion(callback: types.CallbackQuery, state: FSMContext):
         """Confirma la selección de lotes y avanza al paso de categorías."""
         await callback.answer()
@@ -474,6 +482,7 @@ def get_costos_router(db: Database) -> Router:
         await mostrar_categorias_costos(callback.message, state, edit=True)
 
     @router.callback_query(CostoForm.esperando_lote, F.data.startswith("costo_lote:"))
+    @error_handler
     async def seleccionar_lote_costo(callback: types.CallbackQuery, state: FSMContext):
         """Selecciona un lote específico por su ID numérico."""
         await callback.answer()
@@ -490,6 +499,7 @@ def get_costos_router(db: Database) -> Router:
         await mostrar_categorias_costos(callback.message, state, edit=True)
 
     @router.callback_query(CostoForm.esperando_categoria, F.data.startswith("cat_costo:"))
+    @error_handler
     async def seleccionar_categoria(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         cat_key = callback.data.split(":", 1)[1]
@@ -523,6 +533,7 @@ def get_costos_router(db: Database) -> Router:
         await state.set_state(CostoForm.esperando_fecha)
 
     @router.message(CostoForm.esperando_fecha, F.text)
+    @error_handler
     async def recibir_fecha_costo(message: types.Message, state: FSMContext):
         fecha_str = message.text.strip()
 
@@ -579,6 +590,7 @@ def get_costos_router(db: Database) -> Router:
             await state.set_state(CostoForm.esperando_labor)
 
     @router.callback_query(CostoForm.esperando_fecha, F.data.startswith("fecha:"))
+    @error_handler
     async def procesar_fecha_callback_costo(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         opcion = callback.data.split(":", 1)[1]
@@ -626,6 +638,7 @@ def get_costos_router(db: Database) -> Router:
             await state.set_state(CostoForm.esperando_labor)
 
     @router.message(CostoForm.esperando_labor, F.text)
+    @error_handler
     async def recibir_labor(message: types.Message, state: FSMContext):
         labor = message.text.strip()
         if not labor:
@@ -679,6 +692,7 @@ def get_costos_router(db: Database) -> Router:
     # ── SELECCIÓN DE TIPO: MO / Insumos / Ambos ────────────────────────
 
     @router.callback_query(CostoForm.esperando_tipo, F.data == "registrar_mo")
+    @error_handler
     async def registrar_mano_de_obra(callback: types.CallbackQuery, state: FSMContext):
         """Flujo directo para mano de obra — sin submenús ocultos."""
         await callback.answer()
@@ -698,6 +712,7 @@ def get_costos_router(db: Database) -> Router:
         )
 
     @router.callback_query(CostoForm.esperando_tipo, F.data == "registrar_insumos")
+    @error_handler
     async def registrar_insumos_handler(callback: types.CallbackQuery, state: FSMContext):
         """Flujo directo para insumos — sin submenús ocultos."""
         await callback.answer()
@@ -717,6 +732,7 @@ def get_costos_router(db: Database) -> Router:
         )
 
     @router.callback_query(CostoForm.esperando_tipo, F.data == "registrar_ambos")
+    @error_handler
     async def registrar_ambos_handler(callback: types.CallbackQuery, state: FSMContext):
         """Flujo combinado: primero MO, luego Insumos automáticamente."""
         await callback.answer()
@@ -737,6 +753,7 @@ def get_costos_router(db: Database) -> Router:
         )
 
     @router.message(CostoForm.esperando_cantidad, F.text)
+    @error_handler
     async def recibir_cantidad_costo(message: types.Message, state: FSMContext):
         try:
             cantidad = float(message.text.strip().replace(",", "."))
@@ -772,6 +789,7 @@ def get_costos_router(db: Database) -> Router:
             await state.set_state(CostoForm.esperando_valor_unitario)
 
     @router.message(CostoForm.esperando_valor_unitario, F.text)
+    @error_handler
     async def recibir_valor_unitario(message: types.Message, state: FSMContext):
         try:
             vu = float(message.text.strip().replace(".", "").replace(",", "."))
@@ -799,6 +817,7 @@ def get_costos_router(db: Database) -> Router:
         await state.set_state(CostoForm.esperando_valor_total)
 
     @router.message(CostoForm.esperando_valor_total, F.text)
+    @error_handler
     async def recibir_valor_total_costo(message: types.Message, state: FSMContext):
         texto = message.text.strip().lower()
         data = await state.get_data()
@@ -869,6 +888,7 @@ def get_costos_router(db: Database) -> Router:
         await state.set_state(CostoForm.esperando_confirmar_mo)
 
     @router.callback_query(CostoForm.esperando_confirmar_mo, F.data.startswith("conf_costo_mo:"))
+    @error_handler
     async def confirmar_mo(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         decision = callback.data.split(":", 1)[1]
@@ -913,6 +933,7 @@ def get_costos_router(db: Database) -> Router:
     # ── EDICIÓN DE MANO DE OBRA ────────────────────────────────────
 
     @router.callback_query(CostoForm.esperando_confirmar_mo, F.data == "editar_costo_mo")
+    @error_handler
     async def editar_costo_mo(callback: types.CallbackQuery, state: FSMContext):
         """Muestra opciones de edición para MO."""
         await callback.answer()
@@ -952,6 +973,7 @@ def get_costos_router(db: Database) -> Router:
         await state.set_state(CostoForm.esperando_edicion)
 
     @router.callback_query(CostoForm.esperando_edicion, F.data.startswith("edit_mo_"))
+    @error_handler
     async def editar_mo_campo(callback: types.CallbackQuery, state: FSMContext):
         """Redirige al campo a editar en MO."""
         await callback.answer()
@@ -998,6 +1020,7 @@ def get_costos_router(db: Database) -> Router:
             await state.set_state(CostoForm.esperando_edicion_valor_total)
 
     @router.message(CostoForm.esperando_edicion_labor, F.text)
+    @error_handler
     async def recibir_edicion_labor(message: types.Message, state: FSMContext):
         labor = message.text.strip()
         if not labor:
@@ -1007,6 +1030,7 @@ def get_costos_router(db: Database) -> Router:
         await mostrar_resumen_mo(message, state)
 
     @router.message(CostoForm.esperando_edicion_fecha, F.text)
+    @error_handler
     async def recibir_edicion_fecha(message: types.Message, state: FSMContext):
         fecha_str = message.text.strip()
         if fecha_str.lower() in ["hoy", "today"]:
@@ -1031,6 +1055,7 @@ def get_costos_router(db: Database) -> Router:
         await mostrar_resumen_mo(message, state)
 
     @router.callback_query(CostoForm.esperando_edicion_fecha, F.data.startswith("fecha:"))
+    @error_handler
     async def procesar_edicion_fecha_callback(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         opcion = callback.data.split(":", 1)[1]
@@ -1046,6 +1071,7 @@ def get_costos_router(db: Database) -> Router:
         await mostrar_resumen_mo(callback.message, state, edit=True)
 
     @router.message(CostoForm.esperando_edicion_cantidad, F.text)
+    @error_handler
     async def recibir_edicion_cantidad(message: types.Message, state: FSMContext):
         try:
             cantidad = float(message.text.strip().replace(",", "."))
@@ -1063,6 +1089,7 @@ def get_costos_router(db: Database) -> Router:
         await mostrar_resumen_mo(message, state)
 
     @router.message(CostoForm.esperando_edicion_valor_unitario, F.text)
+    @error_handler
     async def recibir_edicion_vu(message: types.Message, state: FSMContext):
         try:
             vu = float(message.text.strip().replace(".", "").replace(",", "."))
@@ -1079,6 +1106,7 @@ def get_costos_router(db: Database) -> Router:
         await mostrar_resumen_mo(message, state)
 
     @router.message(CostoForm.esperando_edicion_valor_total, F.text)
+    @error_handler
     async def recibir_edicion_valor_total(message: types.Message, state: FSMContext):
         try:
             valor_total = float(message.text.strip().replace(".", "").replace(",", "."))
@@ -1091,6 +1119,7 @@ def get_costos_router(db: Database) -> Router:
         await mostrar_resumen_mo(message, state)
 
     @router.callback_query(F.data == "volver_resumen_mo")
+    @error_handler
     async def volver_resumen_mo(callback: types.CallbackQuery, state: FSMContext):
         """Vuelve a mostrar el resumen MO desde la edición."""
         await callback.answer()
@@ -1160,6 +1189,7 @@ def get_costos_router(db: Database) -> Router:
     # --- FLUJO DE INSUMOS ---
 
     @router.message(CostoForm.esperando_producto, F.text)
+    @error_handler
     async def recibir_producto(message: types.Message, state: FSMContext):
         producto = message.text.strip()
         if not producto:
@@ -1190,6 +1220,7 @@ def get_costos_router(db: Database) -> Router:
         await state.set_state(CostoForm.esperando_unidad_insumo)
 
     @router.callback_query(CostoForm.esperando_unidad_insumo, F.data.startswith("unidad_insumo:"))
+    @error_handler
     async def seleccionar_unidad_insumo(callback: types.CallbackQuery, state: FSMContext):
         """Guarda la unidad seleccionada y pide la cantidad."""
         await callback.answer()
@@ -1208,6 +1239,7 @@ def get_costos_router(db: Database) -> Router:
         await state.set_state(CostoForm.esperando_cantidad_insumo)
 
     @router.message(CostoForm.esperando_cantidad_insumo, F.text)
+    @error_handler
     async def recibir_cantidad_insumo(message: types.Message, state: FSMContext):
         try:
             cantidad = float(message.text.strip().replace(",", "."))
@@ -1228,6 +1260,7 @@ def get_costos_router(db: Database) -> Router:
         await state.set_state(CostoForm.esperando_valor_unitario_insumo)
 
     @router.message(CostoForm.esperando_valor_unitario_insumo, F.text)
+    @error_handler
     async def recibir_vu_insumo(message: types.Message, state: FSMContext):
         try:
             vu = float(message.text.strip().replace(".", "").replace(",", "."))
@@ -1255,6 +1288,7 @@ def get_costos_router(db: Database) -> Router:
         await state.set_state(CostoForm.esperando_valor_total_insumo)
 
     @router.message(CostoForm.esperando_valor_total_insumo, F.text)
+    @error_handler
     async def recibir_vt_insumo(message: types.Message, state: FSMContext):
         texto = message.text.strip().lower()
         data = await state.get_data()
@@ -1298,6 +1332,7 @@ def get_costos_router(db: Database) -> Router:
         await state.set_state(CostoForm.esperando_confirmar_insumo)
 
     @router.callback_query(CostoForm.esperando_confirmar_insumo, F.data.startswith("conf_insumo:"))
+    @error_handler
     async def confirmar_insumo(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         decision = callback.data.split(":", 1)[1]
@@ -1406,6 +1441,7 @@ def get_costos_router(db: Database) -> Router:
     # ── AGREGAR OTRO INSUMO ────────────────────────────────────
 
     @router.callback_query(F.data == "agregar_otro_insumo")
+    @error_handler
     async def agregar_otro_insumo(callback: types.CallbackQuery, state: FSMContext):
         """Vuelve a pedir producto/insumo para agregar otro."""
         await callback.answer()
@@ -1419,6 +1455,7 @@ def get_costos_router(db: Database) -> Router:
         await state.set_state(CostoForm.esperando_producto)
 
     @router.callback_query(F.data == "terminar_costo")
+    @error_handler
     async def terminar_costo(callback: types.CallbackQuery, state: FSMContext):
         """Termina el registro de costos y vuelve al menú."""
         await callback.answer()
@@ -1433,6 +1470,7 @@ def get_costos_router(db: Database) -> Router:
     # ── EDICIÓN DE INSUMOS ──────────────────────────────────────
 
     @router.callback_query(CostoForm.esperando_confirmar_insumo, F.data == "editar_insumo")
+    @error_handler
     async def editar_insumo(callback: types.CallbackQuery, state: FSMContext):
         """Muestra opciones de edición para Insumos."""
         await callback.answer()
@@ -1452,6 +1490,7 @@ def get_costos_router(db: Database) -> Router:
         await state.set_state(CostoForm.esperando_edicion)
 
     @router.callback_query(CostoForm.esperando_edicion, F.data.startswith("edit_insumo_"))
+    @error_handler
     async def editar_insumo_campo(callback: types.CallbackQuery, state: FSMContext):
         """Redirige al campo a editar en Insumos."""
         await callback.answer()
@@ -1482,6 +1521,7 @@ def get_costos_router(db: Database) -> Router:
             await state.set_state(CostoForm.esperando_edicion_vu_insumo)
 
     @router.message(CostoForm.esperando_edicion_producto, F.text)
+    @error_handler
     async def recibir_edicion_producto(message: types.Message, state: FSMContext):
         producto = message.text.strip()
         if not producto:
@@ -1491,6 +1531,7 @@ def get_costos_router(db: Database) -> Router:
         await mostrar_resumen_insumo(message, state)
 
     @router.message(CostoForm.esperando_edicion_cantidad_insumo, F.text)
+    @error_handler
     async def recibir_edicion_cantidad_insumo(message: types.Message, state: FSMContext):
         try:
             cantidad = float(message.text.strip().replace(",", "."))
@@ -1507,6 +1548,7 @@ def get_costos_router(db: Database) -> Router:
         await mostrar_resumen_insumo(message, state)
 
     @router.message(CostoForm.esperando_edicion_vu_insumo, F.text)
+    @error_handler
     async def recibir_edicion_vu_insumo(message: types.Message, state: FSMContext):
         try:
             vu = float(message.text.strip().replace(".", "").replace(",", "."))
@@ -1523,6 +1565,7 @@ def get_costos_router(db: Database) -> Router:
         await mostrar_resumen_insumo(message, state)
 
     @router.callback_query(F.data == "volver_resumen_insumo")
+    @error_handler
     async def volver_resumen_insumo(callback: types.CallbackQuery, state: FSMContext):
         """Vuelve a mostrar el resumen de insumo desde la edición."""
         await callback.answer()
@@ -1565,6 +1608,7 @@ def get_costos_router(db: Database) -> Router:
         await state.set_state(CostoForm.esperando_confirmar_insumo)
 
     @router.callback_query(F.data == "cancelar_operacion")
+    @error_handler
     async def cancelar_operacion(callback: types.CallbackQuery, state: FSMContext):
         """Cancela la operación actual desde un botón inline."""
         await callback.answer()

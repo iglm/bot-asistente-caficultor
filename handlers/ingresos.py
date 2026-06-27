@@ -11,6 +11,7 @@ from aiogram.fsm.state import State, StatesGroup
 from database import Database
 from config import TIPOS_CAFE, TIPOS_CAFE_LIST
 from utils import boton_menu, botones_menu_cancelar, agregar_boton_menu, botones_fecha, fecha_hoy, fecha_ayer
+from .error_handler import error_handler
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ def get_ingresos_router(db: Database) -> Router:
 
     @router.message(Command("ingreso"))
     @router.callback_query(F.data == "menu_ingresos")
+    @error_handler
     async def cmd_ingreso(event: types.Message | types.CallbackQuery, state: FSMContext):
         """Inicia el registro de un ingreso. Limpia estado previo primero."""
         # Garantizar que NO haya estado FSM residual
@@ -106,6 +108,7 @@ def get_ingresos_router(db: Database) -> Router:
             await send("❌ <b>Error al iniciar registro.</b>", parse_mode="HTML", reply_markup=boton_menu())
 
     @router.callback_query(IngresoForm.esperando_finca, F.data.startswith("ingreso_finca:"))
+    @error_handler
     async def seleccionar_finca_ingreso(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         user_id = callback.from_user.id
@@ -125,6 +128,7 @@ def get_ingresos_router(db: Database) -> Router:
         await preguntar_fecha(callback.message, state)
 
     @router.message(IngresoForm.esperando_fecha, F.text)
+    @error_handler
     async def recibir_fecha(message: types.Message, state: FSMContext):
         fecha_str = message.text.strip()
 
@@ -169,6 +173,7 @@ def get_ingresos_router(db: Database) -> Router:
         await state.set_state(IngresoForm.esperando_tipo)
 
     @router.callback_query(IngresoForm.esperando_fecha, F.data.startswith("fecha:"))
+    @error_handler
     async def procesar_fecha_callback_ingreso(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         opcion = callback.data.split(":", 1)[1]
@@ -203,12 +208,14 @@ def get_ingresos_router(db: Database) -> Router:
         await state.set_state(IngresoForm.esperando_tipo)
 
     @router.callback_query(IngresoForm.esperando_tipo, F.data == "ingreso_volver_fecha")
+    @error_handler
     async def volver_fecha(callback: types.CallbackQuery, state: FSMContext):
         """Vuelve al paso de fecha."""
         await callback.answer()
         await preguntar_fecha(callback.message, state)
 
     @router.callback_query(IngresoForm.esperando_tipo, F.data.startswith("tipo_cafe:"))
+    @error_handler
     async def recibir_tipo(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         tipo = callback.data.split(":", 1)[1]
@@ -224,6 +231,7 @@ def get_ingresos_router(db: Database) -> Router:
         await state.set_state(IngresoForm.esperando_cantidad)
 
     @router.message(IngresoForm.esperando_cantidad, F.text)
+    @error_handler
     async def recibir_cantidad(message: types.Message, state: FSMContext):
         try:
             cantidad = float(message.text.strip().replace(",", "."))
@@ -244,6 +252,7 @@ def get_ingresos_router(db: Database) -> Router:
         await state.set_state(IngresoForm.esperando_valor_total)
 
     @router.message(IngresoForm.esperando_valor_total, F.text)
+    @error_handler
     async def recibir_valor_total(message: types.Message, state: FSMContext):
         try:
             valor = float(message.text.strip().replace(".", "").replace(",", "."))
@@ -288,6 +297,7 @@ def get_ingresos_router(db: Database) -> Router:
     # ── EDICIÓN DE INGRESO ──────────────────────────────────────
 
     @router.callback_query(IngresoForm.esperando_confirmar, F.data == "editar_ingreso")
+    @error_handler
     async def editar_ingreso(callback: types.CallbackQuery, state: FSMContext):
         """Muestra opciones de edición para Ingreso."""
         await callback.answer()
@@ -307,6 +317,7 @@ def get_ingresos_router(db: Database) -> Router:
         await state.set_state(IngresoForm.esperando_edicion)
 
     @router.callback_query(IngresoForm.esperando_edicion, F.data.startswith("edit_ingreso_"))
+    @error_handler
     async def editar_ingreso_campo(callback: types.CallbackQuery, state: FSMContext):
         """Redirige al campo a editar en Ingreso."""
         await callback.answer()
@@ -337,6 +348,7 @@ def get_ingresos_router(db: Database) -> Router:
             await state.set_state(IngresoForm.esperando_edicion_valor_total)
 
     @router.message(IngresoForm.esperando_edicion_fecha, F.text)
+    @error_handler
     async def recibir_edicion_fecha_ingreso(message: types.Message, state: FSMContext):
         fecha_str = message.text.strip()
         if fecha_str.lower() in ["hoy", "today"]:
@@ -361,6 +373,7 @@ def get_ingresos_router(db: Database) -> Router:
         await mostrar_resumen_ingreso(message, state)
 
     @router.callback_query(IngresoForm.esperando_edicion_fecha, F.data.startswith("fecha:"))
+    @error_handler
     async def procesar_edicion_fecha_ingreso(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         opcion = callback.data.split(":", 1)[1]
@@ -376,6 +389,7 @@ def get_ingresos_router(db: Database) -> Router:
         await mostrar_resumen_ingreso(callback.message, state, edit=True)
 
     @router.message(IngresoForm.esperando_edicion_cantidad, F.text)
+    @error_handler
     async def recibir_edicion_cantidad_ingreso(message: types.Message, state: FSMContext):
         try:
             cantidad = float(message.text.strip().replace(",", "."))
@@ -388,6 +402,7 @@ def get_ingresos_router(db: Database) -> Router:
         await mostrar_resumen_ingreso(message, state)
 
     @router.message(IngresoForm.esperando_edicion_valor_total, F.text)
+    @error_handler
     async def recibir_edicion_valor_total_ingreso(message: types.Message, state: FSMContext):
         try:
             valor = float(message.text.strip().replace(".", "").replace(",", "."))
@@ -400,6 +415,7 @@ def get_ingresos_router(db: Database) -> Router:
         await mostrar_resumen_ingreso(message, state)
 
     @router.callback_query(F.data == "volver_resumen_ingreso")
+    @error_handler
     async def volver_resumen_ingreso(callback: types.CallbackQuery, state: FSMContext):
         """Vuelve a mostrar el resumen de ingreso desde la edición."""
         await callback.answer()
@@ -445,6 +461,7 @@ def get_ingresos_router(db: Database) -> Router:
         await state.set_state(IngresoForm.esperando_confirmar)
 
     @router.callback_query(IngresoForm.esperando_confirmar, F.data.startswith("conf_ingreso:"))
+    @error_handler
     async def confirmar_ingreso(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         decision = callback.data.split(":", 1)[1]

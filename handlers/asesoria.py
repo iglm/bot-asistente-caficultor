@@ -9,6 +9,7 @@ from aiogram.fsm.context import FSMContext
 from database import Database
 from config import ASESORIA_EMAIL, ASESOR_NOMBRE, ASESOR_ASESOR
 from utils import boton_menu
+from .error_handler import error_handler
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,7 @@ def get_asesoria_router(db: Database) -> Router:
     router = Router()
 
     @router.message(Command("asesoria"))
+    @error_handler
     async def cmd_asesoria(message: types.Message, state: FSMContext):
         """Menú principal de asesoría."""
         await state.clear()
@@ -40,6 +42,7 @@ def get_asesoria_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data == "as_interpretar")
+    @error_handler
     async def as_interpretar(callback: types.CallbackQuery, state: FSMContext):
         """Interpreta los datos del usuario y genera recomendaciones."""
         await callback.answer()
@@ -83,6 +86,7 @@ def get_asesoria_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data == "as_sugerencias")
+    @error_handler
     async def as_sugerencias(callback: types.CallbackQuery, state: FSMContext):
         """Genera sugerencias de mejora personalizadas."""
         await callback.answer()
@@ -114,6 +118,7 @@ def get_asesoria_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data == "as_plan")
+    @error_handler
     async def as_plan(callback: types.CallbackQuery, state: FSMContext):
         """Genera un plan de acción detallado."""
         await callback.answer()
@@ -145,6 +150,7 @@ def get_asesoria_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data == "as_personalizada")
+    @error_handler
     async def as_personalizada(callback: types.CallbackQuery, state: FSMContext):
         """Solicitud de asesoría personalizada."""
         await callback.answer()

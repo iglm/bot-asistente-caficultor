@@ -8,6 +8,7 @@ from aiogram.filters import Command
 from database import Database
 from config import ADMIN_IDS
 from utils import boton_menu, agregar_boton_menu
+from .error_handler import error_handler
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ def get_admin_router(db: Database) -> Router:
         return user_id in ADMIN_IDS
 
     @router.message(Command("usuarios"))
+    @error_handler
     async def cmd_usuarios(message: types.Message):
         """Lista todos los usuarios organizados por estado con botones inline."""
         if not is_admin(message.from_user.id):
@@ -120,6 +122,7 @@ def get_admin_router(db: Database) -> Router:
             await message.answer("❌ <b>Error al obtener la lista de usuarios.</b>", parse_mode="HTML", reply_markup=boton_menu())
 
     @router.message(Command("revocar"))
+    @error_handler
     async def cmd_revocar(message: types.Message):
         """Revoca acceso de un usuario aprobado. Uso: /revocar USER_ID"""
         if not is_admin(message.from_user.id):
@@ -177,6 +180,7 @@ def get_admin_router(db: Database) -> Router:
             await message.answer("❌ <b>Error al revocar usuario.</b>", parse_mode="HTML", reply_markup=boton_menu())
 
     @router.callback_query(F.data.startswith("aprobar:"))
+    @error_handler
     async def callback_aprobar(callback: types.CallbackQuery):
         """Aprueba a un usuario desde callback."""
         if not is_admin(callback.from_user.id):
@@ -214,6 +218,7 @@ def get_admin_router(db: Database) -> Router:
             await callback.answer("❌ Error al aprobar usuario.", show_alert=True)
 
     @router.callback_query(F.data.startswith("rechazar:"))
+    @error_handler
     async def callback_rechazar(callback: types.CallbackQuery):
         """Rechaza a un usuario desde callback."""
         if not is_admin(callback.from_user.id):
@@ -250,6 +255,7 @@ def get_admin_router(db: Database) -> Router:
             await callback.answer("❌ Error al rechazar usuario.", show_alert=True)
 
     @router.callback_query(F.data.startswith("revocar:"))
+    @error_handler
     async def callback_revocar(callback: types.CallbackQuery):
         """Revoca acceso de un usuario aprobado desde callback."""
         if not is_admin(callback.from_user.id):
@@ -289,6 +295,7 @@ def get_admin_router(db: Database) -> Router:
             await callback.answer("❌ Error al revocar usuario.", show_alert=True)
 
     @router.callback_query(F.data.startswith("reactivar:"))
+    @error_handler
     async def callback_reactivar(callback: types.CallbackQuery):
         """Re-activa a un usuario rechazado desde callback (lo pone como pending)."""
         if not is_admin(callback.from_user.id):

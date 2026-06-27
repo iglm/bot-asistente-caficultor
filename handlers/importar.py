@@ -13,6 +13,7 @@ from database import Database
 from config import CATEGORIAS
 
 from utils import boton_menu, botones_menu_cancelar, agregar_boton_menu
+from .error_handler import error_handler
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ def get_importar_router(db: Database) -> Router:
         return tipo.lower().replace(" ", "_")
 
     @router.callback_query(F.data == "menu_importar")
+    @error_handler
     async def menu_importar(callback: types.CallbackQuery, state: FSMContext):
         """Inicia el flujo de importación."""
         await callback.answer()
@@ -91,6 +93,7 @@ def get_importar_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data == "importar:descargar_plantilla")
+    @error_handler
     async def descargar_plantilla(callback: types.CallbackQuery):
         """Genera y envía una plantilla Excel vacía basada en el template real con instrucciones."""
         await callback.answer()
@@ -135,6 +138,7 @@ def get_importar_router(db: Database) -> Router:
             )
 
     @router.message(F.document, ImportExcelState.esperando_archivo)
+    @error_handler
     async def recibir_archivo(message: types.Message, state: FSMContext):
         """Recibe y parsea el archivo Excel."""
         user_id = message.from_user.id
@@ -348,6 +352,7 @@ def get_importar_router(db: Database) -> Router:
             )
 
     @router.callback_query(F.data == "importar:cancelar", ImportExcelState.preview_mostrado)
+    @error_handler
     async def cancelar_importacion(callback: types.CallbackQuery, state: FSMContext):
         """Cancela la importación."""
         await callback.answer()
@@ -360,6 +365,7 @@ def get_importar_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data == "importar:confirmar", ImportExcelState.preview_mostrado)
+    @error_handler
     async def confirmar_importacion(callback: types.CallbackQuery, state: FSMContext):
         """Confirma y ejecuta la importación."""
         await callback.answer()

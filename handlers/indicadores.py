@@ -13,6 +13,7 @@ from aiogram.fsm.context import FSMContext
 from database import Database
 from config import EXPORTS_DIR
 from utils import boton_menu, agregar_boton_menu
+from .error_handler import error_handler
 
 logger = logging.getLogger(__name__)
 
@@ -229,6 +230,7 @@ def get_indicadores_router(db: Database) -> Router:
 
     @router.message(Command("indicadores"))
     @router.callback_query(F.data == "menu_indicadores")
+    @error_handler
     async def cmd_indicadores(event: types.Message | types.CallbackQuery, state: FSMContext):
         """Muestra el menú principal de indicadores técnicos."""
         await state.clear()
@@ -301,6 +303,7 @@ def get_indicadores_router(db: Database) -> Router:
             )
 
     @router.callback_query(F.data.startswith("indic_finca:"))
+    @error_handler
     async def seleccionar_finca_indicador(callback: types.CallbackQuery):
         """Selecciona una finca para ver sus indicadores."""
         await callback.answer()
@@ -332,6 +335,7 @@ def get_indicadores_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data.startswith("indicador:"))
+    @error_handler
     async def mostrar_filtro_indicador(callback: types.CallbackQuery):
         """Muestra los indicadores según el filtro seleccionado."""
         await callback.answer()
@@ -351,6 +355,7 @@ def get_indicadores_router(db: Database) -> Router:
         await mostrar_indicadores(db, callback.message.edit_text, finca_id, finca["nombre"], filtro)
 
     @router.callback_query(F.data.startswith("indicador_excel:"))
+    @error_handler
     async def exportar_indicadores_excel(callback: types.CallbackQuery):
         """Exporta los indicadores a un archivo Excel."""
         await callback.answer()
@@ -382,6 +387,7 @@ def get_indicadores_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data.startswith("indicador_pdf:"))
+    @error_handler
     async def exportar_indicadores_pdf(callback: types.CallbackQuery):
         """Exporta los indicadores a un archivo PDF."""
         await callback.answer()
@@ -490,6 +496,7 @@ def get_indicadores_router(db: Database) -> Router:
             )
 
     @router.callback_query(F.data.startswith("indicador_periodo:"))
+    @error_handler
     async def indicador_ir_a_filtro(callback: types.CallbackQuery):
         """Redirige al menú de filtrado por período."""
         await callback.answer()
@@ -541,6 +548,7 @@ def get_indicadores_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data.startswith("indic_filtro:"))
+    @error_handler
     async def ejecutar_indicador_periodo(callback: types.CallbackQuery):
         """Muestra indicadores para un período específico."""
         await callback.answer()

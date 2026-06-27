@@ -13,6 +13,7 @@ from aiogram.fsm.state import State, StatesGroup
 from database import Database
 from config import EXPORTS_DIR, EXCEL_TEMPLATE
 from utils import boton_menu, agregar_boton_menu, botones_menu_cancelar
+from .error_handler import error_handler
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +136,7 @@ def get_presupuesto_router(db: Database) -> Router:
 
     @router.message(Command("presupuesto"))
     @router.callback_query(F.data == "menu_presupuesto")
+    @error_handler
     async def cmd_presupuesto(event: types.Message | types.CallbackQuery, state: FSMContext):
         """Muestra el menú de presupuestos."""
         await state.clear()
@@ -194,6 +196,7 @@ def get_presupuesto_router(db: Database) -> Router:
     # ════════════════════════════════════════════════════════════════
 
     @router.callback_query(F.data == "presup_crear")
+    @error_handler
     async def presup_crear_inicio(callback: types.CallbackQuery, state: FSMContext):
         """Inicia flujo de creación de presupuesto: seleccionar finca."""
         await callback.answer()
@@ -228,6 +231,7 @@ def get_presupuesto_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data.startswith("presup_crear_finca:"))
+    @error_handler
     async def presup_crear_finca_selected(callback: types.CallbackQuery, state: FSMContext):
         """Finca seleccionada para crear presupuesto."""
         await callback.answer()
@@ -256,6 +260,7 @@ def get_presupuesto_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data.startswith("presup_anio:"))
+    @error_handler
     async def presup_anio_selected(callback: types.CallbackQuery, state: FSMContext):
         """Año seleccionado. Preguntar área."""
         await callback.answer()
@@ -300,6 +305,7 @@ def get_presupuesto_router(db: Database) -> Router:
             )
 
     @router.callback_query(F.data.startswith("presup_area:"))
+    @error_handler
     async def presup_area_selected(callback: types.CallbackQuery, state: FSMContext):
         """Área seleccionada de las opciones rápidas."""
         await callback.answer()
@@ -308,6 +314,7 @@ def get_presupuesto_router(db: Database) -> Router:
         await _mostrar_edicion_presupuesto(callback.message.edit_text, state, db)
 
     @router.callback_query(F.data == "presup_area_manual")
+    @error_handler
     async def presup_area_manual(callback: types.CallbackQuery, state: FSMContext):
         """El usuario quiere ingresar área manualmente."""
         await callback.answer()
@@ -322,6 +329,7 @@ def get_presupuesto_router(db: Database) -> Router:
         )
 
     @router.message(PresupuestoStates.esperando_area)
+    @error_handler
     async def presup_area_manual_text(message: types.Message, state: FSMContext):
         """Recibe el área manualmente."""
         try:
@@ -379,6 +387,7 @@ def get_presupuesto_router(db: Database) -> Router:
         await state.set_state(PresupuestoStates.editando_categoria)
 
     @router.callback_query(F.data.startswith("presup_editar_cat:"))
+    @error_handler
     async def presup_editar_cat(callback: types.CallbackQuery, state: FSMContext):
         """Selecciona una categoría para editar su monto."""
         await callback.answer()
@@ -416,6 +425,7 @@ def get_presupuesto_router(db: Database) -> Router:
         )
 
     @router.message(PresupuestoStates.editando_categoria)
+    @error_handler
     async def presup_recibir_monto(message: types.Message, state: FSMContext):
         """Recibe el nuevo monto para una categoría."""
         try:
@@ -440,12 +450,14 @@ def get_presupuesto_router(db: Database) -> Router:
         await _mostrar_edicion_presupuesto(message.answer, state, db)
 
     @router.callback_query(F.data == "presup_volver_edicion")
+    @error_handler
     async def presup_volver_edicion(callback: types.CallbackQuery, state: FSMContext):
         """Vuelve a la vista de edición sin cambios."""
         await callback.answer()
         await _mostrar_edicion_presupuesto(callback.message.edit_text, state, db)
 
     @router.callback_query(F.data == "presup_confirmar")
+    @error_handler
     async def presup_confirmar(callback: types.CallbackQuery, state: FSMContext):
         """Confirma y guarda el presupuesto."""
         await callback.answer()
@@ -490,6 +502,7 @@ def get_presupuesto_router(db: Database) -> Router:
     # ════════════════════════════════════════════════════════════════
 
     @router.callback_query(F.data == "presup_consultar")
+    @error_handler
     async def presup_consultar(callback: types.CallbackQuery, state: FSMContext):
         """Seleccionar finca y año para consultar presupuesto."""
         await callback.answer()
@@ -539,6 +552,7 @@ def get_presupuesto_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data.startswith("presup_consultar_finca:"))
+    @error_handler
     async def presup_consultar_finca(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         finca_id = int(callback.data.split(":")[1])
@@ -563,6 +577,7 @@ def get_presupuesto_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data.startswith("presup_consultar_anio:"))
+    @error_handler
     async def presup_consultar_anio(callback: types.CallbackQuery, state: FSMContext):
         """Muestra el presupuesto planificado."""
         await callback.answer()
@@ -614,6 +629,7 @@ def get_presupuesto_router(db: Database) -> Router:
     # ════════════════════════════════════════════════════════════════
 
     @router.callback_query(F.data == "presup_ejecutar")
+    @error_handler
     async def presup_ejecutar(callback: types.CallbackQuery, state: FSMContext):
         """Seleccionar finca y año para comparar ejecución."""
         await callback.answer()
@@ -663,6 +679,7 @@ def get_presupuesto_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data.startswith("presup_ejecutar_finca:"))
+    @error_handler
     async def presup_ejecutar_finca(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         finca_id = int(callback.data.split(":")[1])
@@ -687,6 +704,7 @@ def get_presupuesto_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data.startswith("presup_ejecutar_anio:"))
+    @error_handler
     async def presup_ejecutar_anio(callback: types.CallbackQuery, state: FSMContext):
         """Muestra la comparación de ejecución presupuestal."""
         await callback.answer()
@@ -774,6 +792,7 @@ def get_presupuesto_router(db: Database) -> Router:
     # ════════════════════════════════════════════════════════════════
 
     @router.callback_query(F.data == "presup_exportar")
+    @error_handler
     async def presup_exportar(callback: types.CallbackQuery, state: FSMContext):
         """Exporta presupuesto a Excel (usa el ExcelManager existente)."""
         await callback.answer()
@@ -822,6 +841,7 @@ def get_presupuesto_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data.startswith("presup_exportar_finca:"))
+    @error_handler
     async def presup_exportar_finca(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         finca_id = int(callback.data.split(":")[1])
@@ -846,6 +866,7 @@ def get_presupuesto_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data.startswith("presup_exportar_anio:"))
+    @error_handler
     async def presup_exportar_anio(callback: types.CallbackQuery):
         """Genera y envía el Excel con la hoja Presupuesto."""
         await callback.answer()

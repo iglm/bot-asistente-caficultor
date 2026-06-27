@@ -12,6 +12,7 @@ from aiogram.fsm.state import State, StatesGroup
 from database import Database
 from config import CATEGORIAS, EXPORTS_DIR, EXCEL_TEMPLATE, ADMIN_IDS
 from utils import boton_menu, agregar_boton_menu
+from .error_handler import error_handler
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,7 @@ def get_reportes_router(db: Database) -> Router:
 
     @router.message(Command("resumen"))
     @router.callback_query(F.data == "menu_resumen")
+    @error_handler
     async def cmd_resumen(event: types.Message | types.CallbackQuery, state: FSMContext):
         """Muestra el resumen de la finca."""
         await state.clear()
@@ -168,6 +170,7 @@ def get_reportes_router(db: Database) -> Router:
             await send("❌ <b>Error al generar resumen.</b>", parse_mode="HTML", reply_markup=boton_menu())
 
     @router.callback_query(F.data.startswith("resumen_finca:"))
+    @error_handler
     async def seleccionar_finca_resumen(callback: types.CallbackQuery):
         await callback.answer()
         user_id = callback.from_user.id
@@ -184,6 +187,7 @@ def get_reportes_router(db: Database) -> Router:
 
     @router.callback_query(F.data == "menu_excel")
     @router.callback_query(F.data.startswith("generar_excel:"))
+    @error_handler
     async def cmd_generar_excel(callback: types.CallbackQuery):
         """Genera y envía el Excel."""
         await callback.answer()
@@ -328,6 +332,7 @@ def get_reportes_router(db: Database) -> Router:
             )
 
     @router.callback_query(F.data.startswith("resumen_pdf:"))
+    @error_handler
     async def cmd_exportar_pdf(callback: types.CallbackQuery):
         """Exporta el resumen a PDF."""
         await callback.answer()
@@ -429,6 +434,7 @@ def get_reportes_router(db: Database) -> Router:
 
     @router.message(Command("filtrar"))
     @router.callback_query(F.data == "menu_filtrar")
+    @error_handler
     async def cmd_filtrar(event: types.Message | types.CallbackQuery, state: FSMContext):
         """Muestra el menú de filtrado por período."""
         await state.clear()
@@ -517,6 +523,7 @@ def get_reportes_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data.startswith("filtrar_seleccion:"))
+    @error_handler
     async def seleccionar_finca_filtrar(callback: types.CallbackQuery):
         await callback.answer()
         user_id = callback.from_user.id
@@ -528,6 +535,7 @@ def get_reportes_router(db: Database) -> Router:
         await mostrar_menu_filtrar(callback.message.edit_text, finca, db)
 
     @router.callback_query(F.data.startswith("filtrar:"))
+    @error_handler
     async def ejecutar_filtro(callback: types.CallbackQuery, state: FSMContext):
         """Ejecuta el filtro seleccionado y muestra el resumen del período."""
         await callback.answer()
@@ -578,6 +586,7 @@ def get_reportes_router(db: Database) -> Router:
         await mostrar_resumen_periodo(callback.message.edit_text, finca, resumen, etiqueta, db)
 
     @router.message(FiltrarStates.esperando_fecha_inicio)
+    @error_handler
     async def recibir_fecha_inicio(message: types.Message, state: FSMContext):
         """Recibe la fecha de inicio para filtro personalizado."""
         texto = message.text.strip()
@@ -617,6 +626,7 @@ def get_reportes_router(db: Database) -> Router:
         )
 
     @router.message(FiltrarStates.esperando_fecha_fin)
+    @error_handler
     async def recibir_fecha_fin(message: types.Message, state: FSMContext):
         """Recibe la fecha de fin y muestra el resumen del período."""
         texto = message.text.strip()
@@ -724,6 +734,7 @@ def get_reportes_router(db: Database) -> Router:
                 await send_func(parte, parse_mode="HTML")
 
     @router.callback_query(F.data.startswith("excel_periodo:"))
+    @error_handler
     async def generar_excel_periodo(callback: types.CallbackQuery):
         """Genera Excel con la hoja de período incluida."""
         await callback.answer()

@@ -10,6 +10,7 @@ from aiogram.fsm.context import FSMContext
 from database import Database
 from config import ADMIN_IDS
 from utils import boton_menu, agregar_boton_menu, construir_menu_principal
+from .error_handler import error_handler
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ def get_menu_router(db: Database) -> Router:
     @router.message(Command("menu"))
     @router.message(Command("cancelar"))
     @router.message(F.text == "/")
+    @error_handler
     async def cmd_menu(event: types.Message, state: FSMContext):
         """Intercepta /menu, /cancelar o / en CUALQUIER estado FSM."""
         # Limpiar CUALQUIER estado activo
@@ -57,6 +59,7 @@ def get_menu_router(db: Database) -> Router:
     # ── Callbacks del menú (solo responden, no cambian state) ──
 
     @router.callback_query(F.data == "ir_borrar")
+    @error_handler
     async def menu_borrar(callback: types.CallbackQuery, state: FSMContext):
         """Muestra primera confirmación antes de borrar todos los datos."""
         await callback.answer()
@@ -94,6 +97,7 @@ def get_menu_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data.startswith("confirmar_borrar:"))
+    @error_handler
     async def confirmar_borrar(callback: types.CallbackQuery, state: FSMContext):
         """Primera confirmación → si es 'si', pide SEGUNDA confirmación más fuerte."""
         await callback.answer()
@@ -133,6 +137,7 @@ def get_menu_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data.startswith("confirmar_borrar_2:"))
+    @error_handler
     async def confirmar_borrar_2(callback: types.CallbackQuery, state: FSMContext):
         """Ejecuta el borrado SOLO si el usuario confirma por segunda vez."""
         await callback.answer()
@@ -171,6 +176,7 @@ def get_menu_router(db: Database) -> Router:
             )
 
     @router.callback_query(F.data == "ir_admin")
+    @error_handler
     async def menu_admin(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         await state.clear()
@@ -193,6 +199,7 @@ def get_menu_router(db: Database) -> Router:
             )
 
     @router.callback_query(F.data == "volver_menu")
+    @error_handler
     async def volver_menu(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         await state.clear()
@@ -219,6 +226,7 @@ def get_menu_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data == "cancelar_operacion")
+    @error_handler
     async def cancelar_operacion(callback: types.CallbackQuery, state: FSMContext):
         """Cancela cualquier operación actual y vuelve al menú."""
         await callback.answer()
@@ -230,6 +238,7 @@ def get_menu_router(db: Database) -> Router:
         )
 
     @router.callback_query(F.data == "menu_pdf")
+    @error_handler
     async def menu_pdf(callback: types.CallbackQuery, state: FSMContext):
         """Redirige a indicadores para exportar PDF."""
         await callback.answer()
@@ -274,6 +283,7 @@ def get_menu_router(db: Database) -> Router:
             )
 
     @router.callback_query(F.data == "menu_dashboard")
+    @error_handler
     async def menu_dashboard(callback: types.CallbackQuery, state: FSMContext):
         """Muestra el dashboard con indicadores generales."""
         await callback.answer()

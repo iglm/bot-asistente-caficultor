@@ -10,6 +10,7 @@ from aiogram.fsm.state import State, StatesGroup
 from database import Database
 from config import ADMIN_IDS
 from utils import boton_menu, botones_menu_cancelar
+from .error_handler import error_handler
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ def get_fincas_router(db: Database) -> Router:
 
     @router.message(Command("fincas"))
     @router.callback_query(F.data == "menu_fincas")
+    @error_handler
     async def cmd_fincas(event: types.Message | types.CallbackQuery, state: FSMContext):
         """Muestra el menú de fincas."""
         await state.clear()
@@ -69,6 +71,7 @@ def get_fincas_router(db: Database) -> Router:
             await send("❌ <b>Error al obtener las fincas.</b>", parse_mode="HTML", reply_markup=boton_menu())
 
     @router.callback_query(F.data == "nueva_finca")
+    @error_handler
     async def nueva_finca(callback: types.CallbackQuery, state: FSMContext):
         """Inicia el proceso de crear una nueva finca."""
         await callback.answer()
@@ -82,6 +85,7 @@ def get_fincas_router(db: Database) -> Router:
         await state.set_state(FincaForm.esperando_nombre)
 
     @router.message(FincaForm.esperando_nombre, F.text)
+    @error_handler
     async def recibir_nombre(message: types.Message, state: FSMContext):
         """Recibe el nombre de la finca."""
         nombre = message.text.strip()
@@ -118,6 +122,7 @@ def get_fincas_router(db: Database) -> Router:
         await state.set_state(FincaForm.esperando_region)
 
     @router.message(FincaForm.esperando_region, F.text)
+    @error_handler
     async def recibir_region(message: types.Message, state: FSMContext):
         """Recibe la región de la finca."""
         region = message.text.strip()
@@ -135,6 +140,7 @@ def get_fincas_router(db: Database) -> Router:
         await state.set_state(FincaForm.esperando_departamento)
 
     @router.message(FincaForm.esperando_departamento, F.text)
+    @error_handler
     async def recibir_departamento(message: types.Message, state: FSMContext):
         """Recibe el departamento y guarda la finca."""
         departamento = message.text.strip()
@@ -177,6 +183,7 @@ def get_fincas_router(db: Database) -> Router:
     @router.message(FincaForm.esperando_nombre)
     @router.message(FincaForm.esperando_region)
     @router.message(FincaForm.esperando_departamento)
+    @error_handler
     async def entrada_invalida(message: types.Message):
         """Maneja entradas no textuales durante el formulario."""
         await message.answer(

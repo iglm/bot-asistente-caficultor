@@ -9,6 +9,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 from database import Database
 from utils import boton_menu, botones_menu_cancelar, agregar_boton_menu, botones_fecha, fecha_hoy, fecha_ayer
+from .error_handler import error_handler
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ def get_lotes_router(db: Database) -> Router:
 
     @router.message(Command("lotes"))
     @router.callback_query(F.data == "menu_lotes")
+    @error_handler
     async def cmd_lotes(event: types.Message | types.CallbackQuery, state: FSMContext):
         """Muestra el menú de lotes."""
         await state.clear()
@@ -127,6 +129,7 @@ def get_lotes_router(db: Database) -> Router:
             await send("❌ <b>Error al obtener lotes.</b>", parse_mode="HTML", reply_markup=boton_menu())
 
     @router.callback_query(F.data.startswith("lotes_finca:"))
+    @error_handler
     async def seleccionar_finca_lotes(callback: types.CallbackQuery):
         """Muestra los lotes de una finca seleccionada."""
         await callback.answer()
@@ -143,6 +146,7 @@ def get_lotes_router(db: Database) -> Router:
         await mostrar_lotes(db, callback.message, finca_id, finca["nombre"], edit=True)
 
     @router.callback_query(F.data.startswith("nuevo_lote:"))
+    @error_handler
     async def nuevo_lote(callback: types.CallbackQuery, state: FSMContext):
         """Inicia el proceso de crear un nuevo lote."""
         await callback.answer()
@@ -173,6 +177,7 @@ def get_lotes_router(db: Database) -> Router:
         await state.set_state(LoteForm.esperando_nombre)
 
     @router.message(LoteForm.esperando_nombre, F.text)
+    @error_handler
     async def recibir_nombre_lote(message: types.Message, state: FSMContext):
         nombre = message.text.strip()
         if not nombre:
@@ -191,6 +196,7 @@ def get_lotes_router(db: Database) -> Router:
         await state.set_state(LoteForm.esperando_area)
 
     @router.message(LoteForm.esperando_area, F.text)
+    @error_handler
     async def recibir_area_lote(message: types.Message, state: FSMContext):
         try:
             area = float(message.text.strip().replace(",", "."))
@@ -211,6 +217,7 @@ def get_lotes_router(db: Database) -> Router:
         await state.set_state(LoteForm.esperando_arboles)
 
     @router.message(LoteForm.esperando_arboles, F.text)
+    @error_handler
     async def recibir_arboles_lote(message: types.Message, state: FSMContext):
         try:
             arboles = int(message.text.strip())
@@ -231,6 +238,7 @@ def get_lotes_router(db: Database) -> Router:
         await state.set_state(LoteForm.esperando_variedad)
 
     @router.message(LoteForm.esperando_variedad, F.text)
+    @error_handler
     async def recibir_variedad_lote(message: types.Message, state: FSMContext):
         variedad = message.text.strip()
         if variedad == "/":
@@ -247,6 +255,7 @@ def get_lotes_router(db: Database) -> Router:
         await state.set_state(LoteForm.esperando_fecha_siembra)
 
     @router.message(LoteForm.esperando_fecha_siembra, F.text)
+    @error_handler
     async def recibir_fecha_lote(message: types.Message, state: FSMContext):
         fecha = message.text.strip()
 
@@ -314,6 +323,7 @@ def get_lotes_router(db: Database) -> Router:
         await state.clear()
 
     @router.callback_query(LoteForm.esperando_fecha_siembra, F.data.startswith("fecha:"))
+    @error_handler
     async def procesar_fecha_callback_lote(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         opcion = callback.data.split(":", 1)[1]
